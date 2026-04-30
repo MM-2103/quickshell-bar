@@ -1,0 +1,25 @@
+# ─── Editor leftovers ───────────────────────────────────────────────
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+.idea/
+.vscode/
+
+# ─── OS junk ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Local-only overrides ───────────────────────────────────────────
+# Use these filenames for personal tweaks you DON'T want to publish.
+LOCAL.md
+local.qml
+local/
+
+# ─── Runtime artifacts ──────────────────────────────────────────────
+# These normally live in $XDG_STATE_HOME/quickshell/by-shell/<id>/, NOT
+# in the repo. Listed defensively in case anyone copies them in by hand
+# while debugging.
+*.qslog
+launcher-frecency.json

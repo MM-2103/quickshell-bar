@@ -1,0 +1,64 @@
+THIRD-PARTY NOTICES
+===================
+
+This project includes the following third-party content. Each item retains
+its original license; their terms are reproduced below where required.
+
+
+──────────────────────────────────────────────────────────────────────────
+1. launcher/emoji.json
+──────────────────────────────────────────────────────────────────────────
+
+Source:    https://github.com/github/gemoji
+File:      db/emoji.json (verbatim copy)
+License:   MIT
+Copyright: (c) GitHub, Inc.
+
+Used to power the emoji picker in the application launcher (`;`-prefix
+mode and the Mod+Semicolon shortcut). Bundled rather than fetched at
+runtime so the picker works offline. ~413 KB, ~1870 entries.
+
+Full license text follows:
+
+    The MIT License (MIT)
+
+    Copyright (c) GitHub, Inc.
+
+    Permission is hereby granted, free of charge, to any person obtaining
+    a copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Original LICENSE: https://github.com/github/gemoji/blob/master/LICENSE
+
+
+──────────────────────────────────────────────────────────────────────────
+2. docs/QUICKSHELL_REFERENCE.md
+──────────────────────────────────────────────────────────────────────────
+
+This document is largely derived from the official Quickshell documentation
+at <https://quickshell.org/docs/v0.2.1/>. It has been reorganized for AI
+agent consumption and extensively annotated with original observations
+("Gotchas & quirks" section, entries #1 through #53+, represent original
+work accumulated while building this project).
+
+The author has NOT verified Quickshell's documentation license. Anyone
+intending to substantially redistribute this file should check the upstream
+license at <https://quickshell.org/> first.
+
+Quickshell project: https://quickshell.org/
+Quickshell source:  https://git.outfoxxed.me/outfoxxed/quickshell
