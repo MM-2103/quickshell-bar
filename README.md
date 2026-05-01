@@ -319,8 +319,12 @@ Rehearse this once before you ever need it for real.
 │   ├── hypridle.conf
 │   └── swayidle.service
 │
+├── docs/AGENTS.md            — orientation for contributors and AI agents
+├── docs/STYLE.md             — visual + structural conventions
 ├── docs/QUICKSHELL_REFERENCE.md  — annotated Quickshell reference + 60+ gotchas
+├── docs/screenshots/         — gallery referenced in this README
 ├── NOTICE                    — third-party attribution
+├── LICENSE                   — MIT
 └── README.md                 — this file
 ```
 
@@ -340,7 +344,13 @@ Rehearse this once before you ever need it for real.
 
 ## Documentation
 
-Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) — a comprehensive Quickshell guide annotated with **60+ gotchas** accumulated from real bugs while building this shell. Useful for anyone writing their own Quickshell config. Style + repo conventions for this project are in [`docs/STYLE.md`](docs/STYLE.md).
+| Doc | Purpose |
+|---|---|
+| [`README.md`](README.md) (this file) | Install, dependencies, customization, project overview |
+| [`docs/AGENTS.md`](docs/AGENTS.md) | Orientation for contributors and AI agents — start here for "where things live", architecture, common tasks, AI-specific traps |
+| [`docs/STYLE.md`](docs/STYLE.md) | Visual + structural conventions: theme tokens, popup recipe, naming, glyph index, smoke-test pattern |
+| [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) | Annotated Quickshell API reference + **60+ gotchas** accumulated from real bugs while building this shell |
+| [`examples/`](examples/) | Copy-pasteable compositor + idle-daemon configs (niri, Hyprland, Sway) |
 
 ---
 
