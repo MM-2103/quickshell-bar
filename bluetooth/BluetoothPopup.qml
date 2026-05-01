@@ -27,18 +27,25 @@ PopupWindow {
 
     required property Item anchorItem
 
-    visible: false
     color: "transparent"
 
+    property bool wantOpen: false
+    visible: wantOpen || hideHold.running
+    Timer { id: hideHold; interval: 180; repeat: false }
+    onWantOpenChanged: {
+        if (wantOpen) hideHold.stop();
+        else          hideHold.restart();
+    }
+
     function toggle() {
-        if (popup.visible) {
-            popup.visible = false;
+        if (popup.wantOpen) {
+            popup.wantOpen = false;
         } else {
-            PopupController.open(popup, () => popup.visible = false);
-            popup.visible = true;
+            PopupController.open(popup, () => popup.wantOpen = false);
+            popup.wantOpen = true;
         }
     }
-    function close() { popup.visible = false; }
+    function close() { popup.wantOpen = false; }
     onVisibleChanged: if (!visible) PopupController.closed(popup)
 
     anchor.item: anchorItem
@@ -86,7 +93,7 @@ PopupWindow {
     // Simpler approach: a small Timer that re-runs the grouping while the popup
     // is open (cheap; few devices).
     Timer {
-        running: popup.visible
+        running: popup.wantOpen
         interval: 1000
         repeat: true
         onTriggered: popup._groupedRefresh = !popup._groupedRefresh
@@ -322,6 +329,17 @@ PopupWindow {
         border.color: Theme.border
         border.width: 1
         radius: Theme.radius
+
+        opacity: popup.wantOpen ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        transform: Translate {
+            y: popup.wantOpen ? 0 : 4
+            Behavior on y {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+        }
 
         Column {
             id: contentColumn
