@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #53+) represents original
+> "Gotchas & quirks" section (entries #1 through #55+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2329,6 +2329,68 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
 52. **`WlSessionLock` automatically updates systemd-logind's `LockedHint` property when `locked` toggles.** No manual `loginctl lock-session` call needed; system tools that respect lock state (notification daemons that suppress display when locked, dbus-monitor watchers, MPRIS hints, etc.) will see the change. Verify with `loginctl show-session $XDG_SESSION_ID -p LockedHint`. The reverse is NOT true: a manual `loginctl lock-session` invocation from elsewhere will NOT trigger your `WlSessionLock` — they're sibling APIs both feeding into the same logind state. To honor external `lock-session` requests, subscribe to logind's `Lock` D-Bus signal separately.
 
 53. **`waypaper` writes the active wallpaper as a single line in `~/.config/waypaper/config.ini`** under the `[Settings]` section: `wallpaper = /absolute/path/to/image.ext` (`~`-relative paths are NOT expanded by waypaper itself but appear as-typed if you set them via the GUI). Useful for any shell component that needs to know the desktop wallpaper (lock screen blur background, color sampler, MPRIS art fallback, etc.). Re-read on demand via `FileView` with `watchChanges: true`. If waypaper isn't installed, fall back to parsing `pgrep -af 'swaybg|swww|hyprpaper'` arguments — fragile but works.
+
+54. **Browser MPRIS adapters intermittently omit `mpris:artUrl` from metadata bursts; centralize the cached art URL at the singleton level.** Chromium-based browsers (Firefox, Zen, Brave, etc.) playing YouTube Music and similar web-audio sources publish track metadata that lacks `mpris:artUrl` for the first few seconds of a track — and occasionally for entire tracks. The `xesam:title/artist/album` keys arrive normally, but `mpris:artUrl` is absent. Quickshell's `MprisPlayer.trackArtUrl` faithfully reflects the empty value.
+
+    Diagnose by dumping the metadata dict from a `MprisPlayer`:
+
+    ```qml
+    const md = player.metadata || {};
+    for (const k of Object.keys(md))
+        console.log(k, "=", JSON.stringify(md[k]));
+    // → mpris:length, mpris:trackid, xesam:album, xesam:artist, xesam:title, xesam:url
+    //   (note: NO mpris:artUrl — the upstream data is genuinely missing)
+    ```
+
+    If each consumer (bar popup, lock surface, etc.) holds its own `cachedArtUrl` that resets on construction, then **lazily-built consumers like `WlSessionLock` surfaces** — which are recreated every lock cycle — start with an empty cache and never see the URL that the long-lived bar popup observed earlier. Result: art shows in the bar but not on the lock screen, even though both wrap the same MPRIS player.
+
+    **Fix**: hold the cache in your MPRIS service singleton, not in each consumer:
+
+    ```qml
+    // MediaService.qml  (pragma Singleton)
+    property string cachedArtUrl: ""
+
+    function _refreshArt() {
+        if (currentPlayer && currentPlayer.trackArtUrl)
+            cachedArtUrl = currentPlayer.trackArtUrl;
+        // Otherwise hold whatever we last cached.
+    }
+
+    onCurrentPlayerChanged: { cachedArtUrl = ""; _refreshArt(); }
+    Component.onCompleted: _refreshArt()
+
+    Connections {
+        target: root.currentPlayer
+        enabled: root.currentPlayer !== null
+        function onTrackChanged()       { root.cachedArtUrl = ""; root._refreshArt(); }
+        function onTrackArtUrlChanged() { root._refreshArt(); }
+    }
+    ```
+
+    Each consumer reads `MediaService.cachedArtUrl` as a `readonly property string` — the lock surface inherits whatever URL the bar popup cached at any earlier point in the shell's lifetime. The cache resets only on a real track change or player change, never just because a consumer was rebuilt.
+
+55. **Unicode media-control glyphs render as Noto Color Emoji on Linux even with the U+FE0E (VS15) text-presentation selector.** Glyphs like `⏮ ▶ ⏸ ⏭` are emoji-class codepoints; Qt's font fallback resolves them to the first font with the codepoint, which on a typical Linux setup is `Noto Color Emoji`. Appending `\uFE0E` (variation selector — text presentation) is supposed to force monochrome rendering, but Qt does NOT honor it reliably when the only font carrying the glyph is a colour-emoji font:
+
+    ```qml
+    Text { text: "⏮\uFE0E" }    // still rendered as Noto Color Emoji's orange pictogram
+    ```
+
+    Workarounds (in order of preference):
+
+    1. **Use a dedicated icon font** — Font Awesome, Material Symbols, or any Nerd Font has the glyphs in private-use codepoints with no emoji-presentation conflict:
+
+       ```qml
+       Text {
+           font.family: "Font Awesome 7 Free"
+           font.styleName: "Solid"
+           text: "\uf04b"   // play; \uf04c pause, \uf048 prev, \uf051 next
+           renderType: Text.NativeRendering
+       }
+       ```
+
+    2. **Draw the icons as `QtQuick.Shapes`** — fully font-independent but more code. Reasonable if you don't ship an icon font.
+
+    3. **Force a specific text-style font that has the glyph** — DejaVu Sans / Symbola / Noto Sans Symbols2 sometimes work, but availability varies wildly across distros.
 
 ### Style & best practices
 
