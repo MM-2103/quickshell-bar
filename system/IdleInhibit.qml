@@ -59,4 +59,12 @@ MouseArea {
         glyph: root.active ? "\uf7b6" : "\uf0f4"
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse
+        text: root.active
+            ? "Keep system awake: ON"
+            : "Keep system awake: OFF"
+    }
 }

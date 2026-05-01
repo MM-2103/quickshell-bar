@@ -39,4 +39,10 @@ MouseArea {
         id: popup
         anchorItem: root
     }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: "Power"
+    }
 }

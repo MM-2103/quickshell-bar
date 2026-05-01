@@ -70,6 +70,17 @@ Row {
                 Behavior on color   { ColorAnimation  { duration: Theme.animMed } }
                 Behavior on opacity { NumberAnimation { duration: Theme.animMed } }
             }
+
+            // Tooltip — workspace name if niri set one, else "Workspace N".
+            BarTooltip {
+                anchorItem: chip
+                show: chip.containsMouse
+                text: {
+                    const n = chip.modelData.name;
+                    if (n && n.length > 0) return n;
+                    return "Workspace " + chip.modelData.idx;
+                }
+            }
         }
     }
 }

@@ -76,4 +76,17 @@ MouseArea {
         id: popup
         anchorItem: root
     }
+
+    function _profileName() {
+        const p = PowerProfiles.profile;
+        if (p === PowerProfile.Performance) return "Performance";
+        if (p === PowerProfile.Balanced)    return "Balanced";
+        return "Power Saver";
+    }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: "Profile · " + root._profileName()
+    }
 }

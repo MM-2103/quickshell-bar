@@ -85,4 +85,24 @@ MouseArea {
         id: popup
         anchorItem: root
     }
+
+    // Count of connected devices for the tooltip.
+    readonly property int _connectedCount: {
+        const list = Bluetooth.devices.values;
+        let n = 0;
+        for (let i = 0; i < list.length; i++) if (list[i].connected) n++;
+        return n;
+    }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: !root.btEnabled
+            ? "Bluetooth off"
+            : root._connectedCount === 0
+                ? "Bluetooth on"
+                : root._connectedCount === 1
+                    ? "1 device connected"
+                    : root._connectedCount + " devices connected"
+    }
 }
