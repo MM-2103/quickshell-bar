@@ -4,7 +4,6 @@
 
 import QtQuick
 import Quickshell
-import Quickshell.Widgets
 import qs
 
 MouseArea {
@@ -30,31 +29,10 @@ MouseArea {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
-    // Standard power glyph (`system-shutdown-symbolic` from breeze-dark
-    // renders as a clean broken-circle + line in white). Letter fallback
-    // if the theme is missing it for some reason.
-    Item {
+    // Power glyph — Font Awesome 7 Solid \uf011 power-off.
+    BarIcon {
         anchors.centerIn: parent
-        width: 14
-        height: 14
-
-        IconImage {
-            id: pwrIcon
-            anchors.fill: parent
-            implicitSize: 14
-            source: Quickshell.iconPath("system-shutdown-symbolic", true)
-            asynchronous: false
-            visible: status === Image.Ready
-        }
-
-        Text {
-            anchors.centerIn: parent
-            visible: !pwrIcon.visible
-            text: "⏻"
-            color: Theme.text
-            font.pixelSize: 13
-            font.bold: true
-        }
+        glyph: "\uf011"
     }
 
     PowerMenuPopup {
