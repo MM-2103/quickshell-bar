@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #61+) represents original
+> "Gotchas & quirks" section (entries #1 through #62+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2601,6 +2601,28 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     ```
 
     The `.values` access is also reactive — bindings that read it update when the model changes. The same convention applies to `Pipewire.nodes`, `Bluetooth.devices`, `SystemTray.items`, `NotificationService.trackedNotifications`, and any other Quickshell `ObjectModel<T>` collection.
+
+62. **Hot-reload picks up file content but NOT the qmldir registration.** When you add a new singleton (a file with `pragma Singleton`) — or fix the pragma's placement per gotcha #45 by moving it to line 1 — the running daemon's qmldir cache stays stale. The import line resolves but the singleton's properties come back `undefined` to consumers, because the file has been re-registered as a regular type instead of a singleton.
+
+    **Symptom**:
+
+    ```text
+    Unable to assign [undefined] to QString
+    TypeError: Cannot call method 'filter' of undefined
+    ```
+
+    …despite the singleton's QML being syntactically correct. A fresh `qs` invocation (smoke test) loads the singleton fine, proving the code's right — only the running daemon has the stale cache.
+
+    **Fix**: restart the daemon.
+
+    ```bash
+    qs kill --shell <id>                  # graceful
+    qs -p /path/to/config -d &            # restart
+    ```
+
+    Or `pkill qs` if you don't have the shell id handy.
+
+    **Don't try `kill -HUP`** — SIGHUP terminates the daemon entirely, it doesn't trigger reload. There is no signal-driven reload mechanism.
 
 ### Style & best practices
 
