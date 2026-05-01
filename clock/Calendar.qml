@@ -124,9 +124,13 @@ PopupWindow {
             Text {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: "‹"
+                // Font Awesome 7 Solid: \uf053 chevron-left
+                text: "\uf053"
                 color: prevMa.containsMouse ? Theme.text : Theme.textDim
-                font.pixelSize: 18
+                font.family: Theme.fontIcon
+                font.styleName: "Solid"
+                font.pixelSize: 12
+                renderType: Text.NativeRendering
                 width: 24
                 horizontalAlignment: Text.AlignHCenter
                 Behavior on color { ColorAnimation { duration: Theme.animFast } }
@@ -142,9 +146,13 @@ PopupWindow {
             Text {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text: "›"
+                // Font Awesome 7 Solid: \uf054 chevron-right
+                text: "\uf054"
                 color: nextMa.containsMouse ? Theme.text : Theme.textDim
-                font.pixelSize: 18
+                font.family: Theme.fontIcon
+                font.styleName: "Solid"
+                font.pixelSize: 12
+                renderType: Text.NativeRendering
                 width: 24
                 horizontalAlignment: Text.AlignHCenter
                 Behavior on color { ColorAnimation { duration: Theme.animFast } }
@@ -164,8 +172,9 @@ PopupWindow {
                     ? Qt.formatDate(new Date(cal.displayYear, cal.displayMonth, 1), "MMMM yyyy")
                     : cal.displayYear.toString()
                 color: titleMa.containsMouse ? Theme.accent : Theme.text
-                font.pixelSize: 13
-                font.bold: true
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
+                font.weight: Font.Bold
                 Behavior on color { ColorAnimation { duration: Theme.animFast } }
                 MouseArea {
                     id: titleMa
@@ -174,6 +183,22 @@ PopupWindow {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: cal.monthView = !cal.monthView
                 }
+            }
+
+            // Pinned-state indicator: tiny accent dot in the top-right of
+            // the header. Only present when the user has clicked to pin
+            // the popup open, so they can tell apart "open because hover"
+            // from "open because pinned" at a glance.
+            Rectangle {
+                visible: cal.pinned
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.rightMargin: -2
+                anchors.topMargin: -2
+                width: 5
+                height: 5
+                radius: 2.5
+                color: Theme.accent
             }
         }
 
@@ -205,8 +230,9 @@ PopupWindow {
                             anchors.centerIn: parent
                             text: modelData
                             color: index >= 5 ? Theme.textMuted : Theme.textDim
-                            font.pixelSize: 10
-                            font.bold: true
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Bold
                         }
                     }
                 }
@@ -249,8 +275,9 @@ PopupWindow {
                             color: dayCell.isToday
                                 ? Theme.accentText
                                 : (dayCell.isWeekend ? Theme.textMuted : Theme.text)
-                            font.pixelSize: 11
-                            font.bold: dayCell.isToday
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: dayCell.isToday ? Font.Bold : Font.Normal
                         }
                     }
                 }
@@ -294,8 +321,9 @@ PopupWindow {
                         anchors.centerIn: parent
                         text: Qt.formatDate(new Date(2000, monthCell.index, 1), "MMM")
                         color: monthCell.isCurrent ? Theme.accentText : Theme.text
-                        font.pixelSize: 11
-                        font.bold: monthCell.isCurrent
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: monthCell.isCurrent ? Font.Bold : Font.Normal
                     }
 
                     MouseArea {

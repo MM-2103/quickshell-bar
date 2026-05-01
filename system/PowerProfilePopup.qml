@@ -90,15 +90,17 @@ PopupWindow {
                 Text {
                     text: pr.entry.label
                     color: Theme.text
-                    font.pixelSize: 12
-                    font.bold: pr.isCurrent
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: pr.isCurrent ? Font.Bold : Font.Normal
                     elide: Text.ElideRight
                     width: parent.width
                 }
                 Text {
                     text: pr.entry.note
                     color: Theme.textMuted
-                    font.pixelSize: 10
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -137,8 +139,9 @@ PopupWindow {
             Text {
                 text: "POWER PROFILE"
                 color: Theme.textDim
-                font.pixelSize: 10
-                font.bold: true
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.Bold
             }
 
             Repeater {
@@ -161,7 +164,8 @@ PopupWindow {
                     return "Performance throttled";
                 }
                 color: Theme.textMuted
-                font.pixelSize: 10
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 topPadding: 4
             }
         }
