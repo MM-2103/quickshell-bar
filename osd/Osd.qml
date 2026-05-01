@@ -141,22 +141,12 @@ PanelWindow {
                 }
             }
 
-            // Track + filled portion.
-            Rectangle {
+            // Track + filled portion (shared ProgressBar component).
+            ProgressBar {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 160; height: 4
-                radius: 2
-                color: Theme.surfaceHi
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                        * Math.max(0, Math.min(1, OsdService.volumeRatio))
-                    radius: parent.radius
-                    color: OsdService.muted ? Theme.textMuted : Theme.text
-                }
+                width: 160
+                value: OsdService.volumeRatio
+                dimmed: OsdService.muted
             }
 
             Text {
@@ -236,21 +226,10 @@ PanelWindow {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            Rectangle {
+            ProgressBar {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 160; height: 4
-                radius: 2
-                color: Theme.surfaceHi
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                        * Math.max(0, Math.min(1, OsdService.brightnessRatio))
-                    radius: parent.radius
-                    color: Theme.text
-                }
+                width: 160
+                value: OsdService.brightnessRatio
             }
 
             Text {
