@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #55+) represents original
+> "Gotchas & quirks" section (entries #1 through #58+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2391,6 +2391,82 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     2. **Draw the icons as `QtQuick.Shapes`** — fully font-independent but more code. Reasonable if you don't ship an icon font.
 
     3. **Force a specific text-style font that has the glyph** — DejaVu Sans / Symbola / Noto Sans Symbols2 sometimes work, but availability varies wildly across distros.
+
+56. **`PopupWindow` (and `PanelWindow` for that matter) has no built-in fade-out animation; bridge with a `hideHold` Timer.** A real Wayland surface unmaps the moment its `visible` property flips false, which cuts off any opacity / transform tween mid-animation. The fix is to keep the surface mapped for the duration of the fade by ANDing visibility with a short timer that fires when `wantOpen` drops:
+
+    ```qml
+    PopupWindow {
+        property bool wantOpen: false
+        visible: wantOpen || hideHold.running
+        Timer { id: hideHold; interval: 180; repeat: false }
+        onWantOpenChanged: {
+            if (wantOpen) hideHold.stop();
+            else          hideHold.restart();
+        }
+
+        Rectangle {
+            id: container
+            anchors.fill: parent
+            opacity: popup.wantOpen ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+            transform: Translate {
+                y: popup.wantOpen ? 0 : 4
+                Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+            }
+        }
+    }
+    ```
+
+    Pick the timer interval just longer than the longest tween (here 180 ms > 150 ms). Setting `visible: false` directly without this scaffolding causes a hard cut. Imperative consumers should set `wantOpen = false` instead of `visible = false` and let the timer drive the unmap.
+
+57. **Hover-driven popups need a "linger" timer to bridge the anchor → popup gap.** When a popup opens on hover (calendar, tooltips, drop-down menus) and is positioned a few pixels below its anchor item, the cursor briefly crosses empty space when moving from one to the other. Both the anchor's `containsMouse` and the popup's hover detector go false during the traversal, dismissing the popup mid-move. Solution: gate `wantOpen` on a 200-300 ms timer that restarts on every hover transition:
+
+    ```qml
+    property bool hoveringTrigger: false   // bound from the anchor MouseArea
+    property bool hoveringPopup:   false   // bound from the popup body MouseArea
+
+    readonly property bool _activeHover: hoveringTrigger || hoveringPopup
+    readonly property bool wantOpen: pinned || _activeHover || linger.running
+    Timer { id: linger; interval: 250; repeat: false }
+    on_ActiveHoverChanged: {
+        if (_activeHover) linger.stop();
+        else              linger.restart();
+    }
+    ```
+
+    The popup stays open for `linger.interval` ms after hover leaves either zone; if hover re-enters either zone in that window, the timer is cancelled and the popup remains visible. 200-300 ms is enough for a deliberate cursor traversal but short enough that an actual "leave" feels responsive.
+
+58. **`PopupWindow` surface alpha + rounded corners → "torn corner" appearance on dark wallpapers.** With `color: "transparent"` set and a rounded inner Rectangle (`anchors.fill: parent; radius: 6`), the four small triangles outside the rounded fill but inside the rectangular surface bounds show whatever's behind the surface. On busy or dark wallpapers this looks like the popup has been crudely cut out. Two practical mitigations:
+
+    - **Drop shadow that extends past the rounded shape.** Wrap the inner Rectangle with `layer.enabled: true` + a `MultiEffect` shadow. The shadow's soft Gaussian blur fades into the wallpaper, hiding the boundary between the rounded popup and whatever's behind. Requires giving the surface ~12 px transparent padding on each side so the shadow has room to render:
+
+      ```qml
+      PopupWindow {
+          implicitWidth: 320 + 24    // surface is +24 wider than the visible body
+          implicitHeight: container.implicitHeight + 24
+          anchor.rect.y: anchorItem.height + 6 - 12   // compensate so visible body sits at +6
+
+          Rectangle {
+              id: container
+              anchors.fill: parent
+              anchors.margins: 12    // shadow padding
+              radius: Theme.radius
+              color: Theme.bg
+
+              layer.enabled: true
+              layer.effect: MultiEffect {
+                  shadowEnabled: true
+                  shadowColor: Qt.rgba(0, 0, 0, 0.5)
+                  shadowVerticalOffset: 4
+                  shadowBlur: 0.6
+              }
+          }
+      }
+      ```
+
+    - **Mask the surface to the rounded shape.** A `MultiEffect` with `maskEnabled` and a separate rounded mask source. More robust but ~30 lines per popup; do this only if the shadow approach isn't enough.
+
+    Note this affects `PopupWindow`, not `PanelWindow` — layer-shell PanelWindows behave the same on most wlroots-based compositors, but the gotcha was first observed on PopupWindow + niri.
 
 ### Style & best practices
 
