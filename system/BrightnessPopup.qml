@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import qs
+import qs.osd
 
 PopupWindow {
     id: popup
