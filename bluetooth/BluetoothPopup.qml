@@ -172,8 +172,9 @@ PopupWindow {
                         anchors.centerIn: parent
                         text: row.label.charAt(0).toUpperCase() || "?"
                         color: Theme.text
-                        font.pixelSize: 10
-                        font.bold: true
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Bold
                     }
                 }
             }
@@ -186,9 +187,10 @@ PopupWindow {
 
                 Text {
                     text: row.label
-                    color: row.isConnected ? Theme.text : Theme.text
-                    font.pixelSize: 12
-                    font.bold: row.isConnected
+                    color: row.isConnected ? Theme.text : Theme.textDim
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: row.isConnected ? Font.Bold : Font.Normal
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -196,7 +198,8 @@ PopupWindow {
                 Text {
                     text: row._statusText()
                     color: row.isConnected ? Theme.textDim : Theme.textMuted
-                    font.pixelSize: 10
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -244,8 +247,8 @@ PopupWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: Math.round(row.battery * 100)
                     color: Theme.textDim
-                    font.pixelSize: 9
-                    font.family: "monospace"
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeBadge
                 }
             }
 
@@ -264,10 +267,13 @@ PopupWindow {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "×"
+                    // Font Awesome 7 Solid: \uf00d xmark
+                    text: "\uf00d"
                     color: forgetMa.containsMouse ? Theme.text : Theme.textDim
-                    font.pixelSize: 14
-                    font.bold: true
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 11
+                    renderType: Text.NativeRendering
                 }
 
                 MouseArea {
@@ -309,8 +315,9 @@ PopupWindow {
         property int count
         text: count > 0 ? (label + "  ·  " + count) : label
         color: Theme.textDim
-        font.pixelSize: 10
-        font.bold: true
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSizeSmall
+        font.weight: Font.Bold
     }
 
     // ================================================================
@@ -342,8 +349,9 @@ PopupWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Bluetooth"
                     color: Theme.text
-                    font.pixelSize: 13
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: Font.Bold
                 }
 
                 Text {
@@ -352,7 +360,8 @@ PopupWindow {
                         ? (popup.adapterEnabled ? popup.adapter.name : "off")
                         : "no adapter"
                     color: Theme.textDim
-                    font.pixelSize: 11
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     width: parent.width
                         - 75 // power btn + scan btn approx
@@ -374,10 +383,15 @@ PopupWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: popup.scanning ? "⟳" : "↻"
+                        // Font Awesome 7 Solid: \uf021 arrows-rotate.
+                        // Same glyph used in both states; rotation animation
+                        // signals that we're actively scanning.
+                        text: "\uf021"
                         color: popup.scanning ? Theme.accent : Theme.text
-                        font.pixelSize: 13
-                        font.bold: true
+                        font.family: Theme.fontIcon
+                        font.styleName: "Solid"
+                        font.pixelSize: 12
+                        renderType: Text.NativeRendering
                         RotationAnimation on rotation {
                             running: popup.scanning
                             from: 0; to: 360
@@ -441,7 +455,8 @@ PopupWindow {
                     ? "Bluetooth is off. Toggle the switch to enable."
                     : "No bluetooth adapter found."
                 color: Theme.textDim
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 wrapMode: Text.Wrap
                 topPadding: 16
                 bottomPadding: 16
@@ -517,7 +532,8 @@ PopupWindow {
                 horizontalAlignment: Text.AlignHCenter
                 text: popup.scanning ? "Scanning…" : "No devices. Click the scan button to find some."
                 color: Theme.textDim
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 topPadding: 8
                 bottomPadding: 8
             }
