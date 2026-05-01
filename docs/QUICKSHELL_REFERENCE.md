@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #59+) represents original
+> "Gotchas & quirks" section (entries #1 through #61+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -1858,17 +1858,17 @@ ListView {
 }
 ```
 
-### Compositor integration without a built-in module (e.g. Niri)
+### Compositor integration without a built-in module (e.g. Niri, river, Wayfire)
 
-For compositors that ship a JSON event stream (Niri, River with `riverctl`-style integrations, etc.), build a service Scope around a long-running `Process` + `SplitParser`. Pattern adapted from a working Niri integration:
+For compositors that ship a JSON event stream but don't have a dedicated `Quickshell.<compositor>` module, build a service object around a long-running `Process` + `SplitParser`. Pattern from a working niri backend:
 
 ```qml
-// Niri.qml — non-singleton Scope so it can hold child Process objects
+// BackendNiri.qml — QtObject with a child Process so it can hold IPC state
 import QtQuick
 import Quickshell
 import Quickshell.Io
 
-Scope {
+QtObject {
     id: root
 
     property var workspaces: []
@@ -1891,7 +1891,7 @@ Scope {
         }
     }
 
-    Process {
+    property Process _events: Process {
         command: ["niri", "msg", "--json", "event-stream"]
         running: true
         stdout: SplitParser {
@@ -1899,7 +1899,7 @@ Scope {
             onRead: line => {
                 if (!line) return;
                 try { root._handleEvent(JSON.parse(line)); }
-                catch (e) { console.warn("[Niri] parse:", e, line); }
+                catch (e) { console.warn("[BackendNiri] parse:", e, line); }
             }
         }
         // Auto-restart on compositor restart
@@ -1908,7 +1908,7 @@ Scope {
 }
 ```
 
-Use as `Niri { id: niriService }` from `shell.qml`; share via `property var niri: niriService` to children. Same pattern works for any compositor that emits line-delimited JSON events.
+For a multi-compositor shell that needs to support niri AND `Quickshell.Hyprland`-style targets (Hyprland, Sway / i3 via `Quickshell.I3`), wrap this kind of backend behind a singleton facade with a `Loader { sourceComponent }` selecting the matching backend at startup based on env vars (`$HYPRLAND_INSTANCE_SIGNATURE`, `$SWAYSOCK`, `$NIRI_SOCKET`, `$XDG_CURRENT_DESKTOP`). See **gotcha #59** for the full pattern.
 
 ### Custom icons drawn with QtQuick.Shapes
 
@@ -2140,12 +2140,12 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
 
     ```qml
     // shell.qml
-    Niri { id: niri }                       // singleton-like service
-    Bar { niri: niri }                      // ← right-hand `niri` resolves to Bar's
+    Service  { id: service }                // some service instance
+    Bar      { service: service }           // ← right-hand `service` resolves to Bar's
                                             //   own (uninitialized) property, not the id.
     ```
 
-    Symptom: `TypeError: Cannot read property 'foo' of undefined` from inside `Bar.qml`. Disambiguate by renaming either the id (`niriService`) or the property.
+    Symptom: `TypeError: Cannot read property 'foo' of undefined` from inside `Bar.qml`. Disambiguate by renaming either the id (`serviceInstance`) or the property. Avoiding this kind of pass-through entirely (use a singleton instead) sidesteps the whole class of bug.
 
 28. **Inline self-referential `Component` is rejected at parse time.** This fails:
 
@@ -2547,6 +2547,60 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     - **i3 / Sway has no keyboard-layout-changed IPC event.** The layout OSD silently never triggers on the sway/i3 backend (`currentLayout` stays `""`) — accept it or implement polling.
     - **Each compositor has its own quirks** about what constitutes a "window focused" event. Niri's `WindowFocusChanged` fires with `id: null` for layer-shell focus grabs (gotcha #46) — backends must filter this. Hyprland's `activeToplevel` going null is a real event. I3/Sway's `rawEvent` for `window/focus` is the cleanest.
     - **Hot-reload caveat**: changes to a singleton's `pragma Singleton` placement may not be picked up by a running daemon's already-generated `qmldir` cache. Restart the daemon (`qs kill --shell <id>` then `qs -p <path> -d`) when introducing or relocating a singleton.
+
+60. **`PwObjectTracker` is required for `PwNode.properties` to populate, AND its `objects` list can be a reactive expression that auto-rebuilds.** This combination is essential for any "per-app" Pipewire UI (volume mixer, app-specific routing, etc.).
+
+    Without tracking, `node.properties` is empty:
+
+    ```qml
+    // ✗ application.name comes back undefined
+    const stream = Pipewire.nodes.values.find(n => n.isStream);
+    console.log(stream.properties["application.name"]);   // undefined
+    ```
+
+    With explicit tracking:
+
+    ```qml
+    PwObjectTracker {
+        objects: {
+            // Reactive: re-evaluates whenever Pipewire.nodes.values changes,
+            // so newly-launched apps' streams appear in the popup live.
+            const out = [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource];
+            const all = Pipewire.nodes.values;
+            for (let i = 0; i < all.length; i++) {
+                const n = all[i];
+                if (n && n.audio && n.isStream) out.push(n);
+            }
+            return out;
+        }
+    }
+    ```
+
+    Now `stream.properties["application.name"]`, `application.icon-name`, `media.name`, `media.class`, etc. are all readable.
+
+    **Filter app-output streams by `media.class`, not `isSink`.** The semantics of `isSink` are subtle for streams — what you actually want is:
+
+    ```qml
+    function isAppOutputStream(n) {
+        if (!n || !n.audio || !n.isStream) return false;
+        return (n.properties && n.properties["media.class"]) === "Stream/Output/Audio";
+    }
+    ```
+
+    `Stream/Output/Audio` = an app producing audio that flows INTO a sink (Spotify, Firefox playing YouTube, Discord call audio). `Stream/Input/Audio` = a capture client reading FROM a source (OBS recording the mic, voice chat sending mic).
+
+61. **`Hyprland.workspaces` and `I3.workspaces` are `ObjectModel<T>`, not arrays.** Reading them in JS requires `.values` to materialise an array:
+
+    ```qml
+    // ✗ Iterates the model rows but the per-row API is awkward
+    for (let i = 0; i < Hyprland.workspaces.length; i++) { ... }
+
+    // ✓ Get a JS array out
+    const list = Hyprland.workspaces ? Hyprland.workspaces.values : [];
+    list.forEach(w => { console.log(w.id, w.name, w.focused); });
+    ```
+
+    The `.values` access is also reactive — bindings that read it update when the model changes. The same convention applies to `Pipewire.nodes`, `Bluetooth.devices`, `SystemTray.items`, `NotificationService.trackedNotifications`, and any other Quickshell `ObjectModel<T>` collection.
 
 ### Style & best practices
 
