@@ -59,6 +59,42 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 
 ---
 
+## Screenshots
+
+The bar — full width across one monitor:
+
+![Bar overview](docs/screenshots/01-bar.png)
+
+Right cluster zoomed (3× nearest-neighbor for clarity — actual rendering is sharper):
+
+![Right-cluster zoom](docs/screenshots/02-bar-right.png)
+
+Lock screen with the now-playing card:
+
+![Lock screen](docs/screenshots/03-lock.png)
+
+App launcher — apps mode (default), with frecency-sorted results and footer hint:
+
+![Launcher: apps](docs/screenshots/04-launcher-apps.png)
+
+Launcher in calculator mode (`=` prefix) — copies the result on Enter:
+
+![Launcher: calculator](docs/screenshots/05-launcher-calc.png)
+
+Launcher in web-search mode (`?` prefix) — opens DuckDuckGo on Enter:
+
+![Launcher: web search](docs/screenshots/06-launcher-web.png)
+
+Launcher in emoji mode (`;` prefix or Mod+;) — copies the glyph on Enter:
+
+![Launcher: emoji](docs/screenshots/07-launcher-emoji.png)
+
+Clipboard history (Mod+V) — text + image previews, hover-revealed delete:
+
+![Clipboard popup](docs/screenshots/08-clipboard.png)
+
+---
+
 ## Status
 
 Personal config shared as a reference. Primary development setup:
