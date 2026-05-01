@@ -6,7 +6,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Bluetooth
-import Quickshell.Widgets
 import qs
 
 MouseArea {
@@ -51,7 +50,8 @@ MouseArea {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
-    // Icon (theme glyph with letter fallback). State conveyed by color.
+    // Bluetooth glyph — Font Awesome 7 Brands \uf293 (the canonical
+    // angular Bluetooth sigil). Brands family is loaded only here.
     Item {
         anchors.centerIn: parent
         width: 16
@@ -59,22 +59,10 @@ MouseArea {
         opacity: root.btEnabled ? 1.0 : 0.45
         Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
 
-        IconImage {
-            id: btIcon
-            anchors.fill: parent
-            implicitSize: 16
-            source: Quickshell.iconPath("network-bluetooth-symbolic", true)
-            asynchronous: false
-            visible: status === Image.Ready
-        }
-
-        Text {
+        BarIcon {
             anchors.centerIn: parent
-            visible: btIcon.status !== Image.Ready
-            text: "B"
-            color: root.hasConnected ? Theme.accent : Theme.text
-            font.pixelSize: 13
-            font.bold: true
+            brand: true
+            glyph: "\uf293"
         }
 
         // Small accent dot when at least one device is connected.
