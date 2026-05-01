@@ -1,0 +1,14 @@
+# swayidle command for quickshell-bar's session lock.
+# This is a CLI invocation, not a config file — paste it into your Sway
+# autostart (e.g. `exec swayidle ...` in ~/.config/sway/config) or run
+# it from a systemd user unit. Replace /path/to/quickshell-bar with
+# your clone path.
+#
+# Equivalent to the hypridle example: 5 min → lock, 5.5 min → DPMS off,
+# resume on activity, and lock before suspend.
+
+swayidle -w \
+    timeout 300 'qs -p /path/to/quickshell-bar ipc call lock open' \
+    timeout 330 'swaymsg "output * dpms off"' \
+        resume  'swaymsg "output * dpms on"' \
+    before-sleep 'qs -p /path/to/quickshell-bar ipc call lock open'

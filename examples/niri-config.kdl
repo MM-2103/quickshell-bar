@@ -1,0 +1,15 @@
+// Niri keybinds for quickshell-bar.
+// Drop into ~/.config/niri/config.kdl (or merge with the existing
+// `binds { ... }` block). Replace /path/to/quickshell-bar with the
+// actual path to your clone.
+//
+// niri auto-reloads on save; no daemon restart needed.
+
+spawn-at-startup "qs" "-p" "/path/to/quickshell-bar" "-d"
+
+binds {
+    Mod+P            { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "launcher"  "open"; }
+    Mod+Semicolon    { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "launcher"  "openEmoji"; }
+    Mod+V            { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "clipboard" "open"; }
+    Mod+Shift+X      { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "lock"      "open"; }
+}
