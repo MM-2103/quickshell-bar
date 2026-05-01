@@ -28,7 +28,15 @@ PopupWindow {
     // disappears the popup auto-closes — otherwise the bar icon would
     // hide while the popup remained on screen with no way to dismiss it.
     property bool wantOpen: false
-    visible: wantOpen && MediaService.hasPlayers
+    readonly property bool _shouldShow: wantOpen && MediaService.hasPlayers
+    // Stay mapped briefly after _shouldShow goes false so the fade-out
+    // animation can play. 180 ms > the 150 ms opacity tween.
+    visible: _shouldShow || hideHold.running
+    Timer { id: hideHold; interval: 180; repeat: false }
+    on_ShouldShowChanged: {
+        if (_shouldShow) hideHold.stop();
+        else             hideHold.restart();
+    }
 
     onVisibleChanged: {
         // If visibility dropped because hasPlayers went false (not because
@@ -84,6 +92,18 @@ PopupWindow {
         border.color: Theme.border
         border.width: 1
         radius: Theme.radius
+
+        // Snappy fade + 4 px slide-up on open / mirror on close.
+        opacity: popup._shouldShow ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        transform: Translate {
+            y: popup._shouldShow ? 0 : 4
+            Behavior on y {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+        }
 
         // Vertical sum of the inner sections (with margins).
         implicitHeight: 12
