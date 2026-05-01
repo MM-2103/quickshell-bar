@@ -273,8 +273,10 @@ PopupWindow {
                 Item { width: 1; height: 6 }   // spacer
 
                 // ---- Progress bar ----
+                // Slider when seekable, ProgressBar otherwise — same shared
+                // components used by VolumePopup and the OSDs, so all "fill
+                // ratio" UI in the shell looks identical.
                 Item {
-                    id: progressArea
                     width: parent.width
                     height: 18
                     visible: popup.player && popup.player.length > 0
@@ -283,54 +285,25 @@ PopupWindow {
                         if (!popup.player || popup.player.length <= 0) return 0;
                         return Math.max(0, Math.min(1, popup.player.position / popup.player.length));
                     }
+                    readonly property bool seekable: popup.player && popup.player.canSeek
 
-                    Rectangle {
-                        id: track
-                        anchors.verticalCenter: parent.verticalCenter
+                    Slider {
+                        anchors.fill: parent
+                        visible: parent.seekable
+                        value: parent.ratio
+                        wheelStep: 0   // no scrub-by-wheel; that's owned by Volume
+                        onUserChanged: v => {
+                            if (popup.player && popup.player.canSeek)
+                                popup.player.position = v * popup.player.length;
+                        }
+                    }
+
+                    ProgressBar {
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        height: 4
-                        radius: 2
-                        color: Theme.surfaceHi
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: parent.width * progressArea.ratio
-                            radius: parent.radius
-                            color: Theme.text
-                        }
-                    }
-
-                    // Thumb
-                    Rectangle {
-                        anchors.verticalCenter: track.verticalCenter
-                        x: track.width * progressArea.ratio - width / 2
-                        width: 10
-                        height: 10
-                        radius: 5
-                        color: Theme.accent
-                        border.color: Theme.bg
-                        border.width: 1
-                        visible: popup.player && popup.player.canSeek
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        anchors.margins: -4
-                        cursorShape: popup.player && popup.player.canSeek
-                            ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        enabled: popup.player && popup.player.canSeek
-
-                        function setFromX(x) {
-                            if (!popup.player || !popup.player.canSeek) return;
-                            const r = Math.max(0, Math.min(1, x / track.width));
-                            popup.player.position = r * popup.player.length;
-                        }
-
-                        onPressed: mouse => setFromX(mouse.x)
-                        onPositionChanged: mouse => { if (pressed) setFromX(mouse.x); }
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: !parent.seekable
+                        value: parent.ratio
                     }
                 }
 

@@ -130,67 +130,16 @@ PopupWindow {
                 }
             }
 
-            // Slider
-            Item {
-                id: sliderHolder
+            // Slider — shared component (4 px track + 12 px thumb).
+            Slider {
+                id: volSlider
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - muteBtn.width - pctText.width - sliderRow.spacing * 2
-                height: 24
-
-                Rectangle {
-                    id: track
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width
-                    height: 4
-                    radius: 2
-                    color: Theme.surfaceHi
-
-                    Rectangle {
-                        id: fill
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: parent.height
-                        width: parent.width * Math.max(0, Math.min(1, section.node && section.node.audio ? section.node.audio.volume : 0))
-                        radius: parent.radius
-                        color: section.node && section.node.audio && section.node.audio.muted
-                            ? Theme.textMuted
-                            : Theme.text
-                    }
-                }
-
-                Rectangle {
-                    id: thumb
-                    anchors.verticalCenter: track.verticalCenter
-                    x: track.width * Math.max(0, Math.min(1, section.node && section.node.audio ? section.node.audio.volume : 0)) - width / 2
-                    width: 12
-                    height: 12
-                    radius: 6
-                    color: Theme.accent
-                    border.color: Theme.bg
-                    border.width: 1
-                    visible: section.node && section.node.audio
-                }
-
-                MouseArea {
-                    id: sliderMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-
-                    function setFromX(x) {
-                        if (!(section.node && section.node.audio)) return;
-                        const v = Math.max(0, Math.min(1, x / track.width));
-                        section.node.audio.volume = v;
-                    }
-
-                    onPressed: mouse => setFromX(mouse.x)
-                    onPositionChanged: mouse => { if (pressed) setFromX(mouse.x); }
-
-                    onWheel: wheel => {
-                        if (!(section.node && section.node.audio)) return;
-                        const step = 0.05;
-                        const delta = wheel.angleDelta.y > 0 ? step : -step;
-                        section.node.audio.volume = Math.max(0, Math.min(1, section.node.audio.volume + delta));
-                    }
+                value: section.node && section.node.audio ? section.node.audio.volume : 0
+                dimmed: section.node && section.node.audio && section.node.audio.muted
+                enabled: section.node && section.node.audio
+                onUserChanged: v => {
+                    if (section.node && section.node.audio) section.node.audio.volume = v;
                 }
             }
 
