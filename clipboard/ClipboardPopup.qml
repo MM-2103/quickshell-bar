@@ -118,7 +118,8 @@ PanelWindow {
                         panel.selectedIndex = 0;
                     }
                     color: Theme.text
-                    font.pixelSize: 12
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
                     selectByMouse: true
                     clip: true
 
@@ -274,10 +275,13 @@ PanelWindow {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: row.isImage ? "🖼" : "T"
+                                    // Font Awesome 7 Solid: \uf03e image / \uf031 font
+                                    text: row.isImage ? "\uf03e" : "\uf031"
                                     color: Theme.textDim
-                                    font.pixelSize: row.isImage ? 14 : 11
-                                    font.bold: !row.isImage
+                                    font.family: Theme.fontIcon
+                                    font.styleName: "Solid"
+                                    font.pixelSize: 12
+                                    renderType: Text.NativeRendering
                                 }
                             }
                         }
@@ -291,7 +295,8 @@ PanelWindow {
                                     + (modelData.ext ? " · " + modelData.ext : ""))
                                 : modelData.preview
                             color: row.isImage ? Theme.textDim : Theme.text
-                            font.pixelSize: 12
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeNormal
                             font.italic: row.isImage
                             elide: Text.ElideRight
                         }
@@ -314,9 +319,13 @@ PanelWindow {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: "🗑"
+                                // Font Awesome 7 Solid: \uf014 trash-can
+                                text: "\uf014"
                                 color: Theme.text
+                                font.family: Theme.fontIcon
+                                font.styleName: "Solid"
                                 font.pixelSize: 11
+                                renderType: Text.NativeRendering
                             }
 
                             MouseArea {
@@ -355,7 +364,8 @@ PanelWindow {
                             ? "Loading…"
                             : (panel.query ? "No matches" : "No clipboard history")
                         color: Theme.textMuted
-                        font.pixelSize: 12
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeNormal
                     }
                 }
             }
@@ -367,7 +377,8 @@ PanelWindow {
                 horizontalAlignment: Text.AlignHCenter
                 text: "Esc · ↑↓ · Enter to copy · Shift+Del to remove"
                 color: Theme.textMuted
-                font.pixelSize: 10
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
         }
     }

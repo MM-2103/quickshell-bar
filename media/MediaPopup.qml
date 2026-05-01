@@ -128,8 +128,9 @@ PopupWindow {
                     anchors.centerIn: parent
                     text: "‹"
                     color: Theme.text
-                    font.pixelSize: 14
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeLarge
+                    font.weight: Font.Bold
                 }
             }
 
@@ -143,7 +144,8 @@ PopupWindow {
                       + MediaService.visiblePlayers.length + ")"
                     : ""
                 color: Theme.textDim
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 elide: Text.ElideRight
             }
 
@@ -167,8 +169,9 @@ PopupWindow {
                     anchors.centerIn: parent
                     text: "›"
                     color: Theme.text
-                    font.pixelSize: 14
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeLarge
+                    font.weight: Font.Bold
                 }
             }
         }
@@ -255,8 +258,9 @@ PopupWindow {
                     width: parent.width
                     text: popup.player ? (popup.player.trackTitle || "Unknown title") : "—"
                     color: Theme.text
-                    font.pixelSize: 13
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: Font.Bold
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -271,7 +275,8 @@ PopupWindow {
                         return a || al || "";
                     }
                     color: Theme.textDim
-                    font.pixelSize: 11
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -350,8 +355,8 @@ PopupWindow {
                            + MediaService.formatTime(popup.player.length))
                         : ""
                     color: Theme.textMuted
-                    font.pixelSize: 10
-                    font.family: "monospace"
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     horizontalAlignment: Text.AlignRight
                 }
             }

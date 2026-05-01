@@ -84,8 +84,9 @@ PopupWindow {
         Text {
             text: section.title
             color: Theme.textDim
-            font.pixelSize: 10
-            font.bold: true
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeSmall
+            font.weight: Font.Bold
         }
 
         // Slider row: [mute btn] [track] [percentage]
@@ -106,10 +107,14 @@ PopupWindow {
 
                 Text {
                     anchors.centerIn: parent
-                    text: section.node && section.node.audio && section.node.audio.muted ? "x" : "♪"
+                    // Font Awesome 7 Solid: \uf6a9 volume-xmark / \uf028 volume-high
+                    text: section.node && section.node.audio && section.node.audio.muted
+                        ? "\uf6a9" : "\uf028"
                     color: Theme.text
-                    font.pixelSize: 11
-                    font.bold: true
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 12
+                    renderType: Text.NativeRendering
                 }
 
                 MouseArea {
@@ -196,8 +201,8 @@ PopupWindow {
                 horizontalAlignment: Text.AlignRight
                 text: Math.round((section.node && section.node.audio ? section.node.audio.volume : 0) * 100) + "%"
                 color: Theme.textDim
-                font.pixelSize: 11
-                font.family: "monospace"
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
         }
 
@@ -252,8 +257,9 @@ PopupWindow {
                                     || "(unknown)")
                                 : ""
                             color: deviceRow.isCurrent ? Theme.text : Theme.textDim
-                            font.pixelSize: 11
-                            font.bold: deviceRow.isCurrent
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: deviceRow.isCurrent ? Font.Bold : Font.Normal
                             elide: Text.ElideRight
                         }
                     }
