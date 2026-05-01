@@ -13,17 +13,24 @@ PopupWindow {
     required property Item anchorItem
 
     color: "transparent"
-    visible: false
+
+    property bool wantOpen: false
+    visible: wantOpen || hideHold.running
+    Timer { id: hideHold; interval: 180; repeat: false }
+    onWantOpenChanged: {
+        if (wantOpen) hideHold.stop();
+        else          hideHold.restart();
+    }
 
     function toggle() {
-        if (popup.visible) {
-            popup.visible = false;
+        if (popup.wantOpen) {
+            popup.wantOpen = false;
         } else {
-            PopupController.open(popup, () => popup.visible = false);
-            popup.visible = true;
+            PopupController.open(popup, () => popup.wantOpen = false);
+            popup.wantOpen = true;
         }
     }
-    function close()  { popup.visible = false; }
+    function close()  { popup.wantOpen = false; }
     onVisibleChanged: if (!visible) PopupController.closed(popup)
 
     anchor.item: anchorItem
@@ -47,6 +54,17 @@ PopupWindow {
         border.color: Theme.border
         border.width: 1
         radius: Theme.radius
+
+        opacity: popup.wantOpen ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        transform: Translate {
+            y: popup.wantOpen ? 0 : 4
+            Behavior on y {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+        }
 
         implicitWidth: row.implicitWidth + 16
         implicitHeight: row.implicitHeight + 16

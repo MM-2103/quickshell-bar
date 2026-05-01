@@ -29,14 +29,20 @@ PopupWindow {
     property bool monthView: true
 
     readonly property bool wantOpen: pinned || hoveringDate || hoveringPopup
-    visible: wantOpen
+    // Stay mapped during fade-out so the animation can play.
+    visible: wantOpen || hideHold.running
+    Timer { id: hideHold; interval: 180; repeat: false }
 
-    // Reset to current month every time the popup opens.
+    // Reset to current month every time the popup opens; trigger
+    // hide-hold timer on the way out so the fade can complete.
     onWantOpenChanged: {
         if (wantOpen) {
             cal.displayYear = cal.today.getFullYear();
             cal.displayMonth = cal.today.getMonth();
             cal.monthView = true;
+            hideHold.stop();
+        } else {
+            hideHold.restart();
         }
     }
 
@@ -100,6 +106,17 @@ PopupWindow {
         border.color: Theme.border
         border.width: 1
         radius: Theme.radius
+
+        opacity: cal.wantOpen ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        transform: Translate {
+            y: cal.wantOpen ? 0 : 4
+            Behavior on y {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+        }
 
         // Hover detector behind everything (does not eat clicks).
         MouseArea {
