@@ -180,7 +180,7 @@ WlSessionLockSurface {
                     // accent while focused, otherwise standard border tone.
                     border.width: 1
                     border.color: LockService.pamError.length > 0
-                        ? "#ff5050"
+                        ? Theme.error
                         : (passField.activeFocus ? Theme.text : Qt.rgba(1, 1, 1, 0.20))
                     Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
@@ -225,7 +225,7 @@ WlSessionLockSurface {
                         ? LockService.pamError
                         : (LockService.pamMessage || "Locked")
                     color: LockService.pamError.length > 0
-                        ? "#ff7070"
+                        ? Theme.errorBright
                         : Theme.text
                     opacity: LockService.pamError.length > 0 ? 1.0 : 0.7
                     font.family: Theme.fontMono
