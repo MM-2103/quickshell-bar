@@ -1,20 +1,35 @@
 # quickshell-bar
 
 A complete personal Wayland desktop shell built on
-[Quickshell](https://quickshell.org/), designed for the
-[niri](https://github.com/YaLTeR/niri) compositor.
+[Quickshell](https://quickshell.org/), with first-class support for
+**niri**, **Hyprland**, and **Sway / i3** out of the box.
 
 Replaces (in one configurable QML codebase):
 **waybar** · **swaync / mako / dunst** · **swayosd** ·
 **nm-applet** · **blueman-applet** · **KDE media controls** ·
 **wlogout** · **fuzzel** · **hyprlock**.
 
+## Supported compositors
+
+| Compositor       | Workspaces | Click-to-focus | Window focus | Layout OSD | Logout action       |
+|------------------|:----------:|:--------------:|:------------:|:----------:|---------------------|
+| **niri**         | yes        | yes            | yes          | yes        | `niri msg action quit` |
+| **Hyprland**     | yes        | yes            | yes          | yes        | `hyprctl dispatch exit` |
+| **Sway / i3**    | yes        | yes            | yes          | —          | `swaymsg exit` / `i3-msg exit` |
+| Other (river, Wayfire, Cosmic, …) | — | — | — | — | — |
+
+The shell auto-detects which compositor is running at startup
+(`$HYPRLAND_INSTANCE_SIGNATURE` / `$SWAYSOCK` / `$NIRI_SOCKET` /
+`$XDG_CURRENT_DESKTOP`). On unsupported compositors the bar still
+loads — only the workspace indicator goes blank, every other widget
+keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
+
 ---
 
 ## Features
 
 **Bar** (32 px top, one per monitor)
-- niri workspaces with focused / active / idle pip indicators
+- Workspaces with focused / active / idle chip indicators (compositor-aware)
 - Clock + Calendar (popup, pinnable)
 - Notification collapser
 - Network · Bluetooth · Volume · MPRIS media controls
@@ -46,9 +61,10 @@ Replaces (in one configurable QML codebase):
 
 ## Status
 
-Personal config shared as a reference. Tested on a single setup:
-**Arch Linux · niri 26.04 · Quickshell 0.2.1 · Qt 6.11**.
-YMMV elsewhere. Pre-1.0 Quickshell APIs may break between versions.
+Personal config shared as a reference. Primary development setup:
+**Arch Linux · niri 26.04 · Quickshell 0.2.1 · Qt 6.11**. Hyprland and
+Sway support is implemented but tested less extensively; report any
+breakage. Pre-1.0 Quickshell APIs may break between versions.
 
 ---
 
@@ -59,12 +75,13 @@ YMMV elsewhere. Pre-1.0 Quickshell APIs may break between versions.
 | Arch package           | Purpose                                         |
 |------------------------|-------------------------------------------------|
 | `quickshell` (AUR)     | The QML shell framework (≥ 0.2.1)               |
-| `niri`                 | The Wayland compositor (≥ 26.04 recommended)    |
+| One of: `niri` / `hyprland` / `sway` | Wayland compositor                |
 | `qt6-base`             | ≥ 6.5 for `MultiEffect` (used by lock blur)     |
 | `qt6-declarative`      | QML runtime                                     |
 | `noto-fonts-emoji`     | Or any color-emoji font                         |
 | `wl-clipboard`         | `wl-copy` for launcher's calc/emoji copy        |
 | `cliphist`             | Backend for the clipboard history popup         |
+| `brightnessctl`        | Backlight control (laptops only)                |
 | Linux PAM              | Standard on any modern distro                   |
 
 ### Optional
@@ -72,7 +89,8 @@ YMMV elsewhere. Pre-1.0 Quickshell APIs may break between versions.
 | Arch package    | What it enables                                                        |
 |-----------------|------------------------------------------------------------------------|
 | `waypaper`      | Lock screen reads `~/.config/waypaper/config.ini` for blur background. Without it, lock falls back to a solid background. |
-| `hypridle`      | Idle daemon. Triggers our lock IPC on timeout / before-suspend. Quickshell has no built-in idle notifier yet, so this stays external. |
+| `hypridle` *(niri / Hyprland)* | Idle daemon. Triggers our lock IPC on timeout / before-suspend. Quickshell has no built-in idle notifier yet, so this stays external. See `examples/hypridle.conf`. |
+| `swayidle` *(Sway / i3)*       | Equivalent idle daemon. See `examples/swayidle.service` for the command snippet. |
 
 ---
 
@@ -100,52 +118,34 @@ Verify:
 cat /etc/pam.d/qslock          # → auth include login
 ```
 
-### 3. Wire it into niri
+### 3. Wire it into your compositor
 
-Add to `~/.config/niri/config.kdl`:
+Sample configs are in `examples/` — copy the relevant snippet, replace
+`/path/to/quickshell-bar` with your clone path, and reload your
+compositor's config.
 
-```kdl
-spawn-at-startup "qs" "-p" "/path/to/quickshell-bar" "-d"
+#### niri
+Copy `examples/niri-config.kdl` into `~/.config/niri/config.kdl`. niri
+auto-reloads on save.
 
-binds {
-    Mod+P            { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "launcher" "open"; }
-    Mod+Semicolon    { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "launcher" "openEmoji"; }
-    Mod+V            { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "clipboard" "open"; }
-    Mod+Shift+X      { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "lock" "open"; }
-}
-```
+#### Hyprland
+Copy `examples/hyprland-bindings.conf` into `~/.config/hypr/hyprland.conf`
+(or `source = ` it). Hyprland auto-reloads on save.
 
-niri auto-reloads on save.
+#### Sway / i3
+Copy `examples/sway-bindings.conf` into `~/.config/sway/config` (or i3's
+config). Reload with `swaymsg reload` / `i3-msg reload`.
 
-### 4. (Optional) Wire hypridle to our lock + niri DPMS
+### 4. (Optional) Wire an idle daemon for lock + DPMS
 
-Replace `~/.config/hypr/hypridle.conf`:
+Pick the daemon for your compositor:
 
-```
-general {
-    lock_cmd         = qs -p /path/to/quickshell-bar ipc call lock open
-    before_sleep_cmd = qs -p /path/to/quickshell-bar ipc call lock open
-    after_sleep_cmd  = niri msg action power-on-monitors
-}
+- **Hyprland / niri** → `hypridle`. Sample at `examples/hypridle.conf`.
+  Restart with `pkill hypridle && setsid hypridle </dev/null >/dev/null 2>&1 &`.
+- **Sway / i3** → `swayidle`. Sample command at `examples/swayidle.service`.
+  Add to your Sway autostart (`exec swayidle ...`).
 
-listener {
-    timeout    = 300                                  # 5 min — lock
-    on-timeout = qs -p /path/to/quickshell-bar ipc call lock open
-}
-
-listener {
-    timeout    = 330                                  # 5.5 min — DPMS off
-    on-timeout = niri msg action power-off-monitors
-    on-resume  = niri msg action power-on-monitors
-}
-```
-
-Restart hypridle to pick it up:
-
-```bash
-pkill hypridle
-setsid hypridle </dev/null >/dev/null 2>&1 &
-```
+Both samples lock at 5 min, DPMS off at 5.5 min, and lock before suspend.
 
 ---
 
@@ -201,8 +201,9 @@ Rehearse this once before you ever need it for real.
 | Colors, sizes, radii   | `Theme.qml` — single source of truth                              |
 | Web-search engine      | `searchUrl` and `searchName` constants at top of `launcher/LauncherService.qml` (defaults to DuckDuckGo) |
 | Lock-screen wallpaper  | `lock/LockService.qml` — `_refreshWallpaper()` reads `~/.config/waypaper/config.ini`; edit to change source |
-| Idle / dim / suspend timings | `~/.config/hypr/hypridle.conf` (snippet above)              |
-| niri keybinds          | `~/.config/niri/config.kdl` (snippet above)                       |
+| Idle / dim / suspend timings | `~/.config/hypr/hypridle.conf` or `swayidle` invocation (see `examples/`) |
+| Compositor keybinds    | `examples/<compositor>-bindings.<ext>`                            |
+| Force-pick a backend   | `QS_COMPOSITOR=niri\|hyprland\|sway\|stub` env var                |
 
 ---
 
@@ -213,7 +214,7 @@ Rehearse this once before you ever need it for real.
 - **PopupController mutex.** `PopupController.qml` is a root singleton; only one popup is open at a time, all participate via `PopupController.open(self, closer)` / `PopupController.closed(self)`.
 - **IPC-only triggering.** All keybinds spawn `qs ipc call <target> <fn>` instead of separate processes — single source of truth, hot-reload safe.
 - **Per-screen panels with focused-output gating.** `visible: !!Service.popupOpen && isFocusedScreen` prevents init-race flashes.
-- **niri integration via `workspaces/Niri.qml`.** Subscribes to niri's IPC socket; emits `WindowFocusChanged` / `KeyboardLayoutsChanged` / etc. as Qt signals.
+- **Compositor abstraction in `compositor/`.** A `Compositor` singleton auto-detects the running compositor (`niri` / `hyprland` / `sway` / `i3`) and instantiates the matching `Backend*.qml` adapter. The rest of the shell only knows about `Compositor.workspaces`, `Compositor.focusedOutput`, etc. Adding a new compositor is a single file.
 - **Frecency persistence in `Quickshell.statePath()`.** Per-shell JSON files under `~/.local/state/quickshell/by-shell/<id>/`.
 
 ---
@@ -227,15 +228,22 @@ Rehearse this once before you ever need it for real.
 ├── Theme.qml                 — palette + sizing singleton
 ├── PopupController.qml       — mutex for popups
 │
-├── workspaces/Niri.qml       — niri IPC bridge (signals for the rest of the shell)
+├── compositor/               — cross-compositor abstraction layer
+│   ├── Compositor.qml        — singleton: auto-detects + delegates to backend
+│   ├── BackendNiri.qml       — niri IPC bridge
+│   ├── BackendHyprland.qml   — Quickshell.Hyprland adapter
+│   ├── BackendSway.qml       — Quickshell.I3 adapter (Sway / i3)
+│   └── BackendStub.qml       — no-op fallback for unknown compositors
+│
+├── workspaces/Workspaces.qml — workspace chip strip (consumes Compositor)
 ├── clock/                    — clock widget + calendar popup
 ├── notifications/            — NotificationServer + cards + center popup
 ├── osd/                      — volume / brightness / layout overlay
 ├── network/                  — NM widget + connection picker
 ├── bluetooth/                — BT widget + device picker
-├── volume/                   — volume widget + mixer popup
+├── volume/                   — volume widget + mixer popup (incl. per-app)
 ├── media/                    — MPRIS widget + media popup
-├── system/                   — power profile, power menu, idle inhibitor
+├── system/                   — power profile / menu / idle inhibitor / battery / brightness
 ├── tray/                     — StatusNotifierHost + tray menus
 │
 ├── clipboard/                — clipboard history (Mod+V), cliphist-backed
@@ -243,7 +251,14 @@ Rehearse this once before you ever need it for real.
 │   └── emoji.json            — bundled gemoji catalog (MIT — see NOTICE)
 ├── lock/                     — WlSessionLock + PAM (Mod+Shift+X)
 │
-├── docs/QUICKSHELL_REFERENCE.md  — annotated Quickshell reference + 53+ gotchas
+├── examples/                 — copy-pasteable compositor + idle-daemon configs
+│   ├── niri-config.kdl
+│   ├── hyprland-bindings.conf
+│   ├── sway-bindings.conf
+│   ├── hypridle.conf
+│   └── swayidle.service
+│
+├── docs/QUICKSHELL_REFERENCE.md  — annotated Quickshell reference + 55+ gotchas
 ├── NOTICE                    — third-party attribution
 └── README.md                 — this file
 ```
@@ -264,7 +279,7 @@ Rehearse this once before you ever need it for real.
 
 ## Documentation
 
-Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) — a comprehensive Quickshell guide annotated with **53+ gotchas** accumulated from real bugs while building this shell. Useful for anyone writing their own Quickshell config.
+Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) — a comprehensive Quickshell guide annotated with **55+ gotchas** accumulated from real bugs while building this shell. Useful for anyone writing their own Quickshell config.
 
 ---
 
@@ -281,7 +296,9 @@ Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE
 
 - [**Quickshell**](https://quickshell.org/) ([source](https://git.outfoxxed.me/outfoxxed/quickshell)) — the QML-based shell framework. `docs/QUICKSHELL_REFERENCE.md` is a derivative of upstream Quickshell documentation.
 - [**github/gemoji**](https://github.com/github/gemoji) — emoji metadata bundled at `launcher/emoji.json`. MIT-licensed; full attribution in [`NOTICE`](NOTICE).
-- [**niri**](https://github.com/YaLTeR/niri) — the scrollable-tiling Wayland compositor that hosts this shell.
+- [**niri**](https://github.com/YaLTeR/niri) — the scrollable-tiling Wayland compositor this shell was originally built on.
+- [**Hyprland**](https://hyprland.org/) — supported via `Quickshell.Hyprland`.
+- [**Sway**](https://swaywm.org/) — supported via `Quickshell.I3`.
 
 ---
 
