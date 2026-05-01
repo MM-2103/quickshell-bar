@@ -127,14 +127,17 @@ PanelWindow {
                     asynchronous: false
                     visible: status === Image.Ready
                 }
-                // Letter fallback if theme is missing the symbolic icon.
+                // Font Awesome fallback if theme is missing the symbolic icon.
                 Text {
                     anchors.centerIn: parent
                     visible: !volIcon.visible
-                    text: OsdService.muted ? "x" : "♪"
+                    // \uf6a9 volume-xmark / \uf028 volume-high
+                    text: OsdService.muted ? "\uf6a9" : "\uf028"
                     color: Theme.text
-                    font.pixelSize: 12
-                    font.bold: true
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 14
+                    renderType: Text.NativeRendering
                 }
             }
 
@@ -164,8 +167,8 @@ PanelWindow {
                     ? "Muted"
                     : Math.round(OsdService.volumeRatio * 100) + "%"
                 color: Theme.text
-                font.pixelSize: 12
-                font.family: "monospace"
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
             }
         }
     }
@@ -176,12 +179,15 @@ PanelWindow {
         Row {
             spacing: 12
 
+            // Caps → \uf062 arrow-up (shift held). Num → \uf292 hashtag.
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: OsdService.currentKind === "caps" ? "A" : "1"
+                text: OsdService.currentKind === "caps" ? "\uf062" : "\uf292"
                 color: Theme.text
-                font.pixelSize: 22
-                font.bold: true
+                font.family: Theme.fontIcon
+                font.styleName: "Solid"
+                font.pixelSize: 18
+                renderType: Text.NativeRendering
                 width: 24
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -193,8 +199,9 @@ PanelWindow {
                 Text {
                     text: OsdService.currentKind === "caps" ? "Caps Lock" : "Num Lock"
                     color: Theme.text
-                    font.pixelSize: 12
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: Font.Bold
                 }
                 Text {
                     text: {
@@ -203,13 +210,14 @@ PanelWindow {
                         return on ? "ON" : "OFF";
                     }
                     color: Theme.textDim
-                    font.pixelSize: 11
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                 }
             }
         }
     }
 
-    // Brightness: same layout as volume, sun glyph + bar + percent.
+    // Brightness: sun glyph + bar + percent.
     Component {
         id: brightnessContent
         Row {
@@ -217,9 +225,13 @@ PanelWindow {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "☀"
+                // Font Awesome 7 Solid: \uf185 sun
+                text: "\uf185"
                 color: Theme.text
+                font.family: Theme.fontIcon
+                font.styleName: "Solid"
                 font.pixelSize: 16
+                renderType: Text.NativeRendering
                 width: 18
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -247,8 +259,8 @@ PanelWindow {
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(OsdService.brightnessRatio * 100) + "%"
                 color: Theme.text
-                font.pixelSize: 12
-                font.family: "monospace"
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
             }
         }
     }
@@ -261,16 +273,21 @@ PanelWindow {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "⌨"
+                // Font Awesome 7 Solid: \uf11c keyboard
+                text: "\uf11c"
                 color: Theme.text
-                font.pixelSize: 16
+                font.family: Theme.fontIcon
+                font.styleName: "Solid"
+                font.pixelSize: 14
+                renderType: Text.NativeRendering
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: OsdService.layoutName || "—"
                 color: Theme.text
-                font.pixelSize: 12
-                font.bold: true
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
+                font.weight: Font.Bold
             }
         }
     }

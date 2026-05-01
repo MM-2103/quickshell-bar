@@ -101,7 +101,8 @@ PanelWindow {
                         panel.selectedIndex = 0;
                     }
                     color: Theme.text
-                    font.pixelSize: 13
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
                     selectByMouse: true
                     clip: true
 
@@ -269,8 +270,9 @@ PanelWindow {
                                         ? row.title.charAt(0).toUpperCase()
                                         : "?"
                                     color: Theme.textDim
-                                    font.pixelSize: 14
-                                    font.bold: true
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeLarge
+                                    font.weight: Font.Bold
                                 }
                             }
 
@@ -286,8 +288,9 @@ PanelWindow {
                                     anchors.centerIn: parent
                                     text: "="
                                     color: Theme.text
-                                    font.pixelSize: 18
-                                    font.bold: true
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeXL
+                                    font.weight: Font.Bold
                                 }
                             }
 
@@ -310,8 +313,9 @@ PanelWindow {
                                     anchors.centerIn: parent
                                     text: "?"
                                     color: Theme.text
-                                    font.pixelSize: 16
-                                    font.bold: true
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeXL
+                                    font.weight: Font.Bold
                                 }
                             }
 
@@ -334,8 +338,8 @@ PanelWindow {
                                 width: parent.width
                                 text: row.title
                                 color: Theme.text
-                                font.pixelSize: 13
-                                font.family: row.kind === "calc" ? "monospace" : font.family
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeNormal
                                 elide: Text.ElideRight
                             }
 
@@ -344,7 +348,8 @@ PanelWindow {
                                 visible: text !== ""
                                 text: row.subtitle
                                 color: Theme.textDim
-                                font.pixelSize: 11
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeSmall
                                 elide: Text.ElideRight
                             }
                         }
@@ -388,28 +393,36 @@ PanelWindow {
                             return "No matches";
                         }
                         color: Theme.textMuted
-                        font.pixelSize: 12
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeNormal
                     }
                 }
             }
 
             // ---- Footer hint (mode-aware based on selected row) ----
+            // Includes a result count when there are matches; useful in
+            // emoji/web modes where the list can grow large.
             Text {
                 id: footer
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: {
                     const r = panel.filtered[panel.selectedIndex];
-                    if (!r) return "Esc · ↑↓ · Enter";
-                    switch (r.kind) {
-                        case "calc":  return "Esc · Enter to copy result";
-                        case "web":   return "Esc · Enter to search";
-                        case "emoji": return "Esc · ↑↓ · Enter to copy";
-                        default:      return "Esc · ↑↓ · Enter to launch";
-                    }
+                    const count = panel.filtered.length;
+                    const hint = (() => {
+                        if (!r) return "Esc · ↑↓ · Enter";
+                        switch (r.kind) {
+                            case "calc":  return "Esc · Enter to copy result";
+                            case "web":   return "Esc · Enter to search";
+                            case "emoji": return "Esc · ↑↓ · Enter to copy";
+                            default:      return "Esc · ↑↓ · Enter to launch";
+                        }
+                    })();
+                    return count > 1 ? (count + " results · " + hint) : hint;
                 }
                 color: Theme.textMuted
-                font.pixelSize: 10
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
         }
     }

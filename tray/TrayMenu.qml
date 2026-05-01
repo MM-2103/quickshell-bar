@@ -184,7 +184,8 @@ PopupWindow {
                                 return "";
                             }
                             color: Theme.text
-                            font.pixelSize: 11
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
                             horizontalAlignment: Text.AlignHCenter
                         }
 
@@ -215,11 +216,12 @@ PopupWindow {
                             }
                             text: entryRoot.modelData.text
                             color: entryRoot.modelData.enabled ? Theme.text : Theme.textMuted
-                            font.pixelSize: 12
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeNormal
                             elide: Text.ElideRight
                         }
 
-                        // submenu arrow
+                        // submenu arrow — Font Awesome 7 Solid \uf054 chevron-right.
                         Text {
                             id: arrow
                             anchors {
@@ -228,9 +230,12 @@ PopupWindow {
                                 verticalCenter: parent.verticalCenter
                             }
                             visible: entryRoot.modelData.hasChildren
-                            text: "›"
+                            text: "\uf054"
                             color: Theme.textDim
-                            font.pixelSize: 14
+                            font.family: Theme.fontIcon
+                            font.styleName: "Solid"
+                            font.pixelSize: 9
+                            renderType: Text.NativeRendering
                         }
 
                         MouseArea {
