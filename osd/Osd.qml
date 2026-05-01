@@ -6,6 +6,7 @@
 // animations, and switches its content via a Loader keyed on currentKind.
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Widgets
 import qs
@@ -40,13 +41,17 @@ PanelWindow {
         bottom: true
         // No left/right anchors → layer-shell horizontally centers the surface.
     }
-    margins.bottom: 80
+    // 80 px gap from screen bottom to the pill's visible body. The 12 px
+    // bottom shadow padding sits between the pill and the screen edge,
+    // so margins.bottom is 80 - 12 = 68.
+    margins.bottom: 68
 
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
 
-    implicitWidth: pill.implicitWidth
-    implicitHeight: pill.implicitHeight + 16    // breathing room for the slide
+    // Surface adds 24 px in each axis for shadow padding (12 px each side).
+    implicitWidth: pill.implicitWidth + 24
+    implicitHeight: pill.implicitHeight + 24
 
     // ================================================================
     // The OSD pill
@@ -55,6 +60,7 @@ PanelWindow {
         id: pill
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: 12   // shadow padding below pill
 
         implicitWidth: contentLoader.implicitWidth + 28
         implicitHeight: contentLoader.implicitHeight + 16
@@ -76,6 +82,15 @@ PanelWindow {
             Behavior on y {
                 NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         Loader {

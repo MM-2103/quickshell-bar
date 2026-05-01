@@ -4,6 +4,7 @@
 // closes the popup. No confirmation dialog (matches wlogout convention).
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs
 
@@ -35,11 +36,11 @@ PopupWindow {
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? -((popup.width - anchorItem.width) / 2) : 0
-    anchor.rect.y: anchorItem ? anchorItem.height + 6 : 0
+    anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    implicitWidth: container.implicitWidth
-    implicitHeight: container.implicitHeight
+    implicitWidth: container.implicitWidth + 24
+    implicitHeight: container.implicitHeight + 24
 
     // Centralized action runner: fires the command and closes the popup.
     function _run(args) {
@@ -50,6 +51,7 @@ PopupWindow {
     Rectangle {
         id: container
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -64,6 +66,15 @@ PopupWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         implicitWidth: row.implicitWidth + 16
