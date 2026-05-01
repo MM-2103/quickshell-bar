@@ -66,6 +66,31 @@ Personal config shared as a reference. Primary development setup:
 Sway support is implemented but tested less extensively; report any
 breakage. Pre-1.0 Quickshell APIs may break between versions.
 
+Built largely with the assistance of an LLM. Bug reports especially
+welcome — a second pair of eyes from real users on Hyprland and Sway
+will catch things our test pass on niri couldn't.
+
+---
+
+## Known limitations
+
+- **Sway / i3**: keyboard-layout OSD silently never triggers — i3/Sway's
+  IPC has no layout-changed event. Other OSDs (volume, brightness,
+  caps/num lock) work normally.
+- **Power menu's Lock button** depends on an idle daemon (`hypridle` /
+  `swayidle`) being configured to bridge logind's `Lock` signal to this
+  shell's IPC. The standard `lock_cmd = qs ipc call lock open` pattern
+  does this; without it, the button is silent. See gotcha #52 in the
+  reference doc.
+- **No DPMS handling** in the shell itself — defer to your idle
+  daemon's config (`niri msg action power-off-monitors` /
+  `hyprctl dispatch dpms off` / `swaymsg "output * dpms off"`).
+- **Polkit agent**: not provided. Use `hyprpolkitagent` /
+  `polkit-kde-authentication-agent-1` / etc.
+- **Hyprland & Sway are lightly tested.** Edge cases possible around
+  named workspaces (Hyprland), multi-monitor focus tracking, and
+  per-window event payloads. Bug reports very welcome.
+
 ---
 
 ## Dependencies
@@ -299,6 +324,7 @@ Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE
 - [**niri**](https://github.com/YaLTeR/niri) — the scrollable-tiling Wayland compositor this shell was originally built on.
 - [**Hyprland**](https://hyprland.org/) — supported via `Quickshell.Hyprland`.
 - [**Sway**](https://swaywm.org/) — supported via `Quickshell.I3`.
+- An LLM coding collaborator — most QML and docs in this repo were written under human direction and review with LLM assistance.
 
 ---
 
