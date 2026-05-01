@@ -134,8 +134,9 @@ PopupWindow {
                     visible: ethIcon.status !== Image.Ready
                     text: "ETH"
                     color: Theme.textDim
+                    font.family: Theme.fontMono
                     font.pixelSize: 8
-                    font.bold: true
+                    font.weight: Font.Bold
                 }
             }
 
@@ -147,15 +148,17 @@ PopupWindow {
                 Text {
                     text: erow._title()
                     color: Theme.text
-                    font.pixelSize: 12
-                    font.bold: erow.isActive
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: erow.isActive ? Font.Bold : Font.Normal
                     elide: Text.ElideRight
                     width: parent.width
                 }
                 Text {
                     text: erow._statusText()
                     color: erow.isActive ? Theme.textDim : Theme.textMuted
-                    font.pixelSize: 10
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -252,6 +255,7 @@ PopupWindow {
                     visible: sigIcon.status !== Image.Ready
                     text: net.signal + ""
                     color: Theme.textDim
+                    font.family: Theme.fontMono
                     font.pixelSize: 8
                 }
             }
@@ -265,8 +269,9 @@ PopupWindow {
                 Text {
                     text: net.ssid
                     color: Theme.text
-                    font.pixelSize: 12
-                    font.bold: net.inUse
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: net.inUse ? Font.Bold : Font.Normal
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -282,7 +287,8 @@ PopupWindow {
                         return parts.join("  ·  ");
                     }
                     color: net.inUse ? Theme.textDim : Theme.textMuted
-                    font.pixelSize: 10
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -294,13 +300,16 @@ PopupWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
-                // Lock indicator
+                // Lock indicator — Font Awesome 7 Solid \uf023.
                 Text {
                     visible: row.secured
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "🔒"
+                    text: "\uf023"
                     color: Theme.textDim
-                    font.pixelSize: 11
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 9
+                    renderType: Text.NativeRendering
                 }
 
                 // Forget button (saved only, hover-revealed)
@@ -316,10 +325,13 @@ PopupWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "×"
+                        // Font Awesome 7 Solid: \uf00d xmark
+                        text: "\uf00d"
                         color: forgetMa.containsMouse ? Theme.text : Theme.textDim
-                        font.pixelSize: 14
-                        font.bold: true
+                        font.family: Theme.fontIcon
+                        font.styleName: "Solid"
+                        font.pixelSize: 11
+                        renderType: Text.NativeRendering
                     }
 
                     MouseArea {
@@ -363,7 +375,8 @@ PopupWindow {
                     text: popup.passwordPromptPwd
                     onTextChanged: popup.passwordPromptPwd = text
                     color: Theme.text
-                    font.pixelSize: 11
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     echoMode: TextInput.Password
                     selectByMouse: true
                     focus: visible
@@ -393,10 +406,13 @@ PopupWindow {
                 border.width: 1
                 Text {
                     anchors.centerIn: parent
-                    text: "×"
+                    // Font Awesome 7 Solid: \uf00d xmark
+                    text: "\uf00d"
                     color: Theme.text
-                    font.pixelSize: 14
-                    font.bold: true
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 11
+                    renderType: Text.NativeRendering
                 }
                 MouseArea {
                     id: cancelMa
@@ -427,8 +443,9 @@ PopupWindow {
                     anchors.centerIn: parent
                     text: "Connect"
                     color: okMa.containsMouse ? Theme.bg : Theme.text
-                    font.pixelSize: 11
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.Bold
                 }
 
                 MouseArea {
@@ -470,8 +487,9 @@ PopupWindow {
         property int count: 0
         text: count > 0 ? (label + "  ·  " + count) : label
         color: Theme.textDim
-        font.pixelSize: 10
-        font.bold: true
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSizeSmall
+        font.weight: Font.Bold
     }
 
     // ================================================================
@@ -503,8 +521,9 @@ PopupWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Network"
                     color: Theme.text
-                    font.pixelSize: 13
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: Font.Bold
                 }
 
                 Text {
@@ -517,7 +536,8 @@ PopupWindow {
                                 ? "Disconnected"
                                 : "Wi‑Fi off"
                     color: Theme.textDim
-                    font.pixelSize: 11
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     elide: Text.ElideRight
                     width: parent.width - 60 - rescanBtn.width - wifiToggleBtn.width - parent.spacing * 3
                 }
@@ -533,11 +553,18 @@ PopupWindow {
                     opacity: enabled ? 1.0 : 0.4
 
                     Text {
+                        id: rescanGlyph
                         anchors.centerIn: parent
-                        text: "↻"
+                        // Font Awesome 7 Solid: \uf021 arrows-rotate.
+                        // Click triggers a brief one-revolution spin so the
+                        // user sees their action registered (NetworkService
+                        // doesn't expose a "currently scanning" flag).
+                        text: "\uf021"
                         color: Theme.text
-                        font.pixelSize: 13
-                        font.bold: true
+                        font.family: Theme.fontIcon
+                        font.styleName: "Solid"
+                        font.pixelSize: 12
+                        renderType: Text.NativeRendering
                     }
 
                     MouseArea {
@@ -546,7 +573,18 @@ PopupWindow {
                         hoverEnabled: true
                         enabled: parent.enabled
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: NetworkService.rescan()
+                        onClicked: {
+                            NetworkService.rescan();
+                            rescanSpin.restart();
+                        }
+                    }
+
+                    RotationAnimation {
+                        id: rescanSpin
+                        target: rescanGlyph
+                        from: 0; to: 360
+                        duration: 700
+                        easing.type: Easing.OutCubic
                     }
                 }
 
@@ -609,7 +647,8 @@ PopupWindow {
                 horizontalAlignment: Text.AlignHCenter
                 text: "Wi‑Fi is off. Toggle the switch above to enable."
                 color: Theme.textDim
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 topPadding: 16
                 bottomPadding: 16
                 wrapMode: Text.Wrap
@@ -639,9 +678,10 @@ PopupWindow {
                     visible: NetworkService.wirelessNetworks.length === 0
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: "No networks found. Click ↻ to scan."
+                    text: "No networks found. Click the rescan button above."
                     color: Theme.textMuted
-                    font.pixelSize: 11
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
                     topPadding: 8
                     bottomPadding: 8
                 }
@@ -653,7 +693,8 @@ PopupWindow {
                 width: parent.width
                 text: NetworkService.lastError
                 color: Theme.text
-                font.pixelSize: 10
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 wrapMode: Text.Wrap
             }
 
@@ -687,10 +728,13 @@ PopupWindow {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: popup.hiddenFormOpen ? "−" : "+"
+                            // Font Awesome 7 Solid: \uf068 minus / \uf067 plus
+                            text: popup.hiddenFormOpen ? "\uf068" : "\uf067"
                             color: Theme.text
-                            font.pixelSize: 13
-                            font.bold: true
+                            font.family: Theme.fontIcon
+                            font.styleName: "Solid"
+                            font.pixelSize: 10
+                            renderType: Text.NativeRendering
                             width: 14
                             horizontalAlignment: Text.AlignHCenter
                         }
@@ -698,8 +742,9 @@ PopupWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "Connect to hidden network"
                             color: Theme.text
-                            font.pixelSize: 11
-                            font.bold: true
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Bold
                         }
 
                         MouseArea {
@@ -732,7 +777,8 @@ PopupWindow {
                             text: popup.hiddenSsid
                             onTextChanged: popup.hiddenSsid = text
                             color: Theme.text
-                            font.pixelSize: 11
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
                             selectByMouse: true
 
                             Text {
@@ -771,7 +817,8 @@ PopupWindow {
                                 text: popup.hiddenPwd
                                 onTextChanged: popup.hiddenPwd = text
                                 color: Theme.text
-                                font.pixelSize: 11
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeSmall
                                 echoMode: TextInput.Password
                                 selectByMouse: true
 
@@ -811,8 +858,9 @@ PopupWindow {
                                 anchors.centerIn: parent
                                 text: "Connect"
                                 color: hConnectMa.containsMouse ? Theme.bg : Theme.text
-                                font.pixelSize: 11
-                                font.bold: true
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Bold
                             }
 
                             MouseArea {
