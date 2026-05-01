@@ -114,7 +114,8 @@ Rectangle {
                 width: parent.width
                 text: card.player ? (card.player.trackTitle || "Unknown title") : ""
                 color: Theme.text
-                font.pixelSize: 14
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeLarge
                 font.weight: Font.Medium
                 elide: Text.ElideRight
             }
@@ -124,7 +125,8 @@ Rectangle {
                 text: card.player ? (card.player.trackArtist || "") : ""
                 color: Theme.text
                 opacity: 0.7
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 elide: Text.ElideRight
                 visible: text.length > 0
             }
@@ -159,7 +161,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: btn.glyph
                     color: Theme.text
-                    font.family: "Font Awesome 7 Free"
+                    font.family: Theme.fontIcon
                     font.styleName: "Solid"
                     font.pixelSize: btn.diameter * 0.50 * btn.glyphScale
                     renderType: Text.NativeRendering

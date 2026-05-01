@@ -78,12 +78,12 @@ Row {
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
 
-        Text {
+        // Font Awesome 7 Solid: \uf054 chevron-right, \uf053 chevron-left.
+        BarIcon {
             anchors.centerIn: parent
-            text: root.expanded ? "›" : "‹"
+            glyph: root.expanded ? "\uf054" : "\uf053"
             color: chevron.containsMouse || root.expanded ? Theme.text : Theme.textDim
-            font.pixelSize: 16
-            font.bold: true
+            glyphSize: 11
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
     }
