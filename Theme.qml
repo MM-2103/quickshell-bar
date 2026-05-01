@@ -25,6 +25,10 @@ Singleton {
     readonly property color accent:       "#ffffff"  // focused / today highlight
     readonly property color accentText:   "#16181c"  // text drawn on top of accent fill
 
+    // ---- Error / warning (used by lock auth, low-battery, etc.) ----
+    readonly property color error:        "#ff5050"  // borders, strokes
+    readonly property color errorBright:  "#ff7070"  // text on dark backgrounds
+
     // ---- Workspace pip states ----
     readonly property color pipIdle:      "#2a2a2e"
     readonly property color pipActive:    "#3a3a3e"  // active on output but not focused
@@ -50,7 +54,8 @@ Singleton {
     readonly property string fontBrand: "Font Awesome 7 Brands"
 
     // ---- Font sizes (4-step scale; replaces inline 8/9/10/11/13/14/16) ----
-    readonly property int fontSizeSmall:  10   // badges, tooltips, signal-strength overlay
+    readonly property int fontSizeBadge:  9    // notification count, signal-strength overlays — sub-10 chrome
+    readonly property int fontSizeSmall:  10   // tooltips, dim secondary text
     readonly property int fontSizeNormal: 12   // bar body text (date, time, workspace numbers)
     readonly property int fontSizeLarge:  14   // section headers in popups
     readonly property int fontSizeXL:     16   // standout labels
