@@ -3,7 +3,7 @@ pragma Singleton
 // LockService.qml
 // Session-lock state + PAM + wallpaper-source detection. Drives the
 // WlSessionLock instance defined in lock/Lock.qml. Triggered via the
-// qs-IPC handler in shell.qml (which the niri Mod+Shift+X binding and
+// qs-IPC handler in shell.qml (which a compositor keybind like Mod+Shift+X and
 // hypridle's lock_cmd both call into).
 //
 // Lifecycle:

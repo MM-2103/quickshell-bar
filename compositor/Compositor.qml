@@ -1,29 +1,34 @@
+pragma Singleton
+
 // Compositor.qml
 // Cross-compositor abstraction. Detects the running Wayland compositor
-// at startup, instantiates the matching `Backend*.qml` adapter, and
-// re-exports a uniform surface that the rest of the shell consumes.
+// at startup, instantiates the matching Backend adapter, and re-exports
+// a uniform surface that the rest of the shell consumes.
 //
 // Public surface (read by Workspaces, shell.qml, PowerMenuPopup, etc.):
 //
-//   workspaces         : array of { id, idx, output, is_focused, is_active, name? }
-//   focusedOutput      : string  (name of currently-focused monitor)
-//   currentLayout      : string  (current keyboard layout, e.g. "English (US)";
-//                                empty on backends that can't surface it)
-//   windowFocused(id)  : signal  (emitted when the user focuses an app —
-//                                consumers use it to dismiss popups)
-//   dispatchFocusWorkspace(idx) : function (click-to-focus a chip)
-//   dispatchLogout()            : function (power menu's Logout button)
+//   workspaces         - array of workspace records
+//                        each has: id, idx, output, is_focused, is_active, name
+//   focusedOutput      - string, name of currently-focused monitor
+//   currentLayout      - string, current keyboard layout name
+//                        empty on backends that can't surface it
+//   windowFocused(id)  - signal, emitted when the user focuses an app
+//                        consumers use it to dismiss popups
+//   dispatchFocusWorkspace(idx)  - click-to-focus a chip
+//   dispatchLogout()             - power menu's Logout action
 //
 // Detection priority, first match wins:
-//   1. $QS_COMPOSITOR override     (niri / hyprland / sway / i3 / stub)
-//   2. $HYPRLAND_INSTANCE_SIGNATURE → hyprland
-//   3. $SWAYSOCK                    → sway
-//   4. $NIRI_SOCKET                 → niri
-//   5. $XDG_CURRENT_DESKTOP fuzzy match
-//   6. fallback                     → stub (empty workspaces; everything
-//                                    else in the shell still works)
-
-pragma Singleton
+//   1. QS_COMPOSITOR override          niri / hyprland / sway / i3 / stub
+//   2. HYPRLAND_INSTANCE_SIGNATURE  -> hyprland
+//   3. SWAYSOCK                     -> sway
+//   4. NIRI_SOCKET                  -> niri
+//   5. XDG_CURRENT_DESKTOP fuzzy match
+//   6. fallback                     -> stub
+//
+// IMPORTANT: pragma Singleton must be line 1 (gotcha #45). Header comments
+// must NOT contain curly braces — the qmlscanner doesn't strip them and
+// the brace tracker gets confused, silently registering this file as a
+// regular type instead of a singleton.
 
 import QtQuick
 import Quickshell

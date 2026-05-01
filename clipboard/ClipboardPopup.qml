@@ -1,7 +1,8 @@
 // ClipboardPopup.qml
 // Full clipboard-history picker. Triggered via the qs-IPC handler in
-// shell.qml (which the niri Mod+V binding calls into). One panel per
-// monitor; only the focused-monitor's panel is visible.
+// shell.qml (which the compositor's Mod+V binding calls into; see
+// examples/ for per-compositor setup). One panel per monitor; only the
+// focused-monitor's panel is visible.
 
 import QtQuick
 import QtQuick.Effects
@@ -39,7 +40,7 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
-    // No anchors → niri/wlroots horizontally and vertically centers a
+    // No anchors → wlroots horizontally and vertically centers a
     // free-floating layer surface. Surface is +24 px in each axis so the
     // drop shadow has padding to render in.
     implicitWidth: 480 + 24

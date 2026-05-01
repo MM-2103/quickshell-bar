@@ -1,7 +1,8 @@
 // Launcher.qml
 // App launcher popup. Triggered via the qs-IPC handler in shell.qml
-// (which the niri Mod+P binding calls into). One panel per monitor;
-// only the focused-monitor's panel is visible.
+// (which the compositor's Mod+P binding calls into; see examples/ for
+// per-compositor setup). One panel per monitor; only the focused-monitor's
+// panel is visible.
 
 import QtQuick
 import QtQuick.Effects
@@ -35,7 +36,7 @@ PanelWindow {
 
     // Layer-shell: above normal windows; Exclusive keyboard so every
     // keystroke (including space/letters) goes to our search field.
-    // niri compositor-keybinds (Mod+anything) still take precedence.
+    // The compositor's own keybinds (Mod+anything) still take precedence.
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 

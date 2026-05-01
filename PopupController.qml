@@ -8,7 +8,7 @@ pragma Singleton
 //   - On open: PopupController.open(self, () => { /* close me */ })
 //   - On any close path: PopupController.closed(self)
 //
-// Usage from outside (shell.qml on niri WindowFocusChanged):
+// Usage from outside (shell.qml on Compositor.windowFocused):
 //   - PopupController.closeAll()
 //
 // Identity is the popup object reference, not a string id, so multiple
@@ -55,7 +55,7 @@ Singleton {
         }
     }
 
-    // External "close whatever's open" — used by the niri-focus listener.
+    // External "close whatever's open" — used by the compositor focus listener.
     function closeAll() {
         if (!root.activePopup) return;
         const closer = root.activeCloser;

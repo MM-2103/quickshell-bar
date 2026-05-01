@@ -4,28 +4,35 @@
 // mono font; the focused workspace gets the accent fill, the active one
 // gets a subtle elevated background, and idle ones sit dim on transparent.
 //
-//   Click a chip -> niri focus-workspace <idx>
+//   Click a chip -> Compositor.dispatchFocusWorkspace(idx)
 
 import QtQuick
 import Quickshell
 import qs
+import qs.compositor
 
 Row {
     id: root
 
-    required property var niri      // Niri service instance
     required property string output // monitor name, e.g. "DP-1"
 
     spacing: 4
 
     Repeater {
-        // Read niri.workspaces directly so the binding tracks it.
+        // Read Compositor.workspaces directly so the binding tracks it.
         model: {
-            if (!root.niri || !root.output) return [];
-            return root.niri.workspaces
+            if (!root.output) return [];
+            // workspaces with a numeric idx sort numerically; named-only
+            // workspaces (idx is a string, e.g. Hyprland special) keep
+            // their incoming order via stable sort.
+            return Compositor.workspaces
                 .filter(w => w.output === root.output)
                 .slice()
-                .sort((a, b) => a.idx - b.idx);
+                .sort((a, b) => {
+                    const an = (typeof a.idx === "number") ? a.idx : 0;
+                    const bn = (typeof b.idx === "number") ? b.idx : 0;
+                    return an - bn;
+                });
         }
 
         delegate: MouseArea {
@@ -41,9 +48,7 @@ Row {
 
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: Quickshell.execDetached(
-                ["niri", "msg", "action", "focus-workspace", String(modelData.idx)]
-            )
+            onClicked: Compositor.dispatchFocusWorkspace(modelData.idx)
 
             // Chip background. Three resting states (focused / active / idle)
             // plus a hover overlay on idle chips.
@@ -71,13 +76,15 @@ Row {
                 Behavior on opacity { NumberAnimation { duration: Theme.animMed } }
             }
 
-            // Tooltip — workspace name if niri set one, else "Workspace N".
+            // Tooltip — workspace name if the compositor set one, else
+            // a generic "Workspace N" label using the idx.
             BarTooltip {
                 anchorItem: chip
                 show: chip.containsMouse
                 text: {
                     const n = chip.modelData.name;
-                    if (n && n.length > 0) return n;
+                    if (n && n.length > 0 && n !== String(chip.modelData.idx))
+                        return n;
                     return "Workspace " + chip.modelData.idx;
                 }
             }
