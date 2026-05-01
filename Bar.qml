@@ -77,6 +77,7 @@ PanelWindow {
         Bluetooth      { anchors.verticalCenter: parent.verticalCenter }
         TrayCollapser  { anchors.verticalCenter: parent.verticalCenter }
         Media          { anchors.verticalCenter: parent.verticalCenter }
+        Battery        { anchors.verticalCenter: parent.verticalCenter }
         Volume         { anchors.verticalCenter: parent.verticalCenter }
         Power          { anchors.verticalCenter: parent.verticalCenter }
     }
