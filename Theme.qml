@@ -55,10 +55,10 @@ Singleton {
 
     // ---- Font sizes (4-step scale; replaces inline 8/9/10/11/13/14/16) ----
     readonly property int fontSizeBadge:  9    // notification count, signal-strength overlays — sub-10 chrome
-    readonly property int fontSizeSmall:  10   // tooltips, dim secondary text
-    readonly property int fontSizeNormal: 12   // bar body text (date, time, workspace numbers)
-    readonly property int fontSizeLarge:  14   // section headers in popups
-    readonly property int fontSizeXL:     16   // standout labels
+    readonly property int fontSizeSmall:  11   // tooltips, dim secondary text
+    readonly property int fontSizeNormal: 13   // bar body text (date, time, workspace numbers)
+    readonly property int fontSizeLarge:  15   // section headers in popups
+    readonly property int fontSizeXL:     17   // standout labels
 
     // Default glyph size for FA icons inside a 22 × 22 bar widget.
     readonly property int iconSize: 13
