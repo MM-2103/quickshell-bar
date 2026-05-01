@@ -59,42 +59,12 @@ PopupWindow {
     readonly property var player: MediaService.currentPlayer
     readonly property bool multiPlayer: MediaService.visiblePlayers.length > 1
 
-    // Cached album-art URL.
-    //
-    // Bound directly to player.trackArtUrl, browsers (Firefox / Zen) often
-    // emit transient empty strings on pause/unpause cycles, which makes the
-    // art flash to the placeholder mid-playback. Instead we hold the last
-    // *non-empty* URL and only reset it on a true track change.
-    property string cachedArtUrl: ""
-
-    function _refreshArt() {
-        if (popup.player && popup.player.trackArtUrl) {
-            cachedArtUrl = popup.player.trackArtUrl;
-        }
-        // If trackArtUrl is empty/null, keep whatever we last cached so the
-        // previous frame's art keeps showing through pause/unpause flicker.
-    }
-
-    onPlayerChanged: {
-        // Different player = unrelated art context; clear and re-pull.
-        cachedArtUrl = "";
-        _refreshArt();
-    }
-
-    Component.onCompleted: _refreshArt()
-
-    Connections {
-        target: popup.player
-        enabled: popup.player !== null
-        function onTrackChanged() {
-            // Genuine track change in the same player — drop the old art
-            // so the placeholder shows briefly until the new URL arrives.
-            popup.cachedArtUrl = "";
-        }
-        function onTrackArtUrlChanged() {
-            popup._refreshArt();
-        }
-    }
+    // Cached album-art URL — read from MediaService's shell-wide cache.
+    // Kept centralized there so the popup, the lock surface, and any other
+    // consumer all share the same "last seen non-empty URL" without each
+    // having to maintain their own cache and miss out on URLs that only
+    // appeared during a sibling's lifetime.
+    readonly property string cachedArtUrl: MediaService.cachedArtUrl
 
     // MprisPlayer.position isn't reactive — emit positionChanged() periodically
     // while the popup is visible AND the player is playing, so the progress
