@@ -52,4 +52,17 @@ MouseArea {
         id: popup
         anchorItem: root
     }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: {
+            const p = MediaService.currentPlayer;
+            if (!p) return "Media";
+            const title = p.trackTitle || "";
+            const artist = p.trackArtist || "";
+            if (title && artist) return title + " · " + artist;
+            return title || artist || "Media";
+        }
+    }
 }

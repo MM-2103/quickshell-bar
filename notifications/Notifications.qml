@@ -85,4 +85,14 @@ MouseArea {
         id: popup
         anchorItem: root
     }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: root.dnd
+            ? "Do not disturb"
+            : (root.count > 0
+                ? (root.count === 1 ? "1 notification" : root.count + " notifications")
+                : "Notifications")
+    }
 }

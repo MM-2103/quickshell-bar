@@ -75,6 +75,14 @@ MouseArea {
         Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
     }
 
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: root.muted
+            ? "Muted"
+            : ("Volume " + Math.round(root.volume * 100) + "%")
+    }
+
     VolumePopup {
         id: popup
         anchorItem: root

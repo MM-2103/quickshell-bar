@@ -95,4 +95,17 @@ MouseArea {
         id: popup
         anchorItem: root
     }
+
+    BarTooltip {
+        anchorItem: root
+        show: root.containsMouse && !popup.visible
+        text: NetworkService.wiredConnected
+            ? "Wired connected"
+            : NetworkService.wifiConnected
+                ? ("WiFi · " + (NetworkService.currentSsid || "")
+                    + " · " + root._signal + "%")
+                : NetworkService.wifiEnabled
+                    ? "Disconnected"
+                    : "WiFi off"
+    }
 }
