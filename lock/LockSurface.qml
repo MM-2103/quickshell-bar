@@ -65,114 +65,175 @@ WlSessionLockSurface {
     }
 
     // ---- Centered content ----
+    //
+    // Centered Column laid out top-to-bottom:
+    //   1. Clock cluster (HH : MM split into 3 Texts; colon dimmed for visual
+    //      rhythm; whole cluster drop-shadowed for depth on busy wallpapers).
+    //   2. Date.
+    //   3. Glassy panel: password input + status text.
+    //   4. NowPlayingCard (auto-hides when no MPRIS player).
 
     Column {
         anchors.centerIn: parent
-        spacing: 18
-        width: 360
+        spacing: 16
 
-        // Clock — large, monospace so digits don't shift width as time changes.
-        Text {
+        // ---- Clock cluster ----
+        //
+        // Wrapped in an Item with explicit size so MultiEffect can layer it
+        // and the drop shadow has a fixed bounding box. Three Texts share
+        // the same Input Nerd Font face that's also used in Ghostty.
+        Item {
+            id: clockBox
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDateTime(clock.date, "HH:mm")
-            color: Theme.text
-            font.pixelSize: 96
-            font.family: "monospace"
-            font.weight: Font.Light
+            width: clockRow.width
+            height: clockRow.height
+
+            Row {
+                id: clockRow
+                spacing: 0
+
+                Text {
+                    text: Qt.formatDateTime(clock.date, "HH")
+                    color: Theme.text
+                    font.family: "Input Nerd Font"
+                    font.pixelSize: 144
+                }
+                Text {
+                    text: ":"
+                    color: Theme.text
+                    opacity: 0.35
+                    font.family: "Input Nerd Font"
+                    font.pixelSize: 144
+                }
+                Text {
+                    text: Qt.formatDateTime(clock.date, "mm")
+                    color: Theme.text
+                    font.family: "Input Nerd Font"
+                    font.pixelSize: 144
+                }
+            }
+
+            // Drop shadow under the whole HH:MM cluster. Adds depth on busy
+            // wallpapers without darkening the text itself.
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: "#000000"
+                shadowVerticalOffset: 4
+                shadowHorizontalOffset: 0
+                shadowBlur: 1.0
+                shadowOpacity: 0.45
+            }
         }
 
-        // Date — secondary, dim.
+        // ---- Date ----
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
+            text: Qt.formatDateTime(clock.date, "dddd · MMMM d")
             color: Theme.text
             opacity: 0.85
-            font.pixelSize: 16
+            font.pixelSize: 18
+            font.letterSpacing: 0.5
         }
 
-        // Spacer.
-        Item { width: 1; height: 14 }
-
-        // Password input box. Whole row dims to 0.45 opacity while PAM is
-        // validating — the user can clearly see their input was received
-        // and that no further typing will register until validation ends.
+        // ---- Glassy panel: input + status ----
+        //
+        // Semi-transparent white over the already-blurred wallpaper gives a
+        // genuine glass feel; the darker input rectangle inside provides
+        // contrast. 360 px wide to match NowPlayingCard below.
         Rectangle {
-            id: pwBox
-            width: parent.width
-            height: 44
-            radius: Theme.radiusSmall
-            color: Qt.rgba(0, 0, 0, 0.55)
-
-            opacity: LockService.pamChecking ? 0.45 : 1.0
-            Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-
-            // Border colour: red while there's an active error message,
-            // accent while focused, otherwise the standard border tone.
-            // Error persists until the user submits a new attempt.
+            id: inputCard
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 360
+            height: inputCol.height + 32     // 16 px top + bottom padding
+            radius: 14
+            color: Qt.rgba(1, 1, 1, 0.10)
+            border.color: Qt.rgba(1, 1, 1, 0.18)
             border.width: 1
-            border.color: LockService.pamError.length > 0
-                ? "#ff5050"
-                : (passField.activeFocus ? Theme.text : Theme.border)
-            Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
-            TextInput {
-                id: passField
+            Column {
+                id: inputCol
                 anchors {
-                    fill: parent
-                    leftMargin: 14
-                    rightMargin: 14
+                    left: parent.left
+                    right: parent.right
+                    verticalCenter: parent.verticalCenter
+                    leftMargin: 16
+                    rightMargin: 16
                 }
-                verticalAlignment: TextInput.AlignVCenter
-                color: Theme.text
-                font.pixelSize: 16
-                echoMode: TextInput.Password
-                passwordCharacter: "●"
-                selectByMouse: false
-                clip: true
-                // Lock the input while PAM is validating. Using readOnly
-                // (vs. enabled:false) keeps the cursor and visual styling
-                // intact — combined with the parent's opacity dim, this
-                // reads as "input is paused, please wait".
-                readOnly: LockService.pamChecking
-                // Always grab focus when this surface becomes visible.
-                Component.onCompleted: forceActiveFocus()
+                spacing: 10
 
-                // Submit on Enter; Esc clears the field; everything else
-                // types as normal. Field is NOT cleared on submit — the
-                // dots stay visible while PAM validates so the user knows
-                // exactly what they sent. Field clears on PAM result
-                // (failure → error handler below; success → surface goes
-                // away when locked drops to false).
-                Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        if (!LockService.pamChecking && passField.text.length > 0) {
-                            LockService.respond(passField.text);
+                // Password input box. Dims while PAM is validating so the
+                // user can clearly see input was received and no further
+                // typing registers until validation finishes.
+                Rectangle {
+                    id: pwBox
+                    width: parent.width
+                    height: 40
+                    radius: Theme.radiusSmall
+                    color: Qt.rgba(0, 0, 0, 0.45)
+
+                    opacity: LockService.pamChecking ? 0.45 : 1.0
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+
+                    // Border: red while there's an active error message,
+                    // accent while focused, otherwise standard border tone.
+                    border.width: 1
+                    border.color: LockService.pamError.length > 0
+                        ? "#ff5050"
+                        : (passField.activeFocus ? Theme.text : Qt.rgba(1, 1, 1, 0.20))
+                    Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+
+                    TextInput {
+                        id: passField
+                        anchors {
+                            fill: parent
+                            leftMargin: 14
+                            rightMargin: 14
                         }
-                        event.accepted = true;
-                    } else if (event.key === Qt.Key_Escape) {
-                        if (!LockService.pamChecking) passField.text = "";
-                        event.accepted = true;
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: Theme.text
+                        font.pixelSize: 16
+                        echoMode: TextInput.Password
+                        passwordCharacter: "●"
+                        selectByMouse: false
+                        clip: true
+                        readOnly: LockService.pamChecking
+                        Component.onCompleted: forceActiveFocus()
+
+                        Keys.onPressed: event => {
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                if (!LockService.pamChecking && passField.text.length > 0) {
+                                    LockService.respond(passField.text);
+                                }
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Escape) {
+                                if (!LockService.pamChecking) passField.text = "";
+                                event.accepted = true;
+                            }
+                        }
                     }
+                }
+
+                // Status line — error in red if present (persists across the
+                // PAM auto-restart until the user attempts a new password),
+                // else the current PAM prompt ("Password:") or "Locked".
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: LockService.pamError.length > 0
+                        ? LockService.pamError
+                        : (LockService.pamMessage || "Locked")
+                    color: LockService.pamError.length > 0
+                        ? "#ff7070"
+                        : Theme.text
+                    opacity: LockService.pamError.length > 0 ? 1.0 : 0.7
+                    font.pixelSize: 12
                 }
             }
         }
 
-        // Status line — error in red if present (persists across the
-        // PAM auto-restart until the user attempts a new password), else
-        // the current PAM prompt ("Password:") or "Locked" as fallback.
-        // No "Checking…" state: PAM's blocking validation can be retried
-        // mid-flight (response is queued in LockService), so showing a
-        // wait state would mislead users into thinking they had to wait.
-        Text {
+        // ---- Now-playing card (only when MPRIS has an active track) ----
+        NowPlayingCard {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: LockService.pamError.length > 0
-                ? LockService.pamError
-                : (LockService.pamMessage || "Locked")
-            color: LockService.pamError.length > 0
-                ? "#ff7070"
-                : Theme.text
-            opacity: LockService.pamError.length > 0 ? 1.0 : 0.7
-            font.pixelSize: 12
         }
     }
 
