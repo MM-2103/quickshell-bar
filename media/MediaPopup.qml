@@ -11,6 +11,7 @@
 //   └──────────────────────────────────────────┘
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Services.Mpris
 import Quickshell.Widgets
@@ -58,11 +59,15 @@ PopupWindow {
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? -((popup.width - anchorItem.width) / 2) : 0
-    anchor.rect.y: anchorItem ? anchorItem.height + 6 : 0
+    // Y compensates for the 12 px shadow padding so the visible popup body
+    // still lands 6 px below the anchor item.
+    anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    implicitWidth: 360
-    implicitHeight: container.implicitHeight
+    // Popup surface is 24 px taller and wider than the visible body, leaving
+    // a 12 px transparent margin around it for the drop shadow to render in.
+    implicitWidth: 360 + 24
+    implicitHeight: container.implicitHeight + 24
 
     readonly property var player: MediaService.currentPlayer
     readonly property bool multiPlayer: MediaService.visiblePlayers.length > 1
@@ -88,6 +93,7 @@ PopupWindow {
     Rectangle {
         id: container
         anchors.fill: parent
+        anchors.margins: 12   // shadow padding
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -103,6 +109,17 @@ PopupWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        // Subtle drop shadow (depth + masks the rounded-corner-against-
+        // wallpaper "torn corner" appearance on dark wallpapers).
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         // Vertical sum of the inner sections (with margins).

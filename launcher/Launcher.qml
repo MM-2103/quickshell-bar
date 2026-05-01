@@ -4,6 +4,7 @@
 // only the focused-monitor's panel is visible.
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -39,9 +40,9 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     // No anchors → wlroots horizontally and vertically centers a
-    // free-floating layer surface.
-    implicitWidth: 540
-    implicitHeight: 520
+    // free-floating layer surface. Surface +24 px for shadow padding.
+    implicitWidth: 540 + 24
+    implicitHeight: 520 + 24
 
     // ---- Convenience handles ----
     readonly property var filtered:
@@ -72,6 +73,7 @@ PanelWindow {
 
     Rectangle {
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -86,6 +88,15 @@ PanelWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         Column {

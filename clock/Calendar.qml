@@ -12,6 +12,7 @@
 //   monthView                  : true=day grid, false=12-month grid
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs
 
@@ -66,11 +67,11 @@ PopupWindow {
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? (anchorItem.width - cal.width) / 2 : 0
-    anchor.rect.y: anchorItem ? anchorItem.height + 6 : 0
+    anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
 
     color: "transparent"
-    implicitWidth: monthView ? 260 : 220
-    implicitHeight: monthView ? 240 : 184
+    implicitWidth: (monthView ? 260 : 220) + 24
+    implicitHeight: (monthView ? 240 : 184) + 24
 
     // 6 rows x 7 cols of month cells. Day=0 means blank.
     readonly property var _monthCells: {
@@ -115,6 +116,7 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -129,6 +131,15 @@ PopupWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         // Hover detector behind everything (does not eat clicks).

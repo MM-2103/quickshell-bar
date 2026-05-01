@@ -17,6 +17,7 @@
 // Right-click on a paired row -> forget
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Widgets
@@ -50,11 +51,11 @@ PopupWindow {
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? -((popup.width - anchorItem.width) / 2) : 0
-    anchor.rect.y: anchorItem ? anchorItem.height + 6 : 0
+    anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    implicitWidth: 360
-    implicitHeight: contentColumn.implicitHeight + 16
+    implicitWidth: 360 + 24
+    implicitHeight: contentColumn.implicitHeight + 16 + 24
 
     readonly property var adapter: Bluetooth.defaultAdapter
     readonly property bool adapterEnabled: adapter ? adapter.enabled : false
@@ -325,6 +326,7 @@ PopupWindow {
     // ================================================================
     Rectangle {
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -339,6 +341,15 @@ PopupWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         Column {

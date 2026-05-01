@@ -11,6 +11,7 @@
 //        rootMenu.requestClose() which closes the whole chain.
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Widgets
 import qs
@@ -32,17 +33,19 @@ PopupWindow {
     color: "transparent"
 
     // Submenus open to the right of their anchor row; root menus open below.
+    // Y/X compensate for the 12 px shadow padding so the visible body lands
+    // at the same screen position as before.
     anchor.item: anchorItem
     anchor.rect.x: parentMenu
-        ? (anchorItem ? anchorItem.width - 4 : 0)
+        ? (anchorItem ? anchorItem.width - 4 - 12 : 0)
         : (anchorItem ? -((menu.width - anchorItem.width) / 2) : 0)
     anchor.rect.y: parentMenu
-        ? 0
-        : (anchorItem ? anchorItem.height + 4 : 0)
+        ? -12
+        : (anchorItem ? anchorItem.height + 4 - 12 : 0)
     anchor.adjustment: PopupAdjustment.SlideX | PopupAdjustment.FlipY
 
-    implicitWidth: 240
-    implicitHeight: contentColumn.implicitHeight + 8
+    implicitWidth: 240 + 24
+    implicitHeight: contentColumn.implicitHeight + 8 + 24
 
     // ---- API for chain control ----
     function requestClose() {
@@ -118,10 +121,20 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
         radius: Theme.radius
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
+        }
 
         Column {
             id: contentColumn

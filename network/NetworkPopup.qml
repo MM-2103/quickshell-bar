@@ -3,6 +3,7 @@
 // connect to known/new/hidden networks and forget saved ones.
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Widgets
 import qs
@@ -36,11 +37,11 @@ PopupWindow {
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? -((popup.width - anchorItem.width) / 2) : 0
-    anchor.rect.y: anchorItem ? anchorItem.height + 6 : 0
+    anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    implicitWidth: 380
-    implicitHeight: contentColumn.implicitHeight + 16
+    implicitWidth: 380 + 24
+    implicitHeight: contentColumn.implicitHeight + 16 + 24
 
     // SSID currently being prompted for a password (inline expansion).
     property string passwordPromptSsid: ""
@@ -504,6 +505,7 @@ PopupWindow {
     // ================================================================
     Rectangle {
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -518,6 +520,15 @@ PopupWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         Column {

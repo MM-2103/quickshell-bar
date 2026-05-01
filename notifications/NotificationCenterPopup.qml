@@ -2,6 +2,7 @@
 // Notification center — full history list, DND toggle, clear-all.
 
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs
 
@@ -33,11 +34,11 @@ PopupWindow {
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? -((popup.width - anchorItem.width) / 2) : 0
-    anchor.rect.y: anchorItem ? anchorItem.height + 6 : 0
+    anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    implicitWidth: 380
-    implicitHeight: container.implicitHeight
+    implicitWidth: 380 + 24
+    implicitHeight: container.implicitHeight + 24
 
     readonly property var notifs: NotificationService.trackedNotifications
         ? NotificationService.trackedNotifications.values
@@ -47,6 +48,7 @@ PopupWindow {
     Rectangle {
         id: container
         anchors.fill: parent
+        anchors.margins: 12
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
@@ -62,6 +64,15 @@ PopupWindow {
             Behavior on y {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
+        }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowVerticalOffset: 4
+            shadowHorizontalOffset: 0
+            shadowBlur: 0.6
         }
 
         // Account for: header top margin (10) + header height + divider gap
