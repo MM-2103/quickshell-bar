@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #58+) represents original
+> "Gotchas & quirks" section (entries #1 through #59+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2326,7 +2326,15 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     }
     ```
 
-52. **`WlSessionLock` automatically updates systemd-logind's `LockedHint` property when `locked` toggles.** No manual `loginctl lock-session` call needed; system tools that respect lock state (notification daemons that suppress display when locked, dbus-monitor watchers, MPRIS hints, etc.) will see the change. Verify with `loginctl show-session $XDG_SESSION_ID -p LockedHint`. The reverse is NOT true: a manual `loginctl lock-session` invocation from elsewhere will NOT trigger your `WlSessionLock` — they're sibling APIs both feeding into the same logind state. To honor external `lock-session` requests, subscribe to logind's `Lock` D-Bus signal separately.
+52. **`WlSessionLock` automatically updates systemd-logind's `LockedHint` property when `locked` toggles**, but does NOT subscribe to logind's `Lock` D-Bus signal — it's outbound-only. Verify the outbound side with `loginctl show-session $XDG_SESSION_ID -p LockedHint`.
+
+    **Inbound: an external `loginctl lock-session` call does NOT directly lock your shell.** It only flips logind's `LockedHint` to `yes`, which `WlSessionLock` doesn't listen for. To make external lock requests actually lock the screen, you need a bridge — and in practice every realistic install already has one because of an idle daemon:
+
+    - `hypridle.conf` configured with `lock_cmd = qs ipc call lock open` reacts to `LockedHint = yes` by spawning your shell's lock IPC. So `loginctl lock-session` works *transitively* through hypridle.
+    - `swayidle ... lock 'qs ipc call lock open'` does the same on Sway / i3.
+    - DE-style polkit lockers usually call `loginctl lock-session` AND emit logind's `Lock` signal directly; if you need to honor those without an idle daemon, subscribe to the signal yourself via `DBusInterface` and call your `LockService.lock()`.
+
+    Power-menu "Lock" buttons that call `loginctl lock-session` therefore work as long as an idle daemon bridge is configured. Without it, the button silently does nothing.
 
 53. **`waypaper` writes the active wallpaper as a single line in `~/.config/waypaper/config.ini`** under the `[Settings]` section: `wallpaper = /absolute/path/to/image.ext` (`~`-relative paths are NOT expanded by waypaper itself but appear as-typed if you set them via the GUI). Useful for any shell component that needs to know the desktop wallpaper (lock screen blur background, color sampler, MPRIS art fallback, etc.). Re-read on demand via `FileView` with `watchChanges: true`. If waypaper isn't installed, fall back to parsing `pgrep -af 'swaybg|swww|hyprpaper'` arguments — fragile but works.
 
@@ -2467,6 +2475,78 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     - **Mask the surface to the rounded shape.** A `MultiEffect` with `maskEnabled` and a separate rounded mask source. More robust but ~30 lines per popup; do this only if the shadow approach isn't enough.
 
     Note this affects `PopupWindow`, not `PanelWindow` — layer-shell PanelWindows behave the same on most wlroots-based compositors, but the gotcha was first observed on PopupWindow + niri.
+
+59. **Cross-compositor support via a `Loader`-based backend abstraction.** A shell built around niri-only `Process`-based IPC can be ported to Hyprland and Sway / i3 with surprisingly little churn — the trick is to isolate the compositor coupling behind a small interface and select the right backend at startup.
+
+    **Architecture**:
+
+    ```
+    compositor/
+    ├── Compositor.qml        — Singleton, env-var detection, public surface
+    ├── BackendNiri.qml       — Process-based, parses `niri msg --json event-stream`
+    ├── BackendHyprland.qml   — wraps Quickshell.Hyprland
+    ├── BackendSway.qml       — wraps Quickshell.I3
+    └── BackendStub.qml       — empty fallback for unknown compositors
+    ```
+
+    **Detection** (in the singleton):
+
+    ```qml
+    readonly property string detectedKind: {
+        const env = (k) => Quickshell.env(k) || "";
+        const override = env("QS_COMPOSITOR").toLowerCase();
+        if (["niri","hyprland","sway","i3","stub"].indexOf(override) >= 0) return override;
+        if (env("HYPRLAND_INSTANCE_SIGNATURE")) return "hyprland";
+        if (env("SWAYSOCK"))                   return "sway";
+        if (env("NIRI_SOCKET"))                return "niri";
+        const xdg = env("XDG_CURRENT_DESKTOP").toLowerCase();
+        if (xdg.indexOf("hyprland") >= 0) return "hyprland";
+        if (xdg.indexOf("sway") >= 0)     return "sway";
+        if (xdg.indexOf("niri") >= 0)     return "niri";
+        return "stub";
+    }
+    ```
+
+    **Backend selection via `Loader { sourceComponent }`** — only the picked backend is instantiated, so unused backends don't pay setup cost (and importing `Quickshell.Hyprland` on a Sway machine is fine because Quickshell ships all the modules in one package; they just have empty state when their compositor isn't running):
+
+    ```qml
+    Loader {
+        id: backendLoader
+        sourceComponent: {
+            switch (detectedKind) {
+                case "niri":     return niriComp;
+                case "hyprland": return hyprComp;
+                case "sway":
+                case "i3":       return swayComp;
+                default:         return stubComp;
+            }
+        }
+    }
+    Component { id: niriComp;  BackendNiri     { } }
+    Component { id: hyprComp;  BackendHyprland { } }
+    Component { id: swayComp;  BackendSway     { } }
+    Component { id: stubComp;  BackendStub     { } }
+    ```
+
+    **Public surface re-exports the backend's properties** — consumers reference `Compositor.workspaces` etc. and never see the backend directly:
+
+    ```qml
+    readonly property var    workspaces:    backend ? backend.workspaces    : []
+    readonly property string focusedOutput: backend ? backend.focusedOutput : ""
+    signal windowFocused(var id)
+    Connections {
+        target: root.backend
+        function onWindowFocused(id) { root.windowFocused(id); }
+    }
+    ```
+
+    **Caveats**:
+
+    - **`pragma Singleton` placement is critical** for the abstraction to register correctly. Per gotcha #45, the pragma must be the very first non-blank line, and any header comments must NOT contain `{` or `}` characters — qmlscanner doesn't strip them, gets confused about brace nesting, and silently registers your file as a regular type instead of a singleton. The Compositor singleton hits this hard because its docstring naturally wants to write `{ id, idx, output, ... }` to describe the workspace shape.
+    - **Workspace shape conventions differ.** Niri exposes a flat array via JSON; Hyprland's `HyprlandWorkspace` has `id`/`name`/`active`/`focused`/`monitor`; I3's `I3Workspace` has `num`/`name`/`focused`/`visible`/`monitor`. Each backend re-shapes data into a common `{ id, idx, output, is_focused, is_active, name }` record so consumers don't need conditionals.
+    - **i3 / Sway has no keyboard-layout-changed IPC event.** The layout OSD silently never triggers on the sway/i3 backend (`currentLayout` stays `""`) — accept it or implement polling.
+    - **Each compositor has its own quirks** about what constitutes a "window focused" event. Niri's `WindowFocusChanged` fires with `id: null` for layer-shell focus grabs (gotcha #46) — backends must filter this. Hyprland's `activeToplevel` going null is a real event. I3/Sway's `rawEvent` for `window/focus` is the cleanest.
+    - **Hot-reload caveat**: changes to a singleton's `pragma Singleton` placement may not be picked up by a running daemon's already-generated `qmldir` cache. Restart the daemon (`qs kill --shell <id>` then `qs -p <path> -d`) when introducing or relocating a singleton.
 
 ### Style & best practices
 
