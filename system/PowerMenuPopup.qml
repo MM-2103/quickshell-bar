@@ -4,7 +4,6 @@
 // closes the popup. No confirmation dialog (matches wlogout convention).
 
 import QtQuick
-import QtQuick.Shapes
 import Quickshell
 import qs
 
@@ -58,13 +57,15 @@ PopupWindow {
             spacing: 8
 
             // ============================================================
-            // Inline button component — round pill with icon + label.
+            // Inline button component — round disk + Font Awesome glyph
+            // + label. The disk inverts on hover (white fill, dark glyph)
+            // for a clear "primary action" feel.
             // ============================================================
             component PowerButton: MouseArea {
                 id: btn
                 property string label
-                property var iconDraw            // Component drawing the icon
-                property var onActivate            // function to call
+                property string glyph         // Font Awesome 7 Solid codepoint
+                property var onActivate       // function to call
 
                 width: 56
                 height: 64
@@ -91,14 +92,17 @@ PopupWindow {
                             Behavior on color { ColorAnimation { duration: Theme.animFast } }
                         }
 
-                        // Icon drawn via the supplied Component
-                        Loader {
+                        // Glyph — Font Awesome 7 Solid. Inverts to dark on
+                        // hover so it stays readable on the white disk.
+                        Text {
                             anchors.centerIn: parent
-                            sourceComponent: btn.iconDraw
-                            // Pass `iconColor` through; the icon component can
-                            // bind to it for hover-flip readability.
-                            property color iconColor:
-                                btn.containsMouse ? Theme.bg : Theme.text
+                            text: btn.glyph
+                            color: btn.containsMouse ? Theme.bg : Theme.text
+                            font.family: Theme.fontIcon
+                            font.styleName: "Solid"
+                            font.pixelSize: 18
+                            renderType: Text.NativeRendering
+                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
                         }
                     }
 
@@ -106,243 +110,40 @@ PopupWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: btn.label
                         color: Theme.textDim
-                        font.pixelSize: 10
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
                     }
                 }
             }
 
             // ============================================================
-            // Per-icon Components — each draws on a 20×20 canvas.
-            // ============================================================
-
-            // Padlock — closed shackle + body
-            Component {
-                id: lockIcon
-                Item {
-                    id: lockGlyph
-                    width: 20; height: 20
-                    readonly property color c: parent ? parent.iconColor : Theme.text
-
-                    Shape {
-                        anchors.fill: parent
-                        antialiasing: true
-                        layer.enabled: true
-                        layer.samples: 4
-
-                        ShapePath {
-                            strokeColor: lockGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-
-                            startX: 6;  startY: 9
-                            PathLine { x: 6; y: 6 }
-                            PathArc { x: 14; y: 6; radiusX: 4; radiusY: 4; direction: PathArc.Clockwise }
-                            PathLine { x: 14; y: 9 }
-                        }
-                    }
-                    Rectangle {
-                        x: 4; y: 9
-                        width: 12; height: 9
-                        radius: 2
-                        color: lockGlyph.c
-                    }
-                }
-            }
-
-            // Suspend — crescent moon
-            Component {
-                id: suspendIcon
-                Item {
-                    id: suspendGlyph
-                    width: 20; height: 20
-                    readonly property color c: parent ? parent.iconColor : Theme.text
-
-                    Shape {
-                        anchors.fill: parent
-                        antialiasing: true
-                        layer.enabled: true
-                        layer.samples: 4
-
-                        ShapePath {
-                            strokeColor: suspendGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: suspendGlyph.c
-                            capStyle: ShapePath.RoundCap
-                            joinStyle: ShapePath.RoundJoin
-
-                            startX: 14; startY: 4
-                            PathArc { x: 14; y: 16; radiusX: 7; radiusY: 7; direction: PathArc.Counterclockwise }
-                            PathArc { x: 14; y: 4;  radiusX: 5; radiusY: 5; direction: PathArc.Clockwise }
-                        }
-                    }
-                }
-            }
-
-            // Logout — door with arrow pointing right
-            Component {
-                id: logoutIcon
-                Item {
-                    id: logoutGlyph
-                    width: 20; height: 20
-                    readonly property color c: parent ? parent.iconColor : Theme.text
-
-                    Shape {
-                        anchors.fill: parent
-                        antialiasing: true
-                        layer.enabled: true
-                        layer.samples: 4
-
-                        ShapePath {
-                            strokeColor: logoutGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-                            joinStyle: ShapePath.RoundJoin
-
-                            startX: 9; startY: 3
-                            PathLine { x: 3; y: 3 }
-                            PathLine { x: 3; y: 17 }
-                            PathLine { x: 9; y: 17 }
-                        }
-
-                        ShapePath {
-                            strokeColor: logoutGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-
-                            startX: 8; startY: 10
-                            PathLine { x: 17; y: 10 }
-                        }
-                        ShapePath {
-                            strokeColor: logoutGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-                            joinStyle: ShapePath.RoundJoin
-
-                            startX: 13; startY: 6
-                            PathLine { x: 17; y: 10 }
-                            PathLine { x: 13; y: 14 }
-                        }
-                    }
-                }
-            }
-
-            // Reboot — circular arrow
-            Component {
-                id: rebootIcon
-                Item {
-                    id: rebootGlyph
-                    width: 20; height: 20
-                    readonly property color c: parent ? parent.iconColor : Theme.text
-
-                    Shape {
-                        anchors.fill: parent
-                        antialiasing: true
-                        layer.enabled: true
-                        layer.samples: 4
-
-                        ShapePath {
-                            strokeColor: rebootGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-
-                            startX: 13; startY: 3
-                            PathArc {
-                                x: 13; y: 17
-                                radiusX: 7; radiusY: 7
-                                direction: PathArc.Counterclockwise
-                                useLargeArc: true
-                            }
-                        }
-
-                        ShapePath {
-                            strokeColor: rebootGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: rebootGlyph.c
-                            capStyle: ShapePath.RoundCap
-                            joinStyle: ShapePath.RoundJoin
-
-                            startX: 13; startY: 3
-                            PathLine { x: 9;  y: 1 }
-                            PathLine { x: 11; y: 6 }
-                            PathLine { x: 13; y: 3 }
-                        }
-                    }
-                }
-            }
-
-            // Shutdown — power symbol (broken circle + vertical line)
-            Component {
-                id: shutdownIcon
-                Item {
-                    id: shutdownGlyph
-                    width: 20; height: 20
-                    readonly property color c: parent ? parent.iconColor : Theme.text
-
-                    Shape {
-                        anchors.fill: parent
-                        antialiasing: true
-                        layer.enabled: true
-                        layer.samples: 4
-
-                        ShapePath {
-                            strokeColor: shutdownGlyph.c
-                            strokeWidth: 1.6
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-
-                            startX: 6; startY: 5
-                            PathArc {
-                                x: 14; y: 5
-                                radiusX: 7; radiusY: 7
-                                direction: PathArc.Clockwise
-                                useLargeArc: true
-                            }
-                        }
-
-                        ShapePath {
-                            strokeColor: shutdownGlyph.c
-                            strokeWidth: 1.8
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-
-                            startX: 10; startY: 2
-                            PathLine { x: 10; y: 10 }
-                        }
-                    }
-                }
-            }
-
-            // ============================================================
-            // The five buttons.
+            // The five buttons. Glyphs (Font Awesome 7 Solid):
+            //   \uf023 lock          \uf186 moon       \uf2f5 right-from-bracket
+            //   \uf021 arrows-rotate \uf011 power-off
             // ============================================================
             PowerButton {
                 label: "Lock"
-                iconDraw: lockIcon
+                glyph: "\uf023"
                 onActivate: () => popup._run(["loginctl", "lock-session"])
             }
             PowerButton {
                 label: "Suspend"
-                iconDraw: suspendIcon
+                glyph: "\uf186"
                 onActivate: () => popup._run(["systemctl", "suspend"])
             }
             PowerButton {
                 label: "Logout"
-                iconDraw: logoutIcon
+                glyph: "\uf2f5"
                 onActivate: () => popup._run(["niri", "msg", "action", "quit"])
             }
             PowerButton {
                 label: "Reboot"
-                iconDraw: rebootIcon
+                glyph: "\uf021"
                 onActivate: () => popup._run(["systemctl", "reboot"])
             }
             PowerButton {
                 label: "Shutdown"
-                iconDraw: shutdownIcon
+                glyph: "\uf011"
                 onActivate: () => popup._run(["systemctl", "poweroff"])
             }
         }
