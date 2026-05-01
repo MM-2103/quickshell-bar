@@ -20,7 +20,15 @@ PanelWindow {
 
     readonly property bool isFocusedScreen:
         modelData && modelData.name === focusedOutput
-    visible: !!(ClipboardService && ClipboardService.popupOpen) && isFocusedScreen
+    readonly property bool wantOpen:
+        !!(ClipboardService && ClipboardService.popupOpen) && isFocusedScreen
+    // Stay mapped briefly during fade-out so the animation can play.
+    visible: wantOpen || hideHold.running
+    Timer { id: hideHold; interval: 180; repeat: false }
+    onWantOpenChanged: {
+        if (wantOpen) hideHold.stop();
+        else          hideHold.restart();
+    }
 
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
@@ -85,6 +93,17 @@ PanelWindow {
         border.color: Theme.border
         border.width: 1
         radius: Theme.radius
+
+        opacity: panel.wantOpen ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        transform: Translate {
+            y: panel.wantOpen ? 0 : 4
+            Behavior on y {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+        }
 
         Column {
             anchors {
