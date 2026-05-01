@@ -218,27 +218,16 @@ PopupWindow {
                     anchors.fill: parent
                     visible: !art.visible
 
-                    // Music note glyph (mini version of bar icon)
-                    Item {
+                    // Music note placeholder — Font Awesome 7 Solid \uf001.
+                    Text {
                         anchors.centerIn: parent
-                        width: 36
-                        height: 36
+                        text: "\uf001"
+                        color: Theme.textDim
                         opacity: 0.4
-
-                        Rectangle {
-                            x: 4; y: 26
-                            width: 14; height: 9
-                            radius: 4.5
-                            color: Theme.textDim
-                            transform: Rotation { origin.x: 7; origin.y: 4.5; angle: -18 }
-                        }
-                        Rectangle {
-                            x: 18; y: 4
-                            width: 3
-                            height: 24
-                            radius: 1.5
-                            color: Theme.textDim
-                        }
+                        font.family: Theme.fontIcon
+                        font.styleName: "Solid"
+                        font.pixelSize: 32
+                        renderType: Text.NativeRendering
                     }
                 }
             }

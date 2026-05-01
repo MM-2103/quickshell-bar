@@ -205,45 +205,38 @@ PopupWindow {
                 }
             }
 
-            // Battery indicator (if available)
+            // Battery indicator (if available) — Font Awesome 5-tier ramp
+            // matches the same vocabulary used by the planned bar battery
+            // widget; %s rounds to the closest tier (0-19/20-39/40-59/60-79/80+).
             Item {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 30
+                width: 32
                 height: 14
                 visible: row.hasBattery
 
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 20
-                    height: 10
-                    radius: 1
-                    color: "transparent"
-                    border.color: Theme.textDim
-                    border.width: 1
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.margins: 1
-                        width: (parent.width - 2) * row.battery
-                        color: row.battery > 0.2 ? Theme.text : Theme.accent
-                    }
-                }
-
-                // Battery cap
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 21
-                    width: 1
-                    height: 6
-                    color: Theme.textDim
+                function _glyph() {
+                    const p = row.battery;
+                    if (p >= 0.80) return "\uf240"; // battery-full
+                    if (p >= 0.60) return "\uf241"; // battery-three-quarters
+                    if (p >= 0.40) return "\uf242"; // battery-half
+                    if (p >= 0.20) return "\uf243"; // battery-quarter
+                    return "\uf244";                 // battery-empty
                 }
 
                 Text {
                     anchors.left: parent.left
-                    anchors.leftMargin: 24
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: parent._glyph()
+                    color: row.battery > 0.2 ? Theme.textDim : Theme.error
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 11
+                    renderType: Text.NativeRendering
+                }
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 16
                     anchors.verticalCenter: parent.verticalCenter
                     text: Math.round(row.battery * 100)
                     color: Theme.textDim
