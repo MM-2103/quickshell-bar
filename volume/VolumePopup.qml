@@ -8,6 +8,7 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Services.Pipewire
+import Quickshell.Widgets
 import qs
 
 PopupWindow {
@@ -52,8 +53,19 @@ PopupWindow {
     implicitHeight: contentColumn.implicitHeight + 16 + 24
 
     // Track defaults so .audio.volume / .muted are valid.
+    // Tracking includes the default sink/source plus every app stream so
+    // their `properties` (application.name / application.icon-name / etc.)
+    // are populated. Without tracking, those property maps come back empty.
     PwObjectTracker {
-        objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
+        objects: {
+            const out = [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource];
+            const all = Pipewire.nodes.values;
+            for (let i = 0; i < all.length; i++) {
+                const n = all[i];
+                if (n && n.audio && n.isStream) out.push(n);
+            }
+            return out;
+        }
     }
 
     readonly property var defaultSink: Pipewire.defaultAudioSink
@@ -75,6 +87,21 @@ PopupWindow {
         for (let i = 0; i < all.length; i++) {
             const n = all[i];
             if (n && n.audio && !n.isSink && !n.isStream) list.push(n);
+        }
+        return list;
+    }
+
+    // App streams that produce audio (i.e. sink-input streams). Filter via
+    // media.class because the meaning of `isSink` for streams varies; the
+    // class string is unambiguous: "Stream/Output/Audio" = app -> sink.
+    readonly property var audioStreams: {
+        const list = [];
+        const all = Pipewire.nodes.values;
+        for (let i = 0; i < all.length; i++) {
+            const n = all[i];
+            if (!n || !n.audio || !n.isStream) continue;
+            const cls = (n.properties && n.properties["media.class"]) || "";
+            if (cls === "Stream/Output/Audio") list.push(n);
         }
         return list;
     }
@@ -302,6 +329,155 @@ PopupWindow {
                 devices: popup.audioInputs
                 onDeviceSelected: dev => Pipewire.preferredDefaultAudioSource = dev
             }
+
+            // ---- Per-app streams section ----
+            //
+            // Visible only when at least one app is producing audio. Each
+            // row: app icon (click to mute) + app name + slider + %.
+
+            Rectangle {
+                visible: popup.audioStreams.length > 0
+                width: parent.width
+                height: 1
+                color: Theme.border
+            }
+
+            Column {
+                id: appsSection
+                visible: popup.audioStreams.length > 0
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: "APPS"
+                    color: Theme.textDim
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.Bold
+                }
+
+                Repeater {
+                    model: popup.audioStreams
+                    delegate: AppStreamRow {
+                        required property var modelData
+                        stream: modelData
+                        width: appsSection.width
+                    }
+                }
+            }
+        }
+    }
+
+    // ================================================================
+    // Inline component: a single per-app stream row.
+    // ================================================================
+    component AppStreamRow: Row {
+        id: appRow
+        required property var stream
+
+        height: 30
+        spacing: 8
+
+        function _appName() {
+            if (!stream || !stream.properties) return "?";
+            return stream.properties["application.name"]
+                || stream.properties["node.name"]
+                || (stream.description || "")
+                || "Unknown app";
+        }
+
+        function _appIconName() {
+            if (!stream || !stream.properties) return "";
+            return stream.properties["application.icon-name"] || "";
+        }
+
+        readonly property bool _muted:
+            stream && stream.audio && stream.audio.muted
+
+        // Icon / mute toggle (click to mute).
+        MouseArea {
+            id: iconMa
+            anchors.verticalCenter: parent.verticalCenter
+            width: 24; height: 24
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                if (appRow.stream && appRow.stream.audio) {
+                    appRow.stream.audio.muted = !appRow.stream.audio.muted;
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusSmall
+                color: iconMa.containsMouse ? Theme.surfaceHi : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            }
+
+            // App icon resolved via XDG icon theme.
+            IconImage {
+                id: appIcon
+                anchors.centerIn: parent
+                implicitSize: 16
+                source: appRow._appIconName() !== ""
+                    ? Quickshell.iconPath(appRow._appIconName(), true)
+                    : ""
+                asynchronous: true
+                visible: source !== "" && status === Image.Ready
+                opacity: appRow._muted ? 0.45 : 1.0
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+            }
+
+            // Letter fallback when no icon.
+            Text {
+                anchors.centerIn: parent
+                visible: !appIcon.visible
+                text: appRow._appName().charAt(0).toUpperCase()
+                color: appRow._muted ? Theme.textMuted : Theme.text
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.Bold
+            }
+        }
+
+        // App name + slider stacked.
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - 24 - parent.spacing - 36 - parent.spacing
+            spacing: 1
+
+            Text {
+                width: parent.width
+                text: appRow._appName()
+                color: appRow._muted ? Theme.textDim : Theme.text
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                elide: Text.ElideRight
+            }
+
+            Slider {
+                width: parent.width
+                value: appRow.stream && appRow.stream.audio
+                    ? appRow.stream.audio.volume : 0
+                dimmed: appRow._muted
+                enabled: appRow.stream && appRow.stream.audio
+                onUserChanged: v => {
+                    if (appRow.stream && appRow.stream.audio)
+                        appRow.stream.audio.volume = v;
+                }
+            }
+        }
+
+        // Percentage readout.
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 36
+            horizontalAlignment: Text.AlignRight
+            text: Math.round((appRow.stream && appRow.stream.audio
+                ? appRow.stream.audio.volume : 0) * 100) + "%"
+            color: Theme.textDim
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeBadge
         }
     }
 }
