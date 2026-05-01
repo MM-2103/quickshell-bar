@@ -56,6 +56,36 @@ Singleton {
         onTriggered: root.currentKind = ""
     }
 
+    // ---- Brightness writer ----
+    //
+    // Spawns `brightnessctl set NN%` to update the backlight. Assumes
+    // brightnessctl is installed and the user is in the `video` group
+    // (or has the equivalent udev/polkit rule). The poller above will
+    // pick up the new value on its next 100 ms tick.
+    function setBrightness(ratio) {
+        if (!hasBrightness) return;
+        const r = Math.max(0, Math.min(1, ratio));
+        const pct = Math.round(r * 100);
+        brightnessSetter.command = ["brightnessctl", "set", pct + "%"];
+        brightnessSetter.running = true;
+    }
+
+    Process {
+        id: brightnessSetter
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: () => {}   // discard; the sysfs poller is our source of truth
+        }
+        stderr: SplitParser {
+            splitMarker: "\n"
+            onRead: line => {
+                if (line && line.length > 0)
+                    console.warn("[OsdService] brightnessctl:", line.trim());
+            }
+        }
+    }
+
     // 1s startup grace period: every "first reading" of caps/num/volume etc.
     // arrives during this window and is absorbed silently as the baseline.
     Timer {
