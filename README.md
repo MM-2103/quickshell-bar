@@ -258,7 +258,7 @@ Rehearse this once before you ever need it for real.
 │   ├── hypridle.conf
 │   └── swayidle.service
 │
-├── docs/QUICKSHELL_REFERENCE.md  — annotated Quickshell reference + 55+ gotchas
+├── docs/QUICKSHELL_REFERENCE.md  — annotated Quickshell reference + 60+ gotchas
 ├── NOTICE                    — third-party attribution
 └── README.md                 — this file
 ```
@@ -279,7 +279,7 @@ Rehearse this once before you ever need it for real.
 
 ## Documentation
 
-Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) — a comprehensive Quickshell guide annotated with **55+ gotchas** accumulated from real bugs while building this shell. Useful for anyone writing their own Quickshell config.
+Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) — a comprehensive Quickshell guide annotated with **60+ gotchas** accumulated from real bugs while building this shell. Useful for anyone writing their own Quickshell config. Style + repo conventions for this project are in [`docs/STYLE.md`](docs/STYLE.md).
 
 ---
 
