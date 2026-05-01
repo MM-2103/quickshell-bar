@@ -304,4 +304,5 @@ Internal reference at [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE
 
 ## License
 
-*See `LICENSE` (TBD — to be added before publishing widely).*
+Released under the MIT License — see [`LICENSE`](LICENSE). Fork, modify,
+ship — no credit required.
