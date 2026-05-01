@@ -28,7 +28,20 @@ PopupWindow {
     property int displayMonth: today.getMonth() // 0-11
     property bool monthView: true
 
-    readonly property bool wantOpen: pinned || hoveringDate || hoveringPopup
+    // Forgiving hover state: when the user moves the mouse from the date
+    // trigger into the popup body it briefly crosses a gap with no hover
+    // coverage. Without grace, both flags drop and `wantOpen` flips false
+    // mid-traversal, dismissing the popup. The `linger` timer keeps
+    // `wantOpen` true for ~250 ms after the last hover transition; if the
+    // mouse re-enters either zone in that window we cancel the close.
+    readonly property bool _activeHover: hoveringDate || hoveringPopup
+    readonly property bool wantOpen: pinned || _activeHover || linger.running
+    Timer { id: linger; interval: 250; repeat: false }
+    on_ActiveHoverChanged: {
+        if (_activeHover) linger.stop();
+        else              linger.restart();
+    }
+
     // Stay mapped during fade-out so the animation can play.
     visible: wantOpen || hideHold.running
     Timer { id: hideHold; interval: 180; repeat: false }
