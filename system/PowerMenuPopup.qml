@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import qs
+import qs.compositor
 
 PopupWindow {
     id: popup
@@ -163,7 +164,10 @@ PopupWindow {
             PowerButton {
                 label: "Logout"
                 glyph: "\uf2f5"
-                onActivate: () => popup._run(["niri", "msg", "action", "quit"])
+                onActivate: () => {
+                    Compositor.dispatchLogout();
+                    popup.close();
+                }
             }
             PowerButton {
                 label: "Reboot"

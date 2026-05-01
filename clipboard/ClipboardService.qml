@@ -4,7 +4,7 @@ pragma Singleton
 // Wraps cliphist for the clipboard manager popup.
 //
 // Storage half (`wl-paste --watch cliphist store`) keeps running externally
-// in niri's autostart. We only own the picker UI: list/decode/delete.
+// in your compositor's autostart. We only own the picker UI: list/decode/delete.
 //
 // Public surface used by ClipboardPopup + shell.qml IpcHandler:
 //   entries: array<{ id, preview, isImage, ext, dimensions }>

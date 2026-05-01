@@ -17,7 +17,6 @@ PanelWindow {
     id: bar
 
     required property var modelData // injected by Variants — the ShellScreen
-    required property var niri      // Niri service reference
 
     screen: modelData
 
@@ -45,7 +44,6 @@ PanelWindow {
     // Left section
     Workspaces {
         id: leftSection
-        niri: bar.niri
         output: bar.screen.name
         anchors {
             left: parent.left

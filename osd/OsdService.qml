@@ -37,7 +37,7 @@ Singleton {
     property real brightnessRatio: 0
     property bool hasBrightness: false
 
-    // Layout — written from shell.qml when it sees Niri.currentLayout change.
+    // Layout — written from shell.qml when it sees Compositor.currentLayout change.
     property string layoutName: ""
 
     // ---- Show / dismiss ----

@@ -1,12 +1,14 @@
 // shell.qml
 // Quickshell entry point. Spawns one Bar per monitor, a notification stack
 // pinned per spawn-screen, an OSD that shows on whichever monitor currently
-// has focus, and a clipboard popup triggered via IPC from a niri keybind.
+// has focus, and a clipboard popup triggered via IPC from a compositor
+// keybind. Compositor-specific state (focused monitor, workspaces, layout)
+// goes through the `Compositor` singleton in qs.compositor.
 
 import QtQuick
 import Quickshell
 import Quickshell.Io        // for IpcHandler
-import qs.workspaces        // for Niri service type
+import qs.compositor        // for Compositor singleton (auto-detects niri/Hyprland/Sway)
 import qs.notifications     // for NotificationService + NotificationCard
 import qs.osd               // for Osd panel + OsdService singleton
 import qs.clipboard         // for ClipboardPopup + ClipboardService singleton
@@ -16,33 +18,29 @@ import qs.lock              // for Lock + LockService singleton
 ShellRoot {
     id: root
 
-    Niri {
-        id: niriService
-    }
-
     // Tell NotificationService which monitor to anchor new notifications to.
     // We keep this updated as focus moves; the service stamps each incoming
     // notification with the value of currentScreen at that moment, so once
     // it spawns it stays put regardless of later focus changes.
     //
-    // Also keep OsdService.layoutName in sync with niri's currentLayout so
-    // the layout OSD has something to render.
+    // Also keep OsdService.layoutName in sync with the compositor's
+    // currentLayout so the layout OSD has something to render.
     Component.onCompleted: {
-        NotificationService.currentScreen = Qt.binding(() => niriService.focusedOutput);
-        OsdService.layoutName            = Qt.binding(() => niriService.currentLayout);
+        NotificationService.currentScreen = Qt.binding(() => Compositor.focusedOutput);
+        OsdService.layoutName            = Qt.binding(() => Compositor.currentLayout);
     }
 
-    // Trigger a layout OSD whenever niri reports a new layout selection.
-    // OsdService.show() ignores calls during the initialization grace period,
-    // so the very first KeyboardLayoutsChanged event (delivered at startup)
-    // doesn't flash an OSD.
+    // Trigger a layout OSD whenever the compositor reports a new layout
+    // selection. OsdService.show() ignores calls during the initialization
+    // grace period, so the very first event (delivered at startup) doesn't
+    // flash an OSD.
     //
     // Also dismiss any open popup when the user focuses an app window —
-    // niri's `WindowFocusChanged` fires for xdg_shell toplevels, not for
-    // layer-shell surfaces, so opening Clipboard (which keyboard-focuses
-    // its own layer-shell window) does NOT trigger this.
+    // each compositor backend filters its windowFocused signal so layer-
+    // shell surfaces of OUR shell (e.g. ClipboardPopup with OnDemand
+    // keyboard focus) don't self-dismiss.
     Connections {
-        target: niriService
+        target: Compositor
         function onCurrentLayoutChanged() {
             OsdService.show("layout");
         }
@@ -55,9 +53,7 @@ ShellRoot {
     Variants {
         model: Quickshell.screens
 
-        Bar {
-            niri: niriService
-        }
+        Bar { }
     }
 
     // Notification stack — one PanelWindow per monitor, ALWAYS visible.
@@ -136,38 +132,38 @@ ShellRoot {
         model: Quickshell.screens
 
         Osd {
-            focusedOutput: niriService.focusedOutput
+            focusedOutput: Compositor.focusedOutput
         }
     }
 
     // Clipboard picker — one PanelWindow per monitor, only visible on the
-    // focused one. Triggered via the IPC handler below (called from niri's
-    // Mod+V binding).
+    // focused one. Triggered via the IPC handler below (called from a
+    // compositor keybind, e.g. niri's Mod+V).
     Variants {
         model: Quickshell.screens
 
         ClipboardPopup {
-            focusedOutput: niriService.focusedOutput
+            focusedOutput: Compositor.focusedOutput
         }
     }
 
     // App launcher — same architecture as the clipboard picker. Triggered
-    // via the IPC handler below (called from niri's Mod+P binding).
+    // via the IPC handler below (called from a compositor keybind).
     Variants {
         model: Quickshell.screens
 
         Launcher {
-            focusedOutput: niriService.focusedOutput
+            focusedOutput: Compositor.focusedOutput
         }
     }
 
     // Session lock. NOT inside a Variants block — WlSessionLock is itself
     // per-shell; per-screen surfaces fan out via its `surface` Component.
-    // Triggered via the IPC handler below (called from niri's Mod+Shift+X
-    // binding and hypridle's lock_cmd).
+    // Triggered via the IPC handler below (called from a compositor keybind
+    // and/or an idle daemon's lock_cmd — see examples/ for snippets).
     Lock { }
 
-    // IPC: `qs ipc call clipboard open` from niri keybind toggles the popup.
+    // IPC: `qs ipc call clipboard open` toggles the popup.
     IpcHandler {
         target: "clipboard"
         function open(): void  { ClipboardService.openPopup(); }
@@ -175,7 +171,7 @@ ShellRoot {
         function toggle(): void { ClipboardService.togglePopup(); }
     }
 
-    // IPC: `qs ipc call launcher open` from niri keybind opens the launcher.
+    // IPC: `qs ipc call launcher open` opens the launcher.
     // `openEmoji` opens with ";" prefilled to jump straight into emoji mode.
     // `openWith <prefix>` opens with arbitrary text prefilled (general-purpose;
     // also handy for scripting `qs ipc call launcher openWith "?weather"`).
@@ -188,8 +184,8 @@ ShellRoot {
         function openWith(prefix: string): void { LauncherService.openPopupWithQuery(prefix); }
     }
 
-    // IPC: `qs ipc call lock open` from niri keybind / hypridle locks the
-    // session. Idempotent (calling open while already locked is a no-op).
+    // IPC: `qs ipc call lock open` locks the session. Idempotent (calling
+    // open while already locked is a no-op).
     IpcHandler {
         target: "lock"
         function open(): void  { LockService.lock(); }
