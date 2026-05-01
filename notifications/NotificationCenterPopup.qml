@@ -69,8 +69,9 @@ PopupWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Notifications"
                 color: Theme.text
-                font.pixelSize: 13
-                font.bold: true
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
+                font.weight: Font.Bold
             }
 
             Text {
@@ -80,7 +81,8 @@ PopupWindow {
                 visible: popup.count > 0
                 text: popup.count
                 color: Theme.textDim
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
 
             // Right-aligned controls: Clear + DND toggle
@@ -104,7 +106,8 @@ PopupWindow {
                         id: clearLabel
                         text: "Clear"
                         color: clearMa.containsMouse ? Theme.text : Theme.textDim
-                        font.pixelSize: 11
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
                         Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     }
                 }
@@ -118,8 +121,9 @@ PopupWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "DND"
                         color: NotificationService.dndEnabled ? Theme.text : Theme.textDim
-                        font.pixelSize: 11
-                        font.bold: NotificationService.dndEnabled
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: NotificationService.dndEnabled ? Font.Bold : Font.Normal
                         Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     }
 
@@ -191,7 +195,8 @@ PopupWindow {
                 anchors.centerIn: parent
                 text: "No notifications"
                 color: Theme.textMuted
-                font.pixelSize: 12
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
             }
 
             // History list — newest first.

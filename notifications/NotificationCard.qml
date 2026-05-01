@@ -179,7 +179,8 @@ Rectangle {
                     - (timeText.visible ? timeText.implicitWidth + parent.spacing : 0)
                 text: card.notif ? (card.notif.appName || "Notification") : ""
                 color: Theme.textDim
-                font.pixelSize: 11
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
                 elide: Text.ElideRight
             }
 
@@ -190,7 +191,8 @@ Rectangle {
                 visible: card.isCenter && card.notif !== null
                 text: card.notif ? NotificationService.relativeTime(card.notif.id) : ""
                 color: Theme.textMuted
-                font.pixelSize: 10
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
 
             // × close button — hover-revealed in popup mode, always shown in center.
@@ -207,10 +209,13 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "×"
+                    // Font Awesome 7 Solid: \uf00d xmark
+                    text: "\uf00d"
                     color: Theme.text
-                    font.pixelSize: 12
-                    font.bold: true
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 9
+                    renderType: Text.NativeRendering
                 }
 
                 MouseArea {
@@ -245,8 +250,9 @@ Rectangle {
                     width: parent.width
                     text: card.notif ? card.notif.summary : ""
                     color: Theme.text
-                    font.pixelSize: 13
-                    font.bold: true
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.weight: Font.Bold
                     elide: Text.ElideRight
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
@@ -256,7 +262,8 @@ Rectangle {
                     width: parent.width
                     text: card.notif ? card.notif.body : ""
                     color: Theme.textDim
-                    font.pixelSize: 12
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
                     textFormat: Text.RichText
                     wrapMode: Text.WordWrap
                     maximumLineCount: 6
@@ -316,8 +323,9 @@ Rectangle {
                         anchors.centerIn: parent
                         text: parent.modelData ? parent.modelData.text : ""
                         color: actionMa.containsMouse ? Theme.bg : Theme.text
-                        font.pixelSize: 11
-                        font.bold: true
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Bold
                     }
 
                     MouseArea {
