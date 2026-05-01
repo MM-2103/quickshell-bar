@@ -473,6 +473,18 @@ PopupWindow {
                 bottomPadding: 16
             }
 
+            // 1 px divider above the device sections (matches the pattern
+            // used by VolumePopup and NotificationCenterPopup).
+            Rectangle {
+                visible: popup.adapterEnabled
+                    && (popup._grouped.connected.length > 0
+                        || popup._grouped.paired.length > 0
+                        || popup._grouped.discovered.length > 0)
+                width: parent.width
+                height: 1
+                color: Theme.border
+            }
+
             // ---- Connected ----
             Column {
                 visible: popup.adapterEnabled && popup._grouped.connected.length > 0

@@ -635,6 +635,13 @@ PopupWindow {
                 }
             }
 
+            // 1 px divider between header and content (matches VolumePopup).
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: Theme.border
+            }
+
             // ---- Ethernet section ----
             // One row per ethernet adapter. Driven by devices, not saved
             // connections, so an adapter doesn't disappear when its
