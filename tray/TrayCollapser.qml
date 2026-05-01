@@ -62,7 +62,7 @@ Row {
         id: chevron
         visible: root.useCollapser
         anchors.verticalCenter: parent.verticalCenter
-        implicitWidth: 18
+        implicitWidth: 22   // matches every other bar widget
         implicitHeight: 22
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
