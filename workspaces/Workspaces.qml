@@ -1,8 +1,13 @@
 // Workspaces.qml
-// Renders a horizontal row of workspace pips for one output (monitor).
-// Highlights the focused workspace and shows the active one slightly larger.
+// Renders a horizontal row of numbered chips for one output (monitor).
+// Each chip is a 22 × 22 square with the workspace index in the shell's
+// mono font; the focused workspace gets the accent fill, the active one
+// gets a subtle elevated background, and idle ones sit dim on transparent.
+//
+//   Click a chip -> niri focus-workspace <idx>
 
 import QtQuick
+import Quickshell
 import qs
 
 Row {
@@ -11,7 +16,7 @@ Row {
     required property var niri      // Niri service instance
     required property string output // monitor name, e.g. "DP-1"
 
-    spacing: 6
+    spacing: 4
 
     Repeater {
         // Read niri.workspaces directly so the binding tracks it.
@@ -23,34 +28,47 @@ Row {
                 .sort((a, b) => a.idx - b.idx);
         }
 
-        delegate: Rectangle {
-            id: pip
+        delegate: MouseArea {
+            id: chip
             required property var modelData
 
             readonly property bool focused: modelData.is_focused
             readonly property bool active: modelData.is_active
 
-            width: focused ? 26 : (active ? 16 : 12)
-            height: 12
-            radius: 6
+            implicitWidth: 22
+            implicitHeight: 22
             anchors.verticalCenter: parent ? parent.verticalCenter : undefined
 
-            color: focused
-                ? Theme.pipFocused
-                : (active ? Theme.pipActive : Theme.pipIdle)
-            border.color: Theme.border
-            border.width: 1
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: Quickshell.execDetached(
+                ["niri", "msg", "action", "focus-workspace", String(modelData.idx)]
+            )
 
-            Behavior on width { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutQuad } }
-            Behavior on color { ColorAnimation { duration: Theme.animMed } }
+            // Chip background. Three resting states (focused / active / idle)
+            // plus a hover overlay on idle chips.
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusSmall
+                color: chip.focused
+                    ? Theme.accent
+                    : chip.active
+                        ? Theme.surfaceHi
+                        : (chip.containsMouse ? Theme.surface : "transparent")
+                Behavior on color { ColorAnimation { duration: Theme.animMed } }
+            }
 
+            // Number label — always visible, mono, weight bumps on focus.
             Text {
                 anchors.centerIn: parent
-                visible: pip.width >= 18
-                text: pip.modelData.idx
-                color: pip.focused ? Theme.accentText : Theme.text
-                font.pixelSize: 9
-                font.bold: pip.focused
+                text: chip.modelData.idx
+                color: chip.focused ? Theme.accentText : Theme.text
+                opacity: chip.focused ? 1.0 : (chip.active ? 0.95 : 0.55)
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
+                font.weight: chip.focused ? Font.Bold : Font.Medium
+                Behavior on color   { ColorAnimation  { duration: Theme.animMed } }
+                Behavior on opacity { NumberAnimation { duration: Theme.animMed } }
             }
         }
     }
