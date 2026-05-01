@@ -7,7 +7,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.Pipewire
-import Quickshell.Widgets
 import qs
 
 MouseArea {
@@ -30,11 +29,14 @@ MouseArea {
         objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
     }
 
-    function _iconName() {
-        if (root.muted || root.volume <= 0.001) return "audio-volume-muted-symbolic";
-        if (root.volume < 0.34) return "audio-volume-low-symbolic";
-        if (root.volume < 0.67) return "audio-volume-medium-symbolic";
-        return "audio-volume-high-symbolic";
+    function _glyph() {
+        // Font Awesome 7 Solid:
+        //   \uf6a9 volume-xmark (muted / 0 %)
+        //   \uf027 volume-low   (<50 %)
+        //   \uf028 volume-high  (≥50 %)
+        if (root.muted || root.volume <= 0.001) return "\uf6a9";
+        if (root.volume < 0.5) return "\uf027";
+        return "\uf028";
     }
 
     onClicked: mouse => {
@@ -64,29 +66,13 @@ MouseArea {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
-    // Theme icon (with text fallback if missing)
-    Item {
+    // Volume glyph — Font Awesome 7 Solid, swaps with mute / level state.
+    // Muted gets dimmed slightly so the bar reads "off" at a glance.
+    BarIcon {
         anchors.centerIn: parent
-        width: 16
-        height: 16
-
-        IconImage {
-            id: vIcon
-            anchors.fill: parent
-            implicitSize: 16
-            source: Quickshell.iconPath(root._iconName(), true)
-            asynchronous: false
-            visible: status === Image.Ready
-        }
-
-        Text {
-            anchors.centerIn: parent
-            visible: vIcon.status !== Image.Ready
-            text: root.muted ? "x" : "♪"
-            color: Theme.text
-            font.pixelSize: 11
-            font.bold: true
-        }
+        glyph: root._glyph()
+        opacity: root.muted ? 0.55 : 1.0
+        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
     }
 
     VolumePopup {

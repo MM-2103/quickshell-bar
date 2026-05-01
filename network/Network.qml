@@ -5,13 +5,16 @@
 
 import QtQuick
 import Quickshell
-import Quickshell.Widgets
 import qs
 
 MouseArea {
     id: root
 
-    implicitWidth: 22
+    // Widget grows when wifi is connected to fit a small signal-strength
+    // % overlay next to the glyph; collapses to the standard 22 px when
+    // wired / disconnected / disabled. Bar layout already accommodates
+    // variable-width children (Media widget hides itself), so no surprise.
+    implicitWidth: root._showSignal ? 36 : 22
     implicitHeight: 22
     anchors.verticalCenter: parent ? parent.verticalCenter : undefined
 
@@ -27,25 +30,28 @@ MouseArea {
         }
     }
 
-    // Pick the best icon for the current state.
-    function _iconName() {
-        if (NetworkService.wiredConnected) return "network-wired-activated-symbolic";
-        if (NetworkService.wifiConnected) {
-            // Find current wifi entry for signal level
-            const list = NetworkService.wirelessNetworks;
-            let sig = 0;
-            for (let i = 0; i < list.length; i++) {
-                if (list[i].inUse) { sig = list[i].signal; break; }
-            }
-            const tier = sig >= 80 ? 100
-                        : sig >= 55 ? 75
-                        : sig >= 30 ? 50
-                        : sig >  0  ? 25
-                        : 0;
-            return "network-wireless-connected-" + (tier < 10 ? "00" : tier) + "-symbolic";
+    // ---- State helpers ----
+
+    // Resolve the active wifi network's signal strength (0-100). Returns
+    // -1 when not on wifi (so we can hide the overlay cleanly).
+    readonly property int _signal: {
+        if (!NetworkService.wifiConnected) return -1;
+        const list = NetworkService.wirelessNetworks;
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].inUse) return list[i].signal;
         }
-        if (!NetworkService.wifiEnabled) return "network-wireless-disabled-symbolic";
-        return "network-disconnect-symbolic";
+        return -1;
+    }
+    readonly property bool _showSignal: _signal >= 0
+
+    // Pick the FA glyph for the current state. Font Awesome only has one
+    // wifi glyph (no signal-bar variants), so signal strength is shown
+    // numerically in the overlay rather than encoded in the icon shape.
+    function _glyph() {
+        if (NetworkService.wiredConnected)        return "\uf796"; // ethernet
+        if (NetworkService.wifiConnected)         return "\uf1eb"; // wifi
+        if (!NetworkService.wifiEnabled)          return "\uf127"; // link-slash
+        return "\uf1eb";                                            // wifi (greyed)
     }
 
     // Hover background
@@ -58,34 +64,30 @@ MouseArea {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 
-    // Icon (with text fallback)
-    Item {
+    // Glyph + (optional) signal-strength readout, side-by-side.
+    Row {
         anchors.centerIn: parent
-        width: 16
-        height: 16
-        opacity: NetworkService.wiredConnected || NetworkService.wifiConnected
-                 ? 1.0
-                 : (NetworkService.wifiEnabled ? 0.7 : 0.45)
-        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+        spacing: 4
 
-        IconImage {
-            id: nIcon
-            anchors.fill: parent
-            implicitSize: 16
-            source: Quickshell.iconPath(root._iconName(), true)
-            asynchronous: false
-            visible: status === Image.Ready
+        BarIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            glyph: root._glyph()
+            opacity: NetworkService.wiredConnected || NetworkService.wifiConnected
+                ? 1.0
+                : (NetworkService.wifiEnabled ? 0.7 : 0.45)
+            Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
         }
 
+        // Signal strength % — visible only on wifi connected, shown in
+        // the shell's mono font so it sits cleanly next to the glyph.
         Text {
-            anchors.centerIn: parent
-            visible: nIcon.status !== Image.Ready
-            text: NetworkService.wiredConnected ? "ETH"
-                : NetworkService.wifiConnected ? "WiFi"
-                : NetworkService.wifiEnabled ? "—" : "off"
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root._showSignal
+            text: root._signal + ""
             color: Theme.text
-            font.pixelSize: 9
-            font.bold: true
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeSmall
+            opacity: 0.85
         }
     }
 
