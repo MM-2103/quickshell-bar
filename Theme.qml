@@ -38,4 +38,23 @@ Singleton {
     // ---- Animations ----
     readonly property int animFast: 100
     readonly property int animMed:  140
+
+    // ---- Fonts ----
+    // Single mono typeface for the whole shell. Iosevka has a deep weight
+    // ladder (Thin → Heavy + italics + Mono / Propo variants) which lets
+    // us express hierarchy without switching family. Glyph widget icons
+    // come from Font Awesome 7 (Free Solid for most, Brands only when a
+    // glyph isn't available in Free — currently just Bluetooth).
+    readonly property string fontMono:  "Iosevka Nerd Font"
+    readonly property string fontIcon:  "Font Awesome 7 Free"     // styleName: "Solid"
+    readonly property string fontBrand: "Font Awesome 7 Brands"
+
+    // ---- Font sizes (4-step scale; replaces inline 8/9/10/11/13/14/16) ----
+    readonly property int fontSizeSmall:  10   // badges, tooltips, signal-strength overlay
+    readonly property int fontSizeNormal: 12   // bar body text (date, time, workspace numbers)
+    readonly property int fontSizeLarge:  14   // section headers in popups
+    readonly property int fontSizeXL:     16   // standout labels
+
+    // Default glyph size for FA icons inside a 22 × 22 bar widget.
+    readonly property int iconSize: 13
 }
