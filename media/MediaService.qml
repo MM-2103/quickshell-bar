@@ -72,6 +72,49 @@ Singleton {
     readonly property bool isPaused:
         currentPlayer && currentPlayer.playbackState === MprisPlaybackState.Paused
 
+    // ---- Cached album-art URL (shell-wide) ----
+    //
+    // Browsers (Firefox / Zen) and YouTube Music intermittently emit
+    // empty `trackArtUrl` values on pause/unpause cycles or even mid-
+    // playback. Hold the *last non-empty* URL we've seen for the current
+    // player so transient gaps don't clobber the displayed art.
+    //
+    // We keep this at the shell-singleton level (rather than inside each
+    // consumer) so that components which mount lazily — like the lock
+    // surface, which is recreated on every lock cycle — start out with
+    // the URL already populated, instead of staring at "" until the next
+    // metadata change happens to fire.
+    property string cachedArtUrl: ""
+
+    function _refreshArt() {
+        if (currentPlayer && currentPlayer.trackArtUrl) {
+            cachedArtUrl = currentPlayer.trackArtUrl;
+        }
+        // Otherwise hold whatever we last cached.
+    }
+
+    onCurrentPlayerChanged: {
+        // Different player = different art context. Reset and re-pull.
+        cachedArtUrl = "";
+        _refreshArt();
+    }
+
+    Component.onCompleted: _refreshArt()
+
+    Connections {
+        target: root.currentPlayer
+        enabled: root.currentPlayer !== null
+        function onTrackChanged() {
+            // Real track change: drop the cache so consumers show the
+            // placeholder briefly instead of the previous track's art.
+            root.cachedArtUrl = "";
+            root._refreshArt();
+        }
+        function onTrackArtUrlChanged() {
+            root._refreshArt();
+        }
+    }
+
     // ---- Action helpers (operate on currentPlayer; no-op when missing) ----
 
     function togglePlay() {
