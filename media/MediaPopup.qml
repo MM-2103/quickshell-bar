@@ -375,7 +375,11 @@ PopupWindow {
                 anchors.centerIn: parent
                 spacing: 14
 
-                // Reusable transport-button style.
+                // Reusable transport-button style. Glyph is rendered in
+                // Font Awesome 7 Solid so Qt picks the dedicated icon font
+                // instead of falling back to Noto Color Emoji's coloured
+                // pictograms — keeps the popup visually consistent with
+                // the lock surface's NowPlayingCard.
                 component XportButton: MouseArea {
                     id: btn
                     property string glyph
@@ -403,20 +407,27 @@ PopupWindow {
                         anchors.centerIn: parent
                         text: btn.glyph
                         color: btn.containsMouse && btn.primary ? Theme.bg : Theme.text
-                        font.pixelSize: btn.primary ? 16 : 13
-                        font.bold: true
+                        font.family: "Font Awesome 7 Free"
+                        font.styleName: "Solid"
+                        font.pixelSize: btn.primary ? 14 : 11
+                        renderType: Text.NativeRendering
                     }
                 }
 
+                // Font Awesome 7 Solid codepoints:
+                //   \uf048 = backward-step
+                //   \uf04b = play
+                //   \uf04c = pause
+                //   \uf051 = forward-step
                 XportButton {
-                    glyph: "⏮"
+                    glyph: "\uf048"
                     isEnabled: popup.player && popup.player.canGoPrevious
                     onClicked: MediaService.previous()
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
                 XportButton {
-                    glyph: MediaService.isPlaying ? "⏸" : "▶"
+                    glyph: MediaService.isPlaying ? "\uf04c" : "\uf04b"
                     primary: true
                     isEnabled: popup.player && popup.player.canTogglePlaying
                     onClicked: MediaService.togglePlay()
@@ -424,7 +435,7 @@ PopupWindow {
                 }
 
                 XportButton {
-                    glyph: "⏭"
+                    glyph: "\uf051"
                     isEnabled: popup.player && popup.player.canGoNext
                     onClicked: MediaService.next()
                     anchors.verticalCenter: parent.verticalCenter
