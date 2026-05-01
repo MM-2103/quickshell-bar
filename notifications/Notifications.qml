@@ -75,8 +75,9 @@ MouseArea {
             anchors.centerIn: parent
             text: root.count > 9 ? "9+" : root.count
             color: Theme.accentText
-            font.pixelSize: 8
-            font.bold: true
+            font.family: Theme.fontMono
+            font.pixelSize: 9
+            font.weight: Font.Bold
         }
     }
 

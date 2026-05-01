@@ -407,7 +407,7 @@ PopupWindow {
                         anchors.centerIn: parent
                         text: btn.glyph
                         color: btn.containsMouse && btn.primary ? Theme.bg : Theme.text
-                        font.family: "Font Awesome 7 Free"
+                        font.family: Theme.fontIcon
                         font.styleName: "Solid"
                         font.pixelSize: btn.primary ? 14 : 11
                         renderType: Text.NativeRendering

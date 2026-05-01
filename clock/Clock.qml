@@ -35,7 +35,8 @@ Row {
             anchors.centerIn: parent
             text: Qt.formatDateTime(clock.date, "ddd, MMM d")
             color: (dateMouse.containsMouse || calendar.pinned) ? Theme.text : Theme.textDim
-            font.pixelSize: 13
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeNormal
             Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
 
@@ -64,7 +65,8 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         text: "—"
         color: Theme.textMuted
-        font.pixelSize: 13
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSizeNormal
     }
 
     // Time
@@ -72,9 +74,9 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         text: Qt.formatDateTime(clock.date, "HH:mm:ss")
         color: Theme.text
-        font.pixelSize: 13
-        font.family: "monospace"
-        font.bold: true
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSizeNormal
+        font.weight: Font.Bold
     }
 
     // Calendar popup. As a Window subclass it isn't laid out by Row.

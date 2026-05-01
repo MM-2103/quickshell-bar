@@ -158,8 +158,9 @@ Row {
                             return t.charAt(0).toUpperCase();
                         }
                         color: Theme.text
-                        font.pixelSize: 10
-                        font.bold: true
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Bold
                     }
                 }
             }
@@ -209,7 +210,8 @@ Row {
                         anchors.centerIn: parent
                         text: tip.label
                         color: Theme.text
-                        font.pixelSize: 11
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
                         elide: Text.ElideRight
                     }
                 }

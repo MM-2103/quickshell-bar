@@ -81,7 +81,7 @@ WlSessionLockSurface {
         //
         // Wrapped in an Item with explicit size so MultiEffect can layer it
         // and the drop shadow has a fixed bounding box. Three Texts share
-        // the same Input Nerd Font face that's also used in Ghostty.
+        // the shell-wide mono typeface (Iosevka via Theme.fontMono).
         Item {
             id: clockBox
             anchors.horizontalCenter: parent.horizontalCenter
@@ -95,20 +95,20 @@ WlSessionLockSurface {
                 Text {
                     text: Qt.formatDateTime(clock.date, "HH")
                     color: Theme.text
-                    font.family: "Input Nerd Font"
+                    font.family: Theme.fontMono
                     font.pixelSize: 144
                 }
                 Text {
                     text: ":"
                     color: Theme.text
                     opacity: 0.35
-                    font.family: "Input Nerd Font"
+                    font.family: Theme.fontMono
                     font.pixelSize: 144
                 }
                 Text {
                     text: Qt.formatDateTime(clock.date, "mm")
                     color: Theme.text
-                    font.family: "Input Nerd Font"
+                    font.family: Theme.fontMono
                     font.pixelSize: 144
                 }
             }
@@ -132,6 +132,7 @@ WlSessionLockSurface {
             text: Qt.formatDateTime(clock.date, "dddd · MMMM d")
             color: Theme.text
             opacity: 0.85
+            font.family: Theme.fontMono
             font.pixelSize: 18
             font.letterSpacing: 0.5
         }
@@ -192,7 +193,8 @@ WlSessionLockSurface {
                         }
                         verticalAlignment: TextInput.AlignVCenter
                         color: Theme.text
-                        font.pixelSize: 16
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeXL
                         echoMode: TextInput.Password
                         passwordCharacter: "●"
                         selectByMouse: false
@@ -226,7 +228,8 @@ WlSessionLockSurface {
                         ? "#ff7070"
                         : Theme.text
                     opacity: LockService.pamError.length > 0 ? 1.0 : 0.7
-                    font.pixelSize: 12
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeNormal
                 }
             }
         }
