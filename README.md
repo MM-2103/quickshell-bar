@@ -7,7 +7,8 @@ A complete personal Wayland desktop shell built on
 Replaces (in one configurable QML codebase):
 **waybar** · **swaync / mako / dunst** · **swayosd** ·
 **nm-applet** · **blueman-applet** · **KDE media controls** ·
-**wlogout** · **fuzzel** · **hyprlock**.
+**wlogout** · **fuzzel** · **hyprlock** ·
+**swaybg / waypaper**.
 
 ## Supported compositors
 
@@ -44,15 +45,22 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Clipboard history (Mod+V) — image-thumbnail aware
 - App launcher (Mod+P) — apps + calculator + web search + emoji
 - Emoji picker shortcut (Mod+;)
+- Wallpaper picker (folder browse + thumbnails + per-monitor)
 
 **Notifications & OSD**
 - Native NotificationServer (replaces external daemons)
 - Per-monitor pinned cards
-- Volume / brightness / keyboard-layout OSDs
+- Volume / brightness / keyboard-layout OSDs (overlay-layer; visible over fullscreen apps)
+
+**Wallpaper** (replaces swaybg + waypaper)
+- Per-monitor wallpaper, persisted across reloads
+- Background-layer surface with 400 ms cross-fade on change
+- Picker: folder browse, fill-mode selector, per-monitor or "All" target
+- Lock screen reads from the same source — single source of truth
 
 **Session lock** (Mod+Shift+X)
 - `WlSessionLock` + PAM auth via `/etc/pam.d/qslock`
-- Blurred wallpaper background (auto-detected from waypaper)
+- Blurred wallpaper background (per-monitor, from the in-shell wallpaper module)
 - Multi-monitor surfaces, persistent error state, dim-while-validating
 - Hot-reload safe (survives `qs` config reloads)
 - `LockedHint` propagation to systemd-logind
@@ -149,7 +157,6 @@ will catch things our test pass on niri couldn't.
 
 | Arch package    | What it enables                                                        |
 |-----------------|------------------------------------------------------------------------|
-| `waypaper`      | Lock screen reads `~/.config/waypaper/config.ini` for blur background. Without it, lock falls back to a solid background. |
 | `hypridle` *(niri / Hyprland)* | Idle daemon. Triggers our lock IPC on timeout / before-suspend. Quickshell has no built-in idle notifier yet, so this stays external. See `examples/hypridle.conf`. |
 | `swayidle` *(Sway / i3)*       | Equivalent idle daemon. See `examples/swayidle.service` for the command snippet. |
 | `libcanberra`   | KDE-style audible cue on volume change / unmute. Plays the freedesktop `audio-volume-change` sample through the just-changed sink, so its loudness mirrors the new level. Disable via `volumeFeedbackEnabled: false` in `Theme.qml`. |
@@ -263,7 +270,7 @@ Rehearse this once before you ever need it for real.
 |------------------------|-------------------------------------------------------------------|
 | Colors, sizes, radii   | `Theme.qml` — single source of truth                              |
 | Web-search engine      | `searchUrl` and `searchName` constants at top of `launcher/LauncherService.qml` (defaults to DuckDuckGo) |
-| Lock-screen wallpaper  | `lock/LockService.qml` — `_refreshWallpaper()` reads `~/.config/waypaper/config.ini`; edit to change source |
+| Wallpaper folder       | Click the wallpaper icon in the bar (just before Power) → use the up-arrow / subfolder pills to navigate. Persisted to `~/.local/state/quickshell/by-shell/<id>/wallpaper.json`. |
 | Idle / dim / suspend timings | `~/.config/hypr/hypridle.conf` or `swayidle` invocation (see `examples/`) |
 | Compositor keybinds    | `examples/<compositor>-bindings.<ext>`                            |
 | Force-pick a backend   | `QS_COMPOSITOR=niri\|hyprland\|sway\|stub` env var                |
@@ -312,6 +319,7 @@ Rehearse this once before you ever need it for real.
 ├── clipboard/                — clipboard history (Mod+V), cliphist-backed
 ├── launcher/                 — app launcher (Mod+P): apps / calc / web / emoji
 │   └── emoji.json            — bundled gemoji catalog (MIT — see NOTICE)
+├── wallpaper/                — wallpaper renderer + picker (replaces swaybg + waypaper)
 ├── lock/                     — WlSessionLock + PAM (Mod+Shift+X)
 │
 ├── examples/                 — copy-pasteable compositor + idle-daemon configs
@@ -337,8 +345,6 @@ Rehearse this once before you ever need it for real.
 | External tool       | Why it stays                                                                                     |
 |---------------------|--------------------------------------------------------------------------------------------------|
 | `hypridle`          | Quickshell lacks `ext-idle-notifier-v1` client. Future direction: replace via systemd-logind DBus. |
-| `swaybg`            | No wallpaper component yet. Planned future addition.                                             |
-| `waypaper`          | Wallpaper picker UI lives outside; same future direction would replace.                          |
 | `hyprpolkitagent`   | No polkit replacement yet (~2 h follow-up if desired).                                           |
 | `udiskie`, `kwalletd6`, etc. | Out of shell scope by design (USB mount, secret store, etc.).                          |
 
