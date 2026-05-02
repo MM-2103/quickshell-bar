@@ -3,8 +3,11 @@
 // the popup itself is anchored to this widget (so its position tracks
 // where this widget sits in the right cluster).
 //
-// Glyph: \uf737 sliders (Font Awesome Solid). Subtle and recognisable as
-// "settings/quick controls"; matches the dark/mono aesthetic.
+// Glyph: \uf1de sliders (Font Awesome 7 Solid) — three horizontal
+// sliders, the canonical "control center / quick settings" pictogram.
+// The previously-used \uf737 doesn't exist in FA 7 Free Solid at all
+// (verified via fontTools), which is why the bar widget was rendering
+// as an invisible click target.
 
 import QtQuick
 import Quickshell
@@ -36,7 +39,7 @@ MouseArea {
 
     BarIcon {
         anchors.centerIn: parent
-        glyph: "\uf737"
+        glyph: "\uf1de"
     }
 
     ControlCenterPopup {
