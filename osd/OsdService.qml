@@ -15,6 +15,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
+import qs
 
 Singleton {
     id: root
@@ -86,6 +87,42 @@ Singleton {
         }
     }
 
+    // ---- Volume feedback player ----
+    //
+    // Spawns canberra-gtk-play to play the freedesktop `audio-volume-change`
+    // event sound through the default sink. Because that's the same sink
+    // whose volume just changed, the sample's perceived loudness mirrors the
+    // new level — KDE-Plasma-style audible cue. Silently no-ops if
+    // canberra-gtk-play / the sound theme is missing (stderr warning only).
+    Process {
+        id: volumeFeedbackPlayer
+        running: false
+        command: ["canberra-gtk-play", "-i", "audio-volume-change",
+                  "-d", "quickshell-bar volume change"]
+        stderr: SplitParser {
+            splitMarker: "\n"
+            onRead: line => {
+                if (line && line.length > 0)
+                    console.warn("[OsdService] canberra-gtk-play:", line.trim());
+            }
+        }
+    }
+
+    // 80 ms leading-edge throttle. A fast wheel scroll fires many volume
+    // change events per second; without this we'd spawn one subprocess per
+    // step and the cues would overlap into noise. The first event in a burst
+    // always plays; further events are dropped until the timer expires.
+    Timer { id: volumeFeedbackCooldown; interval: 80; repeat: false }
+
+    function _playVolumeFeedback() {
+        if (!Theme.volumeFeedbackEnabled) return;
+        if (volumeFeedbackCooldown.running) return;
+        volumeFeedbackCooldown.start();
+        // Force re-spawn even if a previous invocation is still in flight.
+        volumeFeedbackPlayer.running = false;
+        volumeFeedbackPlayer.running = true;
+    }
+
     // 1s startup grace period: every "first reading" of caps/num/volume etc.
     // arrives during this window and is absorbed silently as the baseline.
     Timer {
@@ -119,14 +156,22 @@ Singleton {
             if (Math.abs(v - root._lastVol) > 0.001) {
                 root._lastVol = v;
                 root.show("volume");
+                // Skip the audible cue while muted — it'd play silently
+                // through the muted sink, wasting a subprocess and adding
+                // latency. The OSD still shows the new value visually.
+                if (!root.muted) root._playVolumeFeedback();
             }
         }
         function onMutedChanged() {
             const m = root.sink.audio.muted;
             if (!root._volBaselineSet) return; // baseline not yet set, ignore
             if (m !== root._lastMuted) {
+                const wasMuted = root._lastMuted;
                 root._lastMuted = m;
                 root.show("volume");
+                // Play only on un-mute so the user hears the level they're
+                // returning to. Going *to* muted stays silent on purpose.
+                if (wasMuted && !m) root._playVolumeFeedback();
             }
         }
     }
