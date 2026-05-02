@@ -6,13 +6,11 @@ import Quickshell
 import qs.workspaces
 import qs.clock
 import qs.volume
-import qs.network
-import qs.bluetooth
 import qs.tray
 import qs.system
 import qs.notifications
 import qs.media
-import qs.wallpaper
+import qs.controlcenter
 
 PanelWindow {
     id: bar
@@ -69,17 +67,17 @@ PanelWindow {
         }
         spacing: 14
 
-        IdleInhibit    { anchors.verticalCenter: parent.verticalCenter }
-        PowerProfile   { anchors.verticalCenter: parent.verticalCenter }
+        // Five widgets (IdleInhibit, PowerProfile, Network, Bluetooth,
+        // Wallpaper) moved into the Control Center to declutter the bar.
+        // Their interactions live behind the CC tile grid; their state
+        // is still surfaced via the same underlying services.
         Notifications  { anchors.verticalCenter: parent.verticalCenter }
-        Network        { anchors.verticalCenter: parent.verticalCenter }
-        Bluetooth      { anchors.verticalCenter: parent.verticalCenter }
         TrayCollapser  { anchors.verticalCenter: parent.verticalCenter }
         Media          { anchors.verticalCenter: parent.verticalCenter }
         Battery        { anchors.verticalCenter: parent.verticalCenter }
         Brightness     { anchors.verticalCenter: parent.verticalCenter }
         Volume         { anchors.verticalCenter: parent.verticalCenter }
-        Wallpaper      { anchors.verticalCenter: parent.verticalCenter }
+        ControlCenter  { anchors.verticalCenter: parent.verticalCenter }
         Power          { anchors.verticalCenter: parent.verticalCenter }
     }
 }
