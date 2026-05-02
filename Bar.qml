@@ -12,6 +12,7 @@ import qs.tray
 import qs.system
 import qs.notifications
 import qs.media
+import qs.wallpaper
 
 PanelWindow {
     id: bar
@@ -78,6 +79,7 @@ PanelWindow {
         Battery        { anchors.verticalCenter: parent.verticalCenter }
         Brightness     { anchors.verticalCenter: parent.verticalCenter }
         Volume         { anchors.verticalCenter: parent.verticalCenter }
+        Wallpaper      { anchors.verticalCenter: parent.verticalCenter }
         Power          { anchors.verticalCenter: parent.verticalCenter }
     }
 }
