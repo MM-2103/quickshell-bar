@@ -32,16 +32,18 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 **Bar** (32 px top, one per monitor)
 - Workspaces with focused / active / idle chip indicators (compositor-aware)
 - Clock + Calendar (popup, pinnable)
-- Notification collapser
-- Network · Bluetooth · Volume · MPRIS media controls
-- Power profile · Power menu · Idle inhibitor toggle
-- System tray (StatusNotifierHost)
+- Notifications · Tray · Media · Battery · Brightness · Volume
+- Control Center (drawer for less-frequent toggles)
+- Power menu
+
+**Control Center** (drawer behind the sliders icon)
+- 3 × 2 tile grid: Wi-Fi · Bluetooth · Power Profile · Caffeine · DND · Wallpaper
+- Tiles with chevrons drill into in-place detail views (Network list, Bluetooth devices, 3-radio profile picker)
+- Tiles without chevrons toggle in place (Caffeine, DND) or open the standalone wallpaper picker
 
 **Popups** (mutex-managed; auto-dismiss on app focus)
-- Volume mixer · Network picker · Bluetooth picker
-- Notification center
-- Power profile / power menu
-- Calendar · Media · Tray menus
+- Volume mixer · Notification center · Calendar · Media · Tray menus
+- Power menu (lock / suspend / logout / reboot / shutdown)
 - Clipboard history (Mod+V) — image-thumbnail aware
 - App launcher (Mod+P) — apps + calculator + web search + emoji
 - Emoji picker shortcut (Mod+;)
@@ -309,13 +311,14 @@ Rehearse this once before you ever need it for real.
 ├── clock/                    — clock widget + calendar popup
 ├── notifications/            — NotificationServer + cards + center popup
 ├── osd/                      — volume / brightness / layout overlay
-├── network/                  — NM widget + connection picker
-├── bluetooth/                — BT widget + device picker
+├── network/                  — NM service + NetworkView (embedded in CC)
+├── bluetooth/                — BT helpers + BluetoothView (embedded in CC)
 ├── volume/                   — volume widget + mixer popup (incl. per-app)
 ├── media/                    — MPRIS widget + media popup
-├── system/                   — power profile / menu / idle inhibitor / battery / brightness
+├── system/                   — battery, brightness, power menu, PowerProfileView
 ├── tray/                     — StatusNotifierHost + tray menus
 │
+├── controlcenter/            — drawer hosting moved widgets (Wi-Fi/BT/Profile/Caffeine/DND/Wallpaper)
 ├── clipboard/                — clipboard history (Mod+V), cliphist-backed
 ├── launcher/                 — app launcher (Mod+P): apps / calc / web / emoji
 │   └── emoji.json            — bundled gemoji catalog (MIT — see NOTICE)
