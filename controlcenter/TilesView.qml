@@ -1,6 +1,6 @@
 // TilesView.qml
-// Default 3 × 2 grid of six tiles. The tile *order* is fixed to keep
-// muscle memory stable across versions:
+// Default tiles view: SlidersBlock + 3 × 2 tile grid + NowPlayingCard.
+// The tile *order* is fixed to keep muscle memory stable across versions:
 //
 //   Row 1:  Wi-Fi    · Bluetooth   · Power Profile
 //   Row 2:  Caffeine · DND         · Wallpaper
@@ -8,9 +8,13 @@
 // Each tile's body click does its "primary action"; tiles that have a
 // detail view show a chevron whose click navigates the CC into that view.
 // The Wallpaper tile is the odd one out — its picker is too wide to fit
-// the CC (340), so it opens the existing centered WallpaperPickerPopup.
+// the CC, so it opens the existing centered WallpaperPickerPopup.
 // Clicking any tile that triggers a separate popup will also auto-close
 // the CC via PopupController's mutex.
+//
+// Sliders + NowPlaying are placed only here (not in detail views) — when
+// the user drills into a Wi-Fi / BT / Profile detail view, the Loader
+// swaps to that view and they get the full body height for scrolling.
 
 import QtQuick
 import Quickshell
@@ -18,6 +22,7 @@ import Quickshell.Bluetooth
 import Quickshell.Services.UPower
 import qs
 import qs.controlcenter
+import qs.lock
 import qs.notifications
 import qs.network
 import qs.wallpaper
@@ -90,14 +95,20 @@ Item {
     }
 
     // ================================================================
-    // Grid
+    // Layout: Column with [SlidersBlock, Grid of tiles, NowPlayingCard]
     // ================================================================
-    Grid {
-        anchors {
-            top: parent.top
-            left: parent.left
-            right: parent.right
+    Column {
+        anchors.fill: parent
+        spacing: 12
+
+        // ---- Sliders (volume + brightness) ----
+        SlidersBlock {
+            width: parent.width
         }
+
+        // ---- Tile grid ----
+        Grid {
+        width: parent.width
         columns: 3
         spacing: root._tileSpacing
 
@@ -191,6 +202,20 @@ Item {
             stateText: "Browse…"
             active: false
             onClicked: WallpaperService.openPicker()
+        }
+        }   // end Grid
+
+        // ---- Now Playing card ----
+        //
+        // Reused from the lock screen. Auto-hides when no MPRIS player has
+        // a track (its `visible` binding handles that internally), so a
+        // collapsed item takes 0 vertical space in this Column and the
+        // popup appears more compact when there's nothing to show.
+        // Width override fills the CC's inner width (~412 px); the card's
+        // hardcoded 360 default would leave awkward asymmetric padding.
+        NowPlayingCard {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
         }
     }
 }
