@@ -9,6 +9,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs
 import qs.lock
+import qs.wallpaper
 
 WlSessionLockSurface {
     id: surface
@@ -29,8 +30,11 @@ WlSessionLockSurface {
     Image {
         id: wallpaper
         anchors.fill: parent
-        source: LockService.wallpaperPath
-        visible: source !== ""
+        // Per-monitor wallpaper from the in-shell module. Falls back to
+        // WallpaperService.lastSetPath inside pathFor() for hot-plugged
+        // monitors with no saved entry. Empty string → solid bg.
+        source: WallpaperService.pathFor(surface.screen ? surface.screen.name : "")
+        visible: source.toString() !== ""
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         // Downscale at decode time so a 4K JPEG doesn't keep its full pixel

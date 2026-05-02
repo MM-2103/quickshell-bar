@@ -1,10 +1,10 @@
 pragma Singleton
 
 // LockService.qml
-// Session-lock state + PAM + wallpaper-source detection. Drives the
-// WlSessionLock instance defined in lock/Lock.qml. Triggered via the
-// qs-IPC handler in shell.qml (which a compositor keybind like Mod+Shift+X and
-// hypridle's lock_cmd both call into).
+// Session-lock state + PAM. Drives the WlSessionLock instance defined in
+// lock/Lock.qml. Triggered via the qs-IPC handler in shell.qml (which a
+// compositor keybind like Mod+Shift+X and hypridle's lock_cmd both call
+// into).
 //
 // Lifecycle:
 //   1. lock()              → locked=true; pam.active=true; surface UIs appear
@@ -16,6 +16,11 @@ pragma Singleton
 //
 // Multi-monitor: one PamContext shared across all WlSessionLockSurface
 // instances; password fields all point at LockService.respond().
+//
+// Wallpaper: the lock surfaces read their blurred background directly from
+// WallpaperService now (per-monitor, via WallpaperService.pathFor(screen.name)).
+// This module previously parsed ~/.config/waypaper/config.ini for that path,
+// but waypaper has been replaced by the in-shell wallpaper module.
 
 import QtQuick
 import Quickshell
@@ -54,10 +59,6 @@ Singleton {
     // park the text here and submit it on the next responseRequired edge.
     property string _pendingResponse: ""
 
-    // Path to the wallpaper file currently set by waypaper. The lock
-    // surfaces blur this image as their background. Empty = use Theme.bg.
-    property string wallpaperPath: ""
-
     // ---- Public methods ----
 
     function lock() {
@@ -65,9 +66,6 @@ Singleton {
         root.pamError = "";
         root.pamMessage = "";
         root.locked = true;
-        // Re-read wallpaper path each time we lock so changes via waypaper
-        // are picked up without a shell reload.
-        wallpaperFile.reload();
         // Start PAM. Conversation will fire pamMessage / responseRequired.
         if (!pam.active) pam.active = true;
     }
@@ -154,38 +152,6 @@ Singleton {
             console.warn("[LockService] PAM error:", err);
             root.pamChecking = false;
             root.pamError = "PAM error — try again";
-        }
-    }
-
-    // ---- Wallpaper detection ----
-    //
-    // waypaper writes the user's currently-set wallpaper as a single key in
-    // ~/.config/waypaper/config.ini. We re-read this file on every lock so
-    // a wallpaper change is reflected without needing a shell reload.
-
-    FileView {
-        id: wallpaperFile
-        path: Quickshell.env("HOME") + "/.config/waypaper/config.ini"
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        onLoaded: {
-            const t = wallpaperFile.text() || "";
-            // Match: `wallpaper = /path/to/image.ext`  (with optional ~)
-            const m = t.match(/^\s*wallpaper\s*=\s*(.+?)\s*$/m);
-            if (m && m[1]) {
-                let p = m[1];
-                if (p.charAt(0) === "~") {
-                    p = (Quickshell.env("HOME") || "") + p.slice(1);
-                }
-                root.wallpaperPath = p;
-            } else {
-                root.wallpaperPath = "";
-            }
-        }
-        onLoadFailed: function(err) {
-            // No waypaper config = fall back to solid background.
-            root.wallpaperPath = "";
         }
     }
 }
