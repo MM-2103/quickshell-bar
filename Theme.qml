@@ -62,4 +62,12 @@ Singleton {
 
     // Default glyph size for FA icons inside a 22 × 22 bar widget.
     readonly property int iconSize: 13
+
+    // ---- Behavior ----
+    // Play freedesktop `audio-volume-change` sound on volume changes / unmute,
+    // KDE-Plasma style. The sample plays through the just-changed default sink,
+    // so its perceived loudness mirrors the new volume level. Requires
+    // `libcanberra` (canberra-gtk-play) + a sound theme (e.g.
+    // `sound-theme-freedesktop`). Silently no-ops if either is missing.
+    readonly property bool volumeFeedbackEnabled: true
 }
