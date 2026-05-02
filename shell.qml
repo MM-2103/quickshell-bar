@@ -14,6 +14,7 @@ import qs.osd               // for Osd panel + OsdService singleton
 import qs.clipboard         // for ClipboardPopup + ClipboardService singleton
 import qs.launcher          // for Launcher + LauncherService singleton
 import qs.lock              // for Lock + LockService singleton
+import qs.wallpaper         // for WallpaperLayer + WallpaperPickerPopup + WallpaperService
 
 ShellRoot {
     id: root
@@ -47,6 +48,16 @@ ShellRoot {
         function onWindowFocused(id) {
             PopupController.closeAll();
         }
+    }
+
+    // Wallpaper — one Background-layer surface per monitor. Declared FIRST
+    // so it sits at the bottom of the layer-shell Z order. WlrLayer.Background
+    // already guarantees this (below Bar's Top), but declaring it first keeps
+    // the visual stack obvious when reading the file.
+    Variants {
+        model: Quickshell.screens
+
+        WallpaperLayer { }
     }
 
     // Bar — one per monitor.
@@ -153,6 +164,18 @@ ShellRoot {
         model: Quickshell.screens
 
         Launcher {
+            focusedOutput: Compositor.focusedOutput
+        }
+    }
+
+    // Wallpaper picker — same per-monitor pattern as Launcher / Clipboard.
+    // Triggered by clicking the Wallpaper bar widget (no IPC keybind, per
+    // the user's preference; the widget toggles WallpaperService.popupOpen
+    // directly).
+    Variants {
+        model: Quickshell.screens
+
+        WallpaperPickerPopup {
             focusedOutput: Compositor.focusedOutput
         }
     }
