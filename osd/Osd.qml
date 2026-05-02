@@ -8,6 +8,7 @@
 import QtQuick
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Wayland
 import Quickshell.Widgets
 import qs
 
@@ -48,6 +49,12 @@ PanelWindow {
 
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
+
+    // Render above fullscreen surfaces. The default `Top` layer is occluded
+    // by fullscreen apps (games, mpv -fs, video players), which would hide
+    // the OSD precisely when the user can't see anything else to confirm
+    // the volume / brightness change worked.
+    WlrLayershell.layer: WlrLayer.Overlay
 
     // Surface adds 24 px in each axis for shadow padding (12 px each side).
     implicitWidth: pill.implicitWidth + 24
