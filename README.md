@@ -152,6 +152,8 @@ will catch things our test pass on niri couldn't.
 | `waypaper`      | Lock screen reads `~/.config/waypaper/config.ini` for blur background. Without it, lock falls back to a solid background. |
 | `hypridle` *(niri / Hyprland)* | Idle daemon. Triggers our lock IPC on timeout / before-suspend. Quickshell has no built-in idle notifier yet, so this stays external. See `examples/hypridle.conf`. |
 | `swayidle` *(Sway / i3)*       | Equivalent idle daemon. See `examples/swayidle.service` for the command snippet. |
+| `libcanberra`   | KDE-style audible cue on volume change / unmute. Plays the freedesktop `audio-volume-change` sample through the just-changed sink, so its loudness mirrors the new level. Disable via `volumeFeedbackEnabled: false` in `Theme.qml`. |
+| `sound-theme-freedesktop` | Provides the actual `audio-volume-change` sample that `libcanberra` plays. Without it, canberra silently no-ops. |
 
 ---
 
