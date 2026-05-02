@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #62+) represents original
+> "Gotchas & quirks" section (entries #1 through #63+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2623,6 +2623,23 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     Or `pkill qs` if you don't have the shell id handy.
 
     **Don't try `kill -HUP`** — SIGHUP terminates the daemon entirely, it doesn't trigger reload. There is no signal-driven reload mechanism.
+
+63. **`PanelWindow` defaults to layer-shell `Top`, which is occluded by fullscreen surfaces.** A bar / OSD / popup created as a plain `PanelWindow` lands on the `Top` layer (`aboveWindows: true` maps to `WlrLayershell.layer: WlrLayer.Top`). On most wlroots compositors and on niri, fullscreen toplevels render *above* `Top` — so an OSD that works fine in normal use vanishes the moment the user enters a fullscreen game, `mpv -fs`, or a video player. That's precisely when audio-only volume / brightness changes provide no visual confirmation and the OSD is most needed.
+
+    **Fix**: switch the surface to the `Overlay` layer for anything that should pierce fullscreen (OSDs, urgent notifications, lock surface confirmations):
+
+    ```qml
+    import Quickshell.Wayland
+
+    PanelWindow {
+        // ...
+        WlrLayershell.layer: WlrLayer.Overlay
+    }
+    ```
+
+    `Overlay` sits above fullscreen surfaces and above `Top`. Use sparingly — anything on `Overlay` obscures the user's view of their app. The bar itself should stay on `Top` (it'd be obnoxious during fullscreen video). Volume / brightness / caps-lock OSDs are good fits because they fade out automatically.
+
+    `Overlay` is purely a Z-order hint and does NOT grant input focus. If you also need keystrokes (launcher, search field, etc.), pair with `WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive`.
 
 ### Style & best practices
 
