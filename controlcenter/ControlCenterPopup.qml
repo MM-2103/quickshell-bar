@@ -54,8 +54,13 @@ PopupWindow {
     anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    implicitWidth:  340 + 24  // 24 = shadow padding (12 each side)
-    implicitHeight: 480 + 24
+    // 440 wide × 400 tall — landscape-ish. Wider gives tile state strings
+    // ("MyNetwork", "Power Saver") room to breathe without eliding;
+    // shorter cuts the empty space the tiles view used to leave below
+    // the 2 × 3 grid. Detail views (Network, Bluetooth) still scroll
+    // internally when their list overflows.
+    implicitWidth:  440 + 24  // 24 = shadow padding (12 each side)
+    implicitHeight: 400 + 24
 
     // ---- Card surface ----
     Rectangle {
@@ -156,11 +161,15 @@ PopupWindow {
 
         // ---- View body ----
         //
-        // Loader keyed on currentView. Switches are instant — animating
-        // between sourceComponent swaps requires either a side-by-side
-        // stack or scripting around the Component change (Behavior on
-        // sourceComponent doesn't fire — Component isn't a numeric type).
-        // Snappy and predictable; can be polished later if desired.
+        // Loader keyed on a separate `_appliedView` property rather than
+        // ControlCenterService.currentView directly. This indirection lets
+        // us drive a SequentialAnimation (fade-out → swap → fade-in) when
+        // the user navigates between views, while still re-using the
+        // current view's content immediately on a fresh open (no flicker).
+        //
+        // `Behavior on sourceComponent` doesn't work — Component is not a
+        // numeric type. The script-action animation is the standard
+        // workaround for view-stack crossfades.
         Loader {
             id: viewLoader
             anchors {
@@ -172,12 +181,50 @@ PopupWindow {
                 topMargin: 10
             }
 
+            // Mirrors currentView, but only updates inside the transition
+            // animation's ScriptAction so the swap happens at opacity 0.
+            property string _appliedView: ControlCenterService.currentView
+
             sourceComponent: {
-                switch (ControlCenterService.currentView) {
+                switch (_appliedView) {
                 case "network":      return networkViewC;
                 case "bluetooth":    return bluetoothViewC;
                 case "powerprofile": return powerProfileViewC;
                 default:             return tilesViewC;
+                }
+            }
+
+            opacity: 1.0
+
+            // Cross-fade swap when the user navigates. Skipped if the
+            // popup isn't open (e.g. resetView() called by toggle()
+            // before fade-in starts) — in that case sync immediately
+            // so the next open shows the right view from the first frame.
+            Connections {
+                target: ControlCenterService
+                function onCurrentViewChanged() {
+                    if (ControlCenterService.currentView === viewLoader._appliedView)
+                        return;
+                    if (!popup.wantOpen) {
+                        viewLoader._appliedView = ControlCenterService.currentView;
+                        return;
+                    }
+                    transition.restart();
+                }
+            }
+
+            SequentialAnimation {
+                id: transition
+                NumberAnimation {
+                    target: viewLoader; property: "opacity"
+                    to: 0.0; duration: 100; easing.type: Easing.InCubic
+                }
+                ScriptAction {
+                    script: viewLoader._appliedView = ControlCenterService.currentView
+                }
+                NumberAnimation {
+                    target: viewLoader; property: "opacity"
+                    to: 1.0; duration: 140; easing.type: Easing.OutCubic
                 }
             }
         }
