@@ -293,9 +293,9 @@ Rehearse this once before you ever need it for real.
 
 ### Per-machine overrides (no edits to tracked files)
 
-Drop a JSON file at `~/.config/quickshell-bar/config.json` to override
+Drop a JSONC file at `~/.config/quickshell-bar/config.jsonc` to override
 visual + behavioural defaults without touching the repo. Hot-reloaded
-on save; missing keys keep their defaults; line comments allowed.
+on save; missing keys keep their defaults; `//` line comments allowed.
 
 ```jsonc
 {
