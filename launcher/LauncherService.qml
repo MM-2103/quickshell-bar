@@ -50,8 +50,8 @@ Singleton {
     // Both are routed through `Local.get()` so users can override per-machine
     // by setting "searchUrl" / "searchName" in
     // ~/.config/quickshell-bar/config.json without touching this file.
-    readonly property string searchUrl:  Local.get("searchUrl",  "https://kagi.com/search?q=%s")
-    readonly property string searchName: Local.get("searchName", "Kagi")
+    readonly property string searchUrl:  Local.get("searchUrl",  "https://duckduckgo.com/?q=%s")
+    readonly property string searchName: Local.get("searchName", "DuckDuckGo")
 
     // ---- Public state ----
 
