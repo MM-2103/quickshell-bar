@@ -283,7 +283,8 @@ Rehearse this once before you ever need it for real.
 |------------------------|-------------------------------------------------------------------|
 | Colors, sizes, radii   | `Theme.qml` — single source of truth                              |
 | Web-search engine      | `searchUrl` and `searchName` constants at top of `launcher/LauncherService.qml` (defaults to DuckDuckGo) |
-| Wallpaper folder       | Click the wallpaper icon in the bar (just before Power) → use the up-arrow / subfolder pills to navigate. Persisted to `~/.local/state/quickshell/by-shell/<id>/wallpaper.json`. |
+| Wallpaper folder       | Open the Control Center (sliders icon, just before Power) → click the **Wallpaper** tile → folder browser opens. Use the up-arrow / subfolder pills to navigate. Persisted to `~/.local/state/quickshell/by-shell/<id>/wallpaper.json`. |
+| Weather location       | Open the Control Center → click the weather card body → "Choose city" view opens with 25 NL cities. Persisted to `~/.local/state/quickshell/by-shell/<id>/weather.json`. |
 | Idle / dim / suspend timings | `~/.config/hypr/hypridle.conf` or `swayidle` invocation (see `examples/`) |
 | Compositor keybinds    | `examples/<compositor>-bindings.<ext>`                            |
 | Force-pick a backend   | `QS_COMPOSITOR=niri\|hyprland\|sway\|stub` env var                |
