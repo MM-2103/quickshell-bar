@@ -655,6 +655,242 @@ to widen the host or compress the content.
 
 ---
 
+## Hoisted overlay recipe
+
+Pattern for any "popup-within-popup" — a colour picker, a dropdown
+list, a context menu, a search-result flyout. The overlay needs to
+visually float above the row that triggered it without being clipped or
+buried by sibling rows declared later in the same parent Column.
+
+### The problem this solves
+
+In QML, the `z` property only orders **siblings within the same
+parent**. Consider the natural-feeling architecture:
+
+```qml
+Column {
+    Row { id: rowA
+        Rectangle { id: triggerA }
+        Rectangle {            // overlay declared inside the row
+            visible: someState
+            z: 100
+            anchors.top: triggerA.bottom
+        }
+    }
+    Row { id: rowB }            // a later sibling row
+    Row { id: rowC }            // another later sibling row
+}
+```
+
+The overlay is a child of `rowA`. Its `z: 100` only puts it above
+*siblings within rowA*. It is **not** above `rowB` or `rowC` — those
+are later siblings of `rowA` in the Column, so QML draws their
+subtrees after rowA's subtree, regardless of any z value inside rowA.
+The overlay extends visually below rowA and is clipped / overdrawn by
+rowB, rowC, and so on.
+
+This bites every nested popup attempt. We hit it twice in the Settings
+page (`ColorPicker` + `PresetDropdownList`), and the symptom is
+identical both times: the overlay first appears partially obscured by
+later rows, and clicks land on those rows rather than reaching the
+overlay's controls.
+
+### The architecture
+
+The overlay must be hoisted out of the row entirely and rendered as a
+child of a much wider container — typically the popup's outermost
+Rectangle or Item. The trigger that opens it stays inside the row.
+Communication routes through a service singleton that holds the open
+state + payload + anchor reference.
+
+```
+┌── Popup card (Rectangle) ──────────────────────────┐
+│                                                     │
+│  Column {                                           │
+│      Row { trigger A }                              │
+│      Row { trigger B }      ← rows live here       │
+│      Row { trigger C }                              │
+│  }                                                  │
+│                                                     │
+│  Overlay {                  ← overlay lives HERE,  │
+│      visible: service.open  ← as a sibling of      │
+│      x: anchor.mapToItem(   ← the Column, declared │
+│          card, 0, 0).x      ← AFTER it. z=1000 for │
+│      ...                    ← extra safety.        │
+│  }                                                  │
+└────────────────────────────────────────────────────┘
+```
+
+### Components in the pattern
+
+**Service singleton state** (one set per overlay kind):
+
+```qml
+// SomeService.qml
+property bool overlayOpen: false
+property var  overlayAnchor: null     // the trigger Item
+property var  overlayPayload: null    // whatever the overlay needs
+
+function openOverlay(payload, anchor) {
+    if (overlayOpen && overlayPayload === payload) {
+        closeOverlay();      // toggle on same-trigger click
+        return;
+    }
+    overlayPayload = payload;
+    overlayAnchor = anchor;
+    overlayOpen = true;
+}
+function closeOverlay() {
+    overlayOpen = false;
+    overlayAnchor = null;
+}
+```
+
+**Trigger inside the row** — delegates to the service, never embeds the
+overlay itself:
+
+```qml
+// SomeRow.qml
+Rectangle {
+    id: trigger
+    MouseArea {
+        anchors.fill: parent
+        onClicked: SomeService.openOverlay(rowPayload, trigger)
+    }
+}
+```
+
+**Overlay component** — purely presentational, never writes to its own
+visibility (gotcha #68):
+
+```qml
+// SomeOverlay.qml
+Rectangle {
+    id: overlay
+    width: 240
+    height: 180
+    radius: Theme.radius
+    color: Theme.bg
+    border.color: Theme.border
+    border.width: 1
+
+    // Catch-all so clicks on the overlay's chrome don't pass through.
+    MouseArea { anchors.fill: parent; onClicked: { /* swallow */ } }
+
+    signal closeRequested
+    signal somethingPicked(var value)
+
+    // ... actual controls (with their own MouseAreas declared LATER
+    //     so they win the hit-test in their regions)
+}
+```
+
+**Hosting at the popup root** — declared AFTER the Column / Flickable
+of rows so it draws on top:
+
+```qml
+// SomePopup.qml
+Rectangle {
+    id: card
+
+    Column { ... rows ... }           // declared FIRST
+
+    SomeOverlay {                     // declared SECOND
+        id: overlay
+        z: 1000                       // belt + braces
+        visible: SomeService.overlayOpen   // bound, never assigned
+        onCloseRequested: SomeService.closeOverlay()
+        onSomethingPicked: v => Local.set(...)
+
+        x: {
+            if (!SomeService.overlayAnchor) return 0;
+            const p = SomeService.overlayAnchor.mapToItem(card, 0, 0);
+            const maxX = card.width - width - 16;
+            return Math.max(16, Math.min(p.x, maxX));
+        }
+        y: {
+            if (!SomeService.overlayAnchor) return 0;
+            const p = SomeService.overlayAnchor.mapToItem(card, 0, 0);
+            const proposed = p.y + SomeService.overlayAnchor.height + 6;
+            const maxY = card.height - height - 16;
+            // Flip above the trigger if natural position pushes off
+            // the bottom — common for triggers near the popup's
+            // bottom edge.
+            if (proposed > maxY) {
+                return Math.max(16, p.y - height - 6);
+            }
+            return proposed;
+        }
+    }
+}
+```
+
+The two clamps in the position bindings (`Math.max(16, Math.min(...))`
+on the X and the natural-vs-flipped check on the Y) keep the overlay
+inside the card's painted area so the user always sees the whole
+thing.
+
+### Dismiss strategies (in order of preference)
+
+1. **Done button inside the overlay**. Emits `closeRequested`; the host
+   calls `Service.closeOverlay()`. Never write to `visible` from the
+   overlay component.
+2. **Esc key**. The popup's existing `Keys.onPressed` handler closes
+   the innermost overlay first, then falls through to closing the
+   popup. Layered close.
+3. **Same-trigger click toggles closed**. Built into `openOverlay`'s
+   first check (see service singleton above).
+4. **Different-trigger click switches**. `openOverlay` updates anchor +
+   payload; the position bindings re-evaluate via `mapToItem`.
+5. **Tab change / active scroll auto-closes**. The anchor's
+   coordinates would otherwise drift relative to the card; close so
+   the overlay doesn't float away from the trigger:
+
+   ```qml
+   Connections {
+       target: someService
+       function onActiveTabChanged() { someService.closeOverlay(); }
+   }
+   Connections {
+       target: contentFlick
+       function onContentYChanged() {
+           if (contentFlick.moving) someService.closeOverlay();
+       }
+   }
+   ```
+
+### What NOT to do
+
+- **Don't add a transparent "click outside" `MouseArea` over the whole
+  popup**. It catches clicks meant for sibling triggers (other
+  swatches, other dropdowns) and consumes them, so the click that
+  should switch the overlay just dismisses it instead. The user has
+  to click twice. We tried this; it's the bug behind the original
+  ColorPicker "doesn't reopen until shell reload" report.
+- **Don't write to a bound visibility property** (`open: false` or
+  `visible: false`) from inside the overlay component. Gotcha #68 —
+  the assignment silently breaks the binding. Emit a signal instead.
+- **Don't use `parent.parent.parent` to reach the host**. Gotcha #66 —
+  `Repeater` delegate parent chains are fragile. Use an `id` and
+  reference it directly.
+- **Don't put the overlay inside a `Flickable`'s clipped content**.
+  The Flickable's `clip: true` will cut the overlay if it extends past
+  the visible content area. Hoist OUT of the Flickable, into the popup
+  card directly.
+
+### Real-world references in this repo
+
+- `settings/controls/ColorPicker.qml` — overlay component (HSV picker)
+- `settings/controls/ColorRow.qml` — trigger (swatch click delegates to service)
+- `settings/controls/PresetDropdownList.qml` — overlay component (preset list)
+- `settings/controls/PresetDropdown.qml` — trigger (button click delegates to service)
+- `settings/SettingsService.qml` — `openPicker` / `closePicker` / `openDropdown` / `closeDropdown` + state
+- `settings/SettingsPopup.qml` — both overlays hoisted at the card root, position bindings, dismiss connections
+
+Both follow the recipe to the letter.
+
+---
+
 ## Glyph conventions (Font Awesome)
 
 This shell uses Font Awesome 7 Solid for nearly every icon. Codepoints
