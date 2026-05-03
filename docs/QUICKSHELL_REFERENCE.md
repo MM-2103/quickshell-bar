@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #67+) represents original
+> "Gotchas & quirks" section (entries #1 through #68+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2764,6 +2764,54 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     This *works* but feels janky in practice — wheel ticks deliver large `angleDelta` values that map awkwardly to `contentX` deltas, motion isn't smooth, and per-Qt-version tuning is unpleasant. Touchpad two-finger scroll on horizontal axis works better but isn't universal.
 
     **Pragmatic fix**: avoid horizontally-scrollable Flickables entirely on desktop. Pick a fixed set of items that fits the popup width (e.g. 12 hours at `parent.width / 12` per cell instead of 24 in a scrollable strip). The visual completeness of "everything visible at once" tends to beat "more data behind a scroll".
+
+68. **Imperative assignment to a property silently destroys its binding.** This is one of QML's quietest, nastiest footguns. If a property is set up with a binding by the parent, and the component then writes to that same property at runtime via plain assignment (`root.foo = false`), Qt **silently severs the binding**. The property holds whatever value was assigned; the source of the binding can change all it wants — the property stops listening. There is no warning, no log, nothing. The component just stops being reactive.
+
+    **Symptom in practice**: a popup / dialog / overlay opens fine the first time. The user dismisses it via an internal close button. They try to open it again — nothing happens. State looks correct in the controlling singleton (the `open` / `visible` flag flipped to `true`), but the visual component never updates because its binding was severed by the close button's `root.open = false` line. Until the component is re-instantiated (page reload, view swap, daemon restart) the binding stays dead.
+
+    **The trap pattern**:
+
+    ```qml
+    // Parent.qml
+    MyPopup {
+        open: ServiceSingleton.popupOpen
+    }
+
+    // MyPopup.qml — looks innocent
+    property bool open: false
+    visible: open
+
+    Button {
+        text: "Done"
+        onClicked: root.open = false   // <-- breaks the parent's binding
+    }
+    ```
+
+    First click of "Done" sets `root.open = false`, severing the binding. From this moment on, `ServiceSingleton.popupOpen = true` does NOT propagate to `root.open`. The popup is permanently invisible until the QML component is recreated.
+
+    **Fix**: make the component purely presentational. Never write to a property the parent has bound. Replace the imperative close with a signal:
+
+    ```qml
+    // MyPopup.qml — corrected
+    signal closeRequested
+
+    Button {
+        text: "Done"
+        onClicked: root.closeRequested()   // emit, don't assign
+    }
+
+    // Parent.qml
+    MyPopup {
+        open: ServiceSingleton.popupOpen
+        onCloseRequested: ServiceSingleton.closePopup()
+    }
+    ```
+
+    Now the parent owns visibility end-to-end. The signal-out / binding-in arrangement keeps the wire intact across any number of open/close cycles.
+
+    **General rule**: if a property is part of a component's external API and the parent binds it, **the component must treat that property as read-only**. Internal state that needs to be mutable should be stored in *separate* properties; the bound property mirrors the public contract via binding only.
+
+    Bit us in `settings/controls/ColorPicker.qml`: the Done button's `function close() { root.open = false }` worked once, then the colour picker stopped reopening until shell reload. The fix was the signal-based pattern above.
 
 ### Style & best practices
 
