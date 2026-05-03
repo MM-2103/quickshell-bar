@@ -156,6 +156,7 @@ PanelWindow {
                     width: parent.width
                     sourceComponent: {
                         switch (SettingsService.activeTab) {
+                            case "theme":      return themeComp;
                             case "typography": return typographyComp;
                             case "layout":     return layoutComp;
                             case "behavior":   return behaviorComp;
@@ -171,6 +172,7 @@ PanelWindow {
             }
         }
 
+        Component { id: themeComp;      ThemeSection { } }
         Component { id: colorsComp;     ColorsSection { } }
         Component { id: typographyComp; TypographySection { } }
         Component { id: layoutComp;     LayoutMotionSection { } }

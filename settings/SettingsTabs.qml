@@ -16,7 +16,11 @@ Row {
     spacing: 6
 
     // Each tab: { key, label }. Order is the visual order.
+    // Theme leads — it's the lighter-touch entry point (one-click
+    // palette swaps) and surfaces the new feature where users will
+    // look first.
     readonly property var _tabs: [
+        { key: "theme",      label: "Theme" },
         { key: "colors",     label: "Colours" },
         { key: "typography", label: "Typography" },
         { key: "layout",     label: "Layout & Motion" },

@@ -317,21 +317,35 @@ Singleton {
     // ---- Selection-state matching ----
     //
     // currentTheme is the first theme in `all` whose palette matches
-    // every one of the user's current 14-key values, or null if no theme
-    // matches (i.e. the user has a custom configuration). Reactive on
-    // Local.data — flips to null the moment any key diverges, flips back
-    // to a theme the moment the user (re-)applies a matching palette.
+    // every one of the user's effective 14-key values, or null if no
+    // theme matches (i.e. the user has a custom configuration).
+    // Reactive on Local.data — flips to null the moment any key
+    // diverges, flips back to a theme the moment the user (re-)applies
+    // a matching palette.
     //
-    // Comparison normalises Qt's "#aarrggbb" stringification to plain
-    // "#rrggbb" so a colour stored as #ff16181c still matches a palette
-    // entry of "#16181c".
+    // "Effective value" = the user's explicit override if present,
+    // otherwise the Theme.qml default. By contract, the Default theme's
+    // palette mirrors Theme.qml's defaults, so we resolve unset keys
+    // against builtIn's "default" entry rather than passing the
+    // candidate palette as the get() fallback (which would falsely
+    // match every theme for keys the user hasn't overridden).
     readonly property var currentTheme: {
-        // Force evaluation re-trigger when the override map changes.
-        // The bare reference is what makes this property reactive.
+        // Bare reference makes this property reactive on Local.data.
         const _ = Local.data;
         const list = root.all;
         for (let i = 0; i < list.length; i++) {
             if (root._paletteMatches(list[i].palette)) return list[i];
+        }
+        return null;
+    }
+
+    // The Default theme's palette doubles as the Theme.qml-defaults
+    // lookup for any key the user hasn't overridden. Resolved by id
+    // rather than by index so reordering builtIn doesn't silently
+    // break matching.
+    readonly property var _defaultPalette: {
+        for (let i = 0; i < root.builtIn.length; i++) {
+            if (root.builtIn[i].id === "default") return root.builtIn[i].palette;
         }
         return null;
     }
@@ -341,7 +355,7 @@ Singleton {
         for (let i = 0; i < keys.length; i++) {
             const k = keys[i];
             if (palette[k] === undefined) continue;
-            const cur = Local.get(k, palette[k]);
+            const cur = root._effectiveValue(k);
             if (root._normalizeHex(cur) !== root._normalizeHex(palette[k])) {
                 return false;
             }
@@ -349,13 +363,36 @@ Singleton {
         return true;
     }
 
+    function _effectiveValue(key) {
+        if (Local.data && Local.data[key] !== undefined) {
+            return Local.data[key];
+        }
+        return root._defaultPalette ? root._defaultPalette[key] : null;
+    }
+
     function _normalizeHex(c) {
+        // Qt's `color` type, when round-tripped through JSON.stringify
+        // (e.g. by ColorPicker's writes via Local.set), serialises as
+        // a record of r/g/b/a floats plus hsv/hsl mirrors. Re-derive a
+        // canonical "#rrggbb" so we can compare against palette hex
+        // strings on equal footing.
+        if (c && typeof c === "object" && typeof c.r === "number") {
+            const r = Math.round(Math.max(0, Math.min(1, c.r)) * 255);
+            const g = Math.round(Math.max(0, Math.min(1, c.g)) * 255);
+            const b = Math.round(Math.max(0, Math.min(1, c.b)) * 255);
+            return "#" + root._byteHex(r) + root._byteHex(g) + root._byteHex(b);
+        }
         const s = ("" + c).toLowerCase();
         // Qt's color toString() returns "#aarrggbb" — strip the alpha
         // byte so we compare the rgb portion against the palette's
         // canonical "#rrggbb" form.
         if (s.length === 9 && s.charAt(0) === "#") return "#" + s.substr(3);
         return s;
+    }
+
+    function _byteHex(n) {
+        const h = Math.max(0, Math.min(255, n)).toString(16);
+        return h.length === 1 ? "0" + h : h;
     }
 
     // ---- User-theme directory scan ----
