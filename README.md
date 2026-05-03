@@ -81,13 +81,25 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 
 ## Screenshots
 
-The bar — full width across one monitor:
+The bar — full width across one monitor (8 widgets after the Control Center declutter):
 
 ![Bar overview](docs/screenshots/01-bar.png)
 
 Right cluster zoomed (3× nearest-neighbor for clarity — actual rendering is sharper):
 
 ![Right-cluster zoom](docs/screenshots/02-bar-right.png)
+
+Control Center — sliders, 3 × 2 tile grid, weather card, and the optional Now Playing card:
+
+![Control Center](docs/screenshots/09-control-center.png)
+
+Weather detail popup — current conditions, sunrise/sunset, the next 12 hours, and a 7-day forecast (KNMI HARMONIE-AROME 2 km Dutch model via Open-Meteo):
+
+![Weather detail](docs/screenshots/10-weather-detail.png)
+
+Wallpaper picker — folder browse + thumbnail grid + per-monitor target + fill-mode selector (replaces waypaper):
+
+![Wallpaper picker](docs/screenshots/11-wallpaper-picker.png)
 
 Lock screen with the now-playing card:
 
