@@ -6,7 +6,7 @@ file end-to-end. ~10 minutes.
 
 > Companion docs:
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 60+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 64+ gotchas
 > - [`README.md`](../README.md) — install + user-facing overview
 
 ---
@@ -32,7 +32,9 @@ loads, workspaces module is empty).
 - MPRIS (media), UPower (battery + power profiles), SystemNotifierItem (tray)
 - `cliphist` (clipboard history backend), `wl-copy` (clipboard write)
 - `brightnessctl` (backlight, laptops only)
-- `grim` for screenshots, optional `waypaper` for wallpaper config
+- `curl` (weather widget HTTP fetches; project idiom for HTTP since Quickshell has no built-in network module)
+- Optional: `libcanberra` + `sound-theme-freedesktop` (KDE-style audible cue on volume change)
+- `grim` for screenshots; the in-shell wallpaper module replaces both `swaybg` and `waypaper`
 
 **To run it**:
 ```bash
@@ -81,22 +83,30 @@ shell.qml (entry point)
 ├── PopupController singleton       ← popup mutex (only one popup open at a time)
 │
 ├── Variants × Quickshell.screens
+│   ├── WallpaperLayer              ← Background-layer surface, per monitor (replaces swaybg)
 │   ├── Bar { screen: modelData }   ← per-monitor bar
 │   │   ├── Workspaces (left)       ← reads Compositor.workspaces filtered by output
 │   │   ├── Clock (center)
-│   │   └── Right cluster:          ← all bar widgets
-│   │       IdleInhibit, PowerProfile, Notifications, Network, Bluetooth,
-│   │       TrayCollapser, Media, Battery, Brightness, Volume, Power
+│   │   └── Right cluster:          ← 8 widgets after the CC declutter
+│   │       Notifications, TrayCollapser, Media, Battery, Brightness,
+│   │       Volume, ControlCenter, Power
 │   │
 │   ├── PanelWindow (notification stack, top-right)
-│   ├── Osd                         ← bottom-center, focused-monitor only
+│   ├── Osd                         ← bottom-center, focused-monitor only (Overlay layer)
 │   ├── ClipboardPopup              ← centered, focused-monitor only
-│   └── Launcher                    ← centered, focused-monitor only
+│   ├── Launcher                    ← centered, focused-monitor only
+│   ├── WallpaperPickerPopup        ← centered, focused-monitor only
+│   └── WeatherDetailPopup          ← centered, focused-monitor only (hourly + 7-day)
 │
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
 └── IpcHandler × 4                  ← clipboard, launcher, lock, popups
 ```
+
+The **ControlCenter** bar widget owns its anchored `ControlCenterPopup`,
+which contains a Loader-driven view stack: a 3 × 2 tile grid plus four
+detail views (NetworkView, BluetoothView, PowerProfileView, CitiesView)
+extracted from what used to be standalone bar-widget popups.
 
 ### Per-screen pattern
 
@@ -114,15 +124,18 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 
 | Service singleton | Owns |
 |---|---|
-| `Theme` | colors, font tokens, sizes, animation durations |
+| `Theme` | colors, font tokens, sizes, animation durations, `volumeFeedbackEnabled` flag |
 | `Compositor` | workspaces, focusedOutput, currentLayout, windowFocused signal, dispatch helpers |
 | `MediaService` | currentPlayer, playback state, cachedArtUrl, transport actions |
 | `NotificationService` | tracked notifications, popup queue, DND state, current screen |
 | `OsdService` | currentKind, brightness/volume/layout/caps state, show()/setBrightness() |
-| `LockService` | locked state, PAM context, wallpaper path |
+| `LockService` | locked state, PAM context (wallpaper now read from WallpaperService) |
 | `LauncherService` | popupOpen, query, filtered, frecency |
 | `ClipboardService` | popupOpen, entries (cliphist-backed) |
 | `NetworkService` | wired/wifi state, networks list, connect/forget actions |
+| `WallpaperService` | per-monitor wallpaper map, fillMode, picker open state, scan/persistence |
+| `WeatherService` | location, current/hourly/daily forecast (KNMI via Open-Meteo), city catalogue, detail-popup open state |
+| `ControlCenterService` | view-stack (`currentView`), idle-inhibit toggle (no bar widget owns it now) |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
@@ -203,11 +216,15 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Add an IPC handler | `shell.qml` (search `IpcHandler`) | gotcha #9 (typed signatures) |
 | Add a tooltip | any bar widget — search `BarTooltip` | [STYLE.md "Tooltip recipe"](STYLE.md#tooltip-recipe) |
 | Add a slider/progress bar | `Slider.qml` / `ProgressBar.qml` | [STYLE.md "Sliders & progress bars"](STYLE.md#sliders--progress-bars) |
+| Add a tile to the Control Center | `controlcenter/Tile.qml` + `controlcenter/TilesView.qml` | [STYLE.md "Tile recipe"](STYLE.md#tile-recipe) — body click vs chevron click pattern |
+| Add a CC detail view | `network/NetworkView.qml` (or any `*View.qml`) + register in `controlcenter/ControlCenterPopup.qml` Loader switch | [STYLE.md "View-stack recipe"](STYLE.md#view-stack-recipe), [STYLE.md "Extracted view recipe"](STYLE.md#extracted-view-recipe) |
+| Add a card (Weather / NowPlaying-style) | `weather/WeatherCard.qml` or `lock/NowPlayingCard.qml` | [STYLE.md "Card recipe"](STYLE.md#card-recipe) |
+| Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #62) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #67) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
-| Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out) |
+| Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
 ### File layout summary
 
@@ -218,8 +235,13 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `workspaces/` | `Workspaces.qml` chip strip (consumes Compositor) |
 | `clock/` | `Clock.qml` widget + `Calendar.qml` popup |
 | `notifications/` | `NotificationService.qml`, `Notifications.qml` (bell), `NotificationCard.qml`, `NotificationCenterPopup.qml` |
-| `osd/` | `OsdService.qml` + `Osd.qml` panel |
-| `network/`, `bluetooth/`, `volume/`, `media/`, `system/`, `tray/` | their respective widgets + popups + services |
+| `osd/` | `OsdService.qml` + `Osd.qml` panel (`Overlay` layer — visible over fullscreen) |
+| `volume/`, `media/`, `tray/` | bar widgets + popups + services that stayed in the bar after the CC declutter |
+| `network/`, `bluetooth/` | services + `*View.qml` files (no bar widgets — accessed via the Control Center) |
+| `system/` | bar widgets that stayed (`Battery`, `Brightness`, `Power`, `PowerMenuPopup`, `BrightnessPopup`) + `PowerProfileView` (used by CC; no bar widget) |
+| `controlcenter/` | `ControlCenter` bar widget, `ControlCenterPopup`, `ControlCenterService` singleton, `Tile`, `TilesView`, `SlidersBlock` |
+| `wallpaper/` | `WallpaperService` singleton, `WallpaperLayer` (Background-layer surface, replaces swaybg), `WallpaperPickerPopup` (replaces waypaper) |
+| `weather/` | `WeatherService` singleton (KNMI via Open-Meteo), `WeatherCard` (in CC), `WeatherDetailPopup` (centered, hourly + 7-day), `CitiesView` (CC detail view) |
 | `clipboard/`, `launcher/`, `lock/` | popup-only features |
 | `docs/` | `QUICKSHELL_REFERENCE.md`, `STYLE.md`, this file (`AGENTS.md`), `screenshots/` |
 | `examples/` | copy-pasteable compositor + idle-daemon configs |
@@ -462,6 +484,10 @@ implications. ALWAYS ask before modifying.
 - The `Slider.qml` / `ProgressBar.qml` API — many popups consume them
 - The `BarIcon.qml` / `BarTooltip.qml` API — every bar widget uses them
 - The `wantOpen` / `hideHold` popup pattern — changing it requires updating ~12 popup files
+- The CC view-stack keys (`"tiles"` / `"network"` / `"bluetooth"` / `"powerprofile"` / `"cities"`) — strings appear in `ControlCenterService.setView()` calls, the Loader switch, and the header-title switch in `ControlCenterPopup.qml`. Adding a key means touching all three.
+- The CC tile order (Wi-Fi · Bluetooth · Profile / Caffeine · DND · Wallpaper) — fixed in `controlcenter/TilesView.qml` for muscle-memory stability; reordering requires user sign-off
+- The `Tile.qml` API (`icon`, `brand`, `label`, `stateText`, `active`, `showChevron`, `iconColor`, `clicked`, `chevronClicked`) — used by all 6 tiles
+- The `WeatherService` URL shape and the `models=knmi_seamless` pin — changing the model loses the user's "I want KNMI" preference even if the data still shows up
 
 ### Tooling / conventions
 - `examples/*` — these are copy-paste targets for users; format matters
