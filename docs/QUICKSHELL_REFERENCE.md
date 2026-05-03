@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #63+) represents original
+> "Gotchas & quirks" section (entries #1 through #64+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2640,6 +2640,32 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     `Overlay` sits above fullscreen surfaces and above `Top`. Use sparingly — anything on `Overlay` obscures the user's view of their app. The bar itself should stay on `Top` (it'd be obnoxious during fullscreen video). Volume / brightness / caps-lock OSDs are good fits because they fade out automatically.
 
     `Overlay` is purely a Z-order hint and does NOT grant input focus. If you also need keystrokes (launcher, search field, etc.), pair with `WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive`.
+
+64. **`SystemClock` doesn't recover cleanly from system suspend.** Quickshell's `SystemClock` is a reactive view of the system clock that is "cheaper than `Date`-based polling" — implemented as a `QTimer` that fires on the configured precision boundary (Hours / Minutes / Seconds). The internal timer uses Qt's monotonic clock, which doesn't advance during system suspend. After the system wakes, the timer's next-fire alignment is broken: with `precision: Minutes`, the displayed `date` property remains stuck at the pre-suspend value, sometimes for the full minute, occasionally indefinitely until the surface owning the clock is rebuilt.
+
+    **Where it bites hardest**: lock screens. A user suspends their machine while locked, wakes hours later, and the lock-screen clock still reads the suspend-time HH:MM. Locking-and-unlocking-and-relocking "fixes" it because each lock cycle constructs a fresh `SystemClock` instance that reads the wall clock at construction. With `precision: Seconds` the bug is invisible (self-corrects within a second of wake), but `precision: Minutes` exposes it visibly.
+
+    **Fix**: for any clock that must remain correct across suspend/resume, replace `SystemClock` with a plain QML `Timer` + `new Date()`:
+
+    ```qml
+    // Before (broken on resume):
+    SystemClock { id: clock; precision: SystemClock.Minutes }
+    Text { text: Qt.formatDateTime(clock.date, "HH:mm") }
+
+    // After (bulletproof):
+    property var now: new Date()
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: now = new Date()
+    }
+    Text { text: Qt.formatDateTime(now, "HH:mm") }
+    ```
+
+    `new Date()` always reads the system clock fresh — it can't go stale. The 1 s tick interval costs nothing visually because Text bindings only re-render when the formatted string changes (i.e. once per minute for an HH:mm clock). For surfaces that exist only briefly (lock surface, popups), the efficiency saving SystemClock provides over Date polling is irrelevant.
+
+    Bar clocks at `precision: Seconds` can keep using SystemClock — the bug is masked there. The trade-off only matters when you specifically need correct time after wake without a fresh widget construction.
 
 ### Style & best practices
 
