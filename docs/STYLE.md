@@ -297,6 +297,364 @@ Used by the OSD overlays and any read-only fill. **No thumb**, just a
 
 ---
 
+## Tile recipe
+
+For the Control Center grid (`controlcenter/Tile.qml`). Tiles encode three
+things at once: a primary toggle/cycle action (the **body**), a state read-
+out, and an optional secondary action via a chevron in the top-right corner
+(opens a CC detail view).
+
+### Two-zone click pattern
+
+Tiles use **two stacked `MouseArea`s**:
+
+```qml
+Rectangle {
+    id: root
+    // ... visual ...
+
+    // Body click — primary action (toggle, cycle, etc.). Declared FIRST,
+    // which puts it lower in z-order so the chevron MouseArea below wins
+    // its 32×32 corner region.
+    MouseArea {
+        id: bodyMa
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
+
+    // Chevron click — secondary action (open detail view). Declared SECOND,
+    // sits on top in its top-right corner. Only rendered/active when the
+    // tile's `showChevron` is true.
+    MouseArea {
+        id: chevronMa
+        visible: root.showChevron
+        enabled: root.showChevron
+        anchors.right: parent.right
+        anchors.top: parent.top
+        width: 32
+        height: 32
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.chevronClicked()
+    }
+}
+```
+
+The same body-vs-region pattern shows up in `weather/WeatherCard.qml`
+(body → openDetail; city pill / refresh button = sub-regions) but with the
+body MouseArea at `z: -1` and child sub-region MouseAreas at default z.
+Both ordering tricks work; pick whichever reads clearer for a given file.
+
+### Tile properties contract
+
+```qml
+Tile {
+    icon: "\uf1eb"                  // FA Solid glyph (or Brands if `brand: true`)
+    brand: false
+    label: "Wi-Fi"                  // bold top-row label
+    stateText: "MyNetwork"          // dim bottom-row state value
+    active: NetworkService.wifiEnabled  // accent fill when true
+    showChevron: true                   // shows ">" + enables chevron click zone
+    iconColor: Theme.text               // optional override
+    onClicked:        NetworkService.toggleWifi()
+    onChevronClicked: ControlCenterService.setView("network")
+}
+```
+
+### Active-state colour invert
+
+When `active`, the tile fills with `Theme.accent` and label/state colour
+flip to `Theme.accentText`. This matches the same pattern the wallpaper
+picker's selector pills use — consistent muscle-memory across the shell
+("filled = on").
+
+### When to add a chevron
+
+| Tile type | Body action | Chevron? |
+|---|---|---|
+| Pure toggle (Caffeine, DND) | toggle on/off | no |
+| Pure picker (Wallpaper) | open external popup | no |
+| Toggle + has detail list (Wi-Fi, Bluetooth) | toggle radio/adapter | yes (opens detail view) |
+| Cycle + has explicit picker (Power Profile) | cycle through values | yes (opens 3-radio view) |
+
+If the tile *only* opens a detail view (no in-place primary action), give
+the body that action and skip the chevron entirely — fewer affordances.
+
+---
+
+## Card recipe
+
+The card shape — `Rectangle` with `Theme.surface` fill, `Theme.border`
+border, `Theme.radiusSmall` rounded corners — recurs in 3+ places:
+
+| File | Card |
+|---|---|
+| `weather/WeatherCard.qml` | weather summary inside CC |
+| `lock/NowPlayingCard.qml` | MPRIS card on lock screen + inside CC |
+| `lock/LockSurface.qml` | password input glassy panel |
+| `notifications/NotificationCard.qml` | notification stack item |
+
+### Standard card
+
+```qml
+Rectangle {
+    id: card
+
+    color: Theme.surface
+    border.color: Theme.border
+    border.width: 1
+    radius: Theme.radiusSmall
+
+    height: 64                       // pick a fixed height per content shape
+
+    // Content goes inside, anchored with `anchors.margins: 10` typically
+    Item {
+        anchors.fill: parent
+        anchors.margins: 10
+        // ...
+    }
+}
+```
+
+### Glassy variant (lock screen)
+
+When sitting over a blurred wallpaper rather than `Theme.bg`, swap to
+white-tint translucent fill so the underlying blur shows through:
+
+```qml
+Rectangle {
+    color: Qt.rgba(1, 1, 1, 0.10)
+    border.color: Qt.rgba(1, 1, 1, 0.18)
+    border.width: 1
+    radius: 14                       // larger radius reads as "glassy"
+}
+```
+
+### Click semantics
+
+If the card is clickable as a whole, wrap with a body `MouseArea` (z=-1)
+and let nested controls (buttons, pills) win their sub-regions at default
+z — same as the Tile recipe above.
+
+```qml
+MouseArea {
+    id: bodyMa
+    anchors.fill: parent
+    z: -1                            // sub-region MouseAreas at default z=0 win
+    hoverEnabled: true
+    cursorShape: Qt.PointingHandCursor
+    onClicked: someService.openDetail()
+}
+```
+
+### Auto-hide pattern
+
+Cards that show contextual data (Now Playing, weather pre-set-location)
+can hide themselves cleanly:
+
+```qml
+visible: SomeService.hasData    // collapses to 0 height inside a Column
+```
+
+Inside a parent `Column`, an invisible card takes 0 vertical space — the
+popup naturally compacts when the card is hidden.
+
+---
+
+## View-stack recipe
+
+For popups that swap between multiple "screens" with back-navigation —
+e.g. tile grid → Wi-Fi detail → back. Used by `controlcenter/ControlCenterPopup.qml`.
+
+### Architecture
+
+The state lives on a singleton:
+
+```qml
+// Singleton
+Singleton {
+    property string currentView: "tiles"     // "tiles" | "network" | …
+    function setView(name) { currentView = name; }
+    function goBack() { currentView = "tiles"; }
+}
+```
+
+The popup renders a `Loader` keyed on a *mirror* of `currentView`, swapped
+mid-animation so the visible content fades out before changing:
+
+```qml
+Loader {
+    id: viewLoader
+
+    // Mirror, not the singleton property directly. Updated by the
+    // animation's ScriptAction when opacity is 0 — that's how we get
+    // a clean fade-out → swap → fade-in sequence.
+    property string _appliedView: SomeService.currentView
+
+    sourceComponent: switch (_appliedView) {
+        case "network":   return networkViewC;
+        case "bluetooth": return bluetoothViewC;
+        default:          return tilesViewC;
+    }
+
+    opacity: 1.0
+
+    Connections {
+        target: SomeService
+        function onCurrentViewChanged() {
+            if (SomeService.currentView === viewLoader._appliedView) return;
+            if (!popup.wantOpen) {
+                // Popup not open — sync immediately so the next open
+                // shows the right view from frame 0.
+                viewLoader._appliedView = SomeService.currentView;
+                return;
+            }
+            transition.restart();
+        }
+    }
+
+    SequentialAnimation {
+        id: transition
+        NumberAnimation { target: viewLoader; property: "opacity"; to: 0.0; duration: 100; easing.type: Easing.InCubic }
+        ScriptAction { script: viewLoader._appliedView = SomeService.currentView }
+        NumberAnimation { target: viewLoader; property: "opacity"; to: 1.0; duration: 140; easing.type: Easing.OutCubic }
+    }
+}
+
+Component { id: tilesViewC;     TilesView { } }
+Component { id: networkViewC;   NetworkView { } }
+Component { id: bluetoothViewC; BluetoothView { } }
+```
+
+### Why the mirror
+
+`Behavior on sourceComponent` does NOT fire — Component isn't an
+interpolatable type (gotcha #65). The mirror property + ScriptAction
+swap is the canonical workaround.
+
+### Header back-arrow
+
+When `currentView !== "tiles"`, surface a back arrow in the popup's header
+that calls `goBack()`. Pair the arrow's visibility with a title text that
+swaps to match the current view:
+
+```qml
+Item {
+    Rectangle {
+        id: backBtn
+        visible: SomeService.currentView !== "tiles"
+        // ... arrow glyph + click → SomeService.goBack() ...
+    }
+    Text {
+        anchors.left: backBtn.visible ? backBtn.right : parent.left
+        text: {
+            switch (SomeService.currentView) {
+                case "network":   return "Wi-Fi";
+                case "bluetooth": return "Bluetooth";
+                default:          return "Settings";
+            }
+        }
+    }
+}
+```
+
+### Reset on (re)open
+
+The popup's `toggle()` should call `SomeService.resetView()` (or set
+currentView = "tiles" directly) before flipping `wantOpen` on, so each
+open starts at the predictable default view.
+
+---
+
+## Extracted view recipe
+
+When a popup's content needs to be **embedded inside another popup**
+(typically the CC's view-stack), extract the content into a pure Item that
+takes the parent surface's chrome on faith. Used by `network/NetworkView.qml`,
+`bluetooth/BluetoothView.qml`, `system/PowerProfileView.qml`,
+`weather/CitiesView.qml`.
+
+### What stays, what goes
+
+| In the original Popup | Extracted view |
+|---|---|
+| `PopupWindow { ... }` outer | dropped (host supplies the surface) |
+| Card chrome (Rectangle, border, radius, MultiEffect shadow) | dropped (host supplies the chrome) |
+| Header (title text, refresh button) | dropped (host's header has its own switch on `currentView`) |
+| `wantOpen` / `hideHold` / `toggle()` | dropped (host owns visibility) |
+| The actual content `Column` / `Flickable` | **kept** — this is the extracted view |
+| Inline `component XxxRow: Rectangle { ... }` | **kept** |
+
+### Skeleton
+
+```qml
+import QtQuick
+import qs
+
+Item {
+    id: view
+
+    // Per-instance state (e.g. password-prompt SSID, expansion flags)
+    property string somePromptKey: ""
+
+    // Lifecycle hooks: this view is constructed when navigated *to*,
+    // destroyed on `goBack()`. Use Component.onCompleted for "do this
+    // once when the view appears" (e.g. trigger a fresh scan).
+    Component.onCompleted: {
+        SomeService.refreshAll();
+    }
+
+    Timer {
+        running: true
+        interval: 8000
+        repeat: true
+        onTriggered: SomeService.refreshAll()
+    }
+
+    // Inline components (rows, headers) live here — they're now
+    // package-private to this view file.
+    component RowItem: Rectangle { ... }
+
+    Flickable {
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: contentColumn.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: contentColumn
+            width: parent.width
+            spacing: 10
+            // ... actual content ...
+        }
+    }
+}
+```
+
+### Hosting the view
+
+The view-stack popup's Loader treats `View.qml` files as Components:
+
+```qml
+Component { id: networkViewC; NetworkView { } }
+```
+
+The Loader instantiates with `anchors.fill: parent` (set on the Loader
+itself) so the view fills the popup body. View files don't anchor
+themselves — they assume their host did.
+
+### Width assumption
+
+Extracted views are bound to the host popup's inner width. CC views fit
+the 412 px width they get; popups smaller than the original popup width
+(BluetoothPopup was 360, NetworkPopup was 380) get cramped — be willing
+to widen the host or compress the content.
+
+---
+
 ## Glyph conventions (Font Awesome)
 
 This shell uses Font Awesome 7 Solid for nearly every icon. Codepoints
