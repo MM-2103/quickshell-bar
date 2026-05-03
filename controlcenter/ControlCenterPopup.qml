@@ -19,6 +19,7 @@ import qs.network
 import qs.bluetooth
 import qs.system
 import qs.weather
+import qs.settings
 
 PopupWindow {
     id: popup
@@ -159,6 +160,43 @@ PopupWindow {
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeNormal
                 font.weight: Font.Bold
+            }
+
+            // ---- Settings gear (top-right of header) ----
+            //
+            // Visible only on the tiles view — when the user has drilled
+            // into a detail view, the right-edge real estate is for view-
+            // specific actions (none currently, but keeping the slot
+            // available avoids cluttering the back-arrow flow). Click
+            // closes CC and opens the Settings popup.
+            Rectangle {
+                id: settingsBtn
+                visible: ControlCenterService.currentView === "tiles"
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 26; height: 22
+                radius: Theme.radiusSmall
+                color: settingsMa.containsMouse ? Theme.surfaceHi : Theme.surface
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                // FA Solid \uf013 cog
+                Text {
+                    anchors.centerIn: parent
+                    text: "\uf013"
+                    color: Theme.text
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 11
+                    renderType: Text.NativeRendering
+                }
+
+                MouseArea {
+                    id: settingsMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: SettingsService.openPopup()
+                }
             }
         }
 
