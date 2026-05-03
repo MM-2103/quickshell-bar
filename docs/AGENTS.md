@@ -6,7 +6,7 @@ file end-to-end. ~10 minutes.
 
 > Companion docs:
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 67+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 68+ gotchas
 > - [`README.md`](../README.md) — install + user-facing overview
 
 ---
@@ -96,7 +96,8 @@ shell.qml (entry point)
 │   ├── ClipboardPopup              ← centered, focused-monitor only
 │   ├── Launcher                    ← centered, focused-monitor only
 │   ├── WallpaperPickerPopup        ← centered, focused-monitor only
-│   └── WeatherDetailPopup          ← centered, focused-monitor only (hourly + 7-day)
+│   ├── WeatherDetailPopup          ← centered, focused-monitor only (hourly + 7-day)
+│   └── SettingsPopup               ← centered, focused-monitor only (visual config editor)
 │
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
@@ -224,7 +225,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #67) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #68) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
@@ -244,6 +245,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `controlcenter/` | `ControlCenter` bar widget, `ControlCenterPopup`, `ControlCenterService` singleton, `Tile`, `TilesView`, `SlidersBlock` |
 | `wallpaper/` | `WallpaperService` singleton, `WallpaperLayer` (Background-layer surface, replaces swaybg), `WallpaperPickerPopup` (replaces waypaper) |
 | `weather/` | `WeatherService` singleton (KNMI via Open-Meteo), `WeatherCard` (in CC), `WeatherDetailPopup` (centered, hourly + 7-day), `CitiesView` (CC detail view) |
+| `settings/` | `SettingsService` singleton + `SettingsPopup` (centered visual config editor for the 31 overridable keys). Sub-trees: `sections/` (Colours/Typography/LayoutMotion/Behavior + SectionHeader) and `controls/` (SettingRow base + ColorRow + ColorPicker + NumberSlider + TextRow + ToggleRow + PresetDropdown + PresetDropdownList) |
 | `clipboard/`, `launcher/`, `lock/` | popup-only features |
 | `docs/` | `QUICKSHELL_REFERENCE.md`, `STYLE.md`, this file (`AGENTS.md`), `screenshots/` |
 | `examples/` | copy-pasteable compositor + idle-daemon configs |
@@ -266,6 +268,9 @@ qs ipc call launcher openEmoji          # pre-fills ";" prefix → emoji mode
 qs ipc call launcher openWith <prefix>  # pre-fill arbitrary text
 qs ipc call popups status               # diagnostic: "active: X" or "no popup active"
 qs ipc call popups closeAll             # dismiss whatever's open
+qs ipc call settings open               # visual config editor (gear icon in CC also opens it)
+qs ipc call settings close
+qs ipc call settings toggle
 ```
 
 **To add a new IPC handler**: add an `IpcHandler { target: "<name>"; ... }`
