@@ -295,11 +295,21 @@ Rehearse this once before you ever need it for real.
 
 Drop a JSONC file at `~/.config/quickshell-bar/config.jsonc` to override
 visual + behavioural defaults without touching the repo. Hot-reloaded
-on save; missing keys keep their defaults; `//` line comments allowed.
+on save; missing keys keep their defaults; `//` and `/* */` comments allowed.
+
+Fastest path — copy the bundled example (every key at its current default,
+so an unmodified copy changes nothing) and edit what you want:
+
+```bash
+mkdir -p ~/.config/quickshell-bar
+cp examples/config.jsonc ~/.config/quickshell-bar/config.jsonc
+```
+
+Or write a minimal one with just your overrides:
 
 ```jsonc
 {
-  // Visual
+  // Tokyo Night-inspired accent
   "accent": "#7aa2f7",
   "fontMono": "JetBrains Mono Nerd Font",
   "barHeight": 36,
@@ -313,9 +323,9 @@ on save; missing keys keep their defaults; `//` line comments allowed.
 }
 ```
 
-See [`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md) for the full list
-of overridable keys (currently 27: all Theme tokens + the launcher's
-search engine).
+See [`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md) for the full
+reference of all 31 overridable keys (Theme tokens, fonts, sizes,
+animations, launcher search engine).
 
 ### Things that still require touching tracked files
 
