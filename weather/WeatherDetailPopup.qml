@@ -291,7 +291,7 @@ PanelWindow {
                 opacity: 0.5
             }
             Text {
-                text: "NEXT 24 HOURS"
+                text: "NEXT 12 HOURS"
                 color: Theme.textDim
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeSmall
@@ -299,57 +299,40 @@ PanelWindow {
             }
 
             // ================================================================
-            // 3. Hourly strip — horizontally scrollable, 24 cells
+            // 3. Hourly strip — fixed 12 cells, no scroll
             // ================================================================
             //
-            // Each cell stacks: hour label / icon / temp / precip%. Cells
-            // are 64 px wide × 110 px tall; 24 of them = 1536 px content,
-            // exceeding the 688 px popup inner width — Flickable handles
-            // the horizontal scrolling. boundsBehavior keeps it from
-            // bouncing past the ends.
-            Flickable {
-                id: hourlyFlick
+            // The previous design tried 24 cells in a horizontal Flickable,
+            // but wheel-scrolling a horizontal Flickable is reliably janky
+            // across Qt versions and not worth the polish budget. This
+            // version shows the next 12 hours in cells that fill the
+            // available width — every cell visible at once. The 7-day list
+            // below already covers further-out forecasting, so 12-hour
+            // fine-grained + 7-day coarse is a complete picture.
+            //
+            // Cell width is computed as `parent.width / 12` so the strip
+            // fills the popup's inner width exactly regardless of whether
+            // the popup is later resized. Each cell stacks: hour label /
+            // icon / temp / precip%.
+            Item {
                 width: parent.width
                 height: 110
-                contentWidth: hourlyRow.implicitWidth
-                contentHeight: height
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                flickableDirection: Flickable.HorizontalFlick
 
-                // Mouse-wheel → horizontal scroll. A horizontal Flickable
-                // doesn't translate vertical wheel ticks to contentX changes
-                // on its own; this MouseArea intercepts wheel events without
-                // stealing clicks (acceptedButtons: NoButton) and converts
-                // both wheel axes into a contentX delta. Touchpad two-finger
-                // scrolls report on the relevant axis directly.
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.NoButton
-                    onWheel: wheel => {
-                        const delta = wheel.angleDelta.y !== 0
-                            ? wheel.angleDelta.y
-                            : wheel.angleDelta.x;
-                        const next = hourlyFlick.contentX - delta;
-                        hourlyFlick.contentX = Math.max(
-                            0,
-                            Math.min(
-                                hourlyFlick.contentWidth - hourlyFlick.width,
-                                next
-                            )
-                        );
-                        wheel.accepted = true;
-                    }
-                }
+                readonly property int _cellCount: 12
+                readonly property real _cellWidth:
+                    Math.floor(width / _cellCount)
 
                 Row {
-                    id: hourlyRow
+                    anchors.fill: parent
                     spacing: 0
+
                     Repeater {
-                        model: WeatherService.hourlyTimes.length
+                        model: Math.min(parent.parent._cellCount,
+                                        WeatherService.hourlyTimes.length)
                         delegate: Item {
+                            id: cell
                             required property int index
-                            width: 64
+                            width: parent.parent.parent._cellWidth
                             height: 110
 
                             // Subtle background on every other cell so the
@@ -359,7 +342,7 @@ PanelWindow {
                                 anchors.fill: parent
                                 anchors.margins: 2
                                 radius: Theme.radiusSmall
-                                color: index % 2 === 0 ? "transparent" : Theme.surface
+                                color: cell.index % 2 === 0 ? "transparent" : Theme.surface
                                 opacity: 0.7
                             }
 
@@ -369,8 +352,8 @@ PanelWindow {
 
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: WeatherService.hourlyTimes[index]
-                                        ? Qt.formatDateTime(new Date(WeatherService.hourlyTimes[index]), "HH")
+                                    text: WeatherService.hourlyTimes[cell.index]
+                                        ? Qt.formatDateTime(new Date(WeatherService.hourlyTimes[cell.index]), "HH")
                                         : "—"
                                     color: Theme.textDim
                                     font.family: Theme.fontMono
@@ -378,7 +361,7 @@ PanelWindow {
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: WeatherService.iconForCode(WeatherService.hourlyCodes[index] || 0)
+                                    text: WeatherService.iconForCode(WeatherService.hourlyCodes[cell.index] || 0)
                                     color: Theme.text
                                     font.family: Theme.fontIcon
                                     font.styleName: "Solid"
@@ -387,7 +370,7 @@ PanelWindow {
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: Math.round(WeatherService.hourlyTemps[index] || 0) + "°"
+                                    text: Math.round(WeatherService.hourlyTemps[cell.index] || 0) + "°"
                                     color: Theme.text
                                     font.family: Theme.fontMono
                                     font.pixelSize: Theme.fontSizeNormal
@@ -395,10 +378,10 @@ PanelWindow {
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    // 0% precipitation reads as visual noise; suppress it
-                                    // and only show actual probabilities.
-                                    visible: (WeatherService.hourlyPrecip[index] || 0) > 0
-                                    text: (WeatherService.hourlyPrecip[index] || 0) + "%"
+                                    // 0% precipitation reads as visual noise;
+                                    // suppress it and only show actual values.
+                                    visible: (WeatherService.hourlyPrecip[cell.index] || 0) > 0
+                                    text: (WeatherService.hourlyPrecip[cell.index] || 0) + "%"
                                     color: Theme.textDim
                                     font.family: Theme.fontMono
                                     font.pixelSize: Theme.fontSizeBadge
