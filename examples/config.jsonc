@@ -1,0 +1,90 @@
+// quickshell-bar — local override config.
+//
+// Copy this file to ~/.config/quickshell-bar/config.jsonc to start
+// customizing the shell on your machine. Every key below is set to
+// its current default — copying the file unmodified produces NO
+// visible change. Edit the values you want to override; delete or
+// comment out the rest.
+//
+//   mkdir -p ~/.config/quickshell-bar
+//   cp examples/config.jsonc ~/.config/quickshell-bar/config.jsonc
+//   # then edit ~/.config/quickshell-bar/config.jsonc
+//
+// Hot-reload: save the file and most values update live in the running
+// shell. Theme bindings are reactive; long-running Timers re-arm only
+// on next fire. Font family changes occasionally need a full restart
+// to repaint everything.
+//
+// JSONC syntax: lines starting with `//` (after optional whitespace)
+// are stripped before JSON.parse. Inline `//` inside string values
+// (URLs etc.) is untouched. Trailing commas and unquoted keys are
+// NOT allowed — strict JSON otherwise.
+//
+// Reference: docs/CUSTOMIZATION.md
+{
+  // ─── Colours: surfaces ─────────────────────────────────────────
+  "bg":           "#16181c",   // bar / popup base background
+  "surface":      "#1e1e22",   // hover state, mild elevation (rows, tile body)
+  "surfaceHi":    "#26262a",   // pinned / pressed / active state
+  "border":       "#2a2a2e",   // lines, popup borders, dividers
+
+  // ─── Colours: text ─────────────────────────────────────────────
+  "text":         "#fcfcfc",   // primary text
+  "textDim":      "#909090",   // secondary text (status lines, % readouts)
+  "textMuted":    "#5e5e5e",   // tertiary text (separators, weekend dates)
+
+  // ─── Colours: accent ───────────────────────────────────────────
+  "accent":       "#ffffff",   // focused-day, slider thumb, active-tile fill
+  "accentText":   "#16181c",   // text drawn on top of accent fill
+
+  // ─── Colours: error / warning ──────────────────────────────────
+  "error":        "#ff5050",   // error borders / strokes
+  "errorBright":  "#ff7070",   // error text on dark backgrounds
+
+  // ─── Colours: workspace pips ───────────────────────────────────
+  "pipIdle":      "#2a2a2e",   // idle workspace pip
+  "pipActive":    "#3a3a3e",   // active on output but not focused
+  "pipFocused":   "#ffffff",   // focused workspace pip (typically = accent)
+
+  // ─── Geometry ──────────────────────────────────────────────────
+  "barHeight":    32,          // px. Reasonable range: 24..48
+  "radius":       6,           // px. Popup / card / tile corner radius
+  "radiusSmall":  4,           // px. Chip / pill / hover-bg corner radius
+
+  // ─── Animation durations ───────────────────────────────────────
+  "animFast":     100,         // ms. Hover transitions (color flips)
+  "animMed":      140,         // ms. Switches, slider thumbs, pills
+
+  // ─── Fonts ─────────────────────────────────────────────────────
+  // Mono font used everywhere — bar, popups, lock clock.
+  "fontMono":     "Iosevka Nerd Font",
+  // Icon font (Solid style) for most glyphs.
+  "fontIcon":     "Font Awesome 7 Free",
+  // Brands font (currently only the Bluetooth glyph uses it).
+  "fontBrand":    "Font Awesome 7 Brands",
+
+  // ─── Font sizes (5-step scale) ─────────────────────────────────
+  "fontSizeBadge":  9,         // notification count, signal-strength overlays
+  "fontSizeSmall":  11,        // tooltips, dim secondary text, status lines
+  "fontSizeNormal": 13,        // bar body text, time, workspace numbers
+  "fontSizeLarge":  15,        // section headers, Now Playing title
+  "fontSizeXL":     17,        // standout labels (lock password input)
+
+  // Default Font Awesome glyph size in 22 × 22 bar widgets.
+  "iconSize":     13,
+
+  // ─── Behaviour ─────────────────────────────────────────────────
+  // KDE-style audible cue on volume change / unmute. Set false for a
+  // silent shell. Requires libcanberra + sound-theme-freedesktop.
+  "volumeFeedbackEnabled": true,
+
+  // ─── Launcher: web-search engine (?-prefix mode) ───────────────
+  // %s is replaced with the URL-encoded query.
+  // Common alternatives:
+  //   "https://duckduckgo.com/?q=%s"          "DuckDuckGo"
+  //   "https://www.google.com/search?q=%s"    "Google"
+  //   "https://search.brave.com/search?q=%s"  "Brave Search"
+  //   "https://www.startpage.com/do/search?q=%s"  "Startpage"
+  "searchUrl":    "https://kagi.com/search?q=%s",
+  "searchName":   "Kagi"
+}
