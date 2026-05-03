@@ -13,10 +13,17 @@
 //
 // Click anywhere on the SV square to set saturation + value; click on
 // the hue slider to set hue. The hex line stays in sync, and emits
-// `colorPicked(color)` on every change so the host (`ColorRow`) can
-// live-write via `Local.set()`. The "Done" button closes the picker;
-// clicking outside doesn't auto-dismiss in v1 (would need a captured
-// event filter; defer that polish).
+// `colorPicked(color)` on every change so the host (SettingsPopup) can
+// live-write via `Local.set()`. The "Done" button emits
+// `closeRequested()` for the host to toggle visibility.
+//
+// VISIBILITY IS OWNED BY THE PARENT. This component is purely
+// presentational — it does NOT have its own `open` property and never
+// writes to its own `visible`. Earlier versions had `function close()
+// { root.open = false; }` which silently broke the parent's binding
+// (`open: SettingsService.pickerOpen`), leaving the picker permanently
+// invisible after the first dismiss until shell reload. Refactored to
+// emit a signal instead.
 
 import QtQuick
 import qs
@@ -29,12 +36,9 @@ Rectangle {
     property color currentColor: "#000000"
     signal colorPicked(color c)
 
-    // Open / close. Toggle from the swatch's MouseArea.
-    property bool open: false
-    visible: open
-
-    function toggle() { root.open = !root.open; }
-    function close()  { root.open = false; }
+    // Done button → emit; host decides what to do (typically calls
+    // SettingsService.closePicker()). NEVER write to `visible` here.
+    signal closeRequested
 
     // ---- chrome ----
 
@@ -63,19 +67,19 @@ Rectangle {
         onClicked: { /* swallow */ }
     }
 
-    // ---- HSV state, derived from currentColor on open ----
+    // ---- HSV state, derived from currentColor on (re)show ----
     //
-    // We don't continuously re-derive from currentColor while open
+    // We don't continuously re-derive from currentColor while visible
     // because doing so would fight the user's clicks (each click would
     // round-trip through Local.set → bindings → re-derive H/S/V →
-    // potentially shift cursor). Instead we derive once on `open=true`
+    // potentially shift cursor). Instead we derive once on visible=true
     // and let local clicks drive H/S/V from there.
     property real hue: 0          // 0..1
     property real sat: 0          // 0..1
     property real val: 0          // 0..1
 
-    onOpenChanged: if (open) _deriveFromColor()
-    Component.onCompleted: _deriveFromColor()
+    onVisibleChanged: if (visible) _deriveFromColor()
+    Component.onCompleted: if (visible) _deriveFromColor()
 
     function _deriveFromColor() {
         const c = root.currentColor;
@@ -122,9 +126,12 @@ Rectangle {
     }
 
     // Emit on any HSV change; debounced by Local.set on the receiver.
-    onHueChanged: if (open) colorPicked(root._hex())
-    onSatChanged: if (open) colorPicked(root._hex())
-    onValChanged: if (open) colorPicked(root._hex())
+    // Guarded on `visible` so the burst of changes inside
+    // `_deriveFromColor` (one per H, S, V assignment) doesn't fire
+    // colorPicked while the picker is dormant.
+    onHueChanged: if (visible) colorPicked(root._hex())
+    onSatChanged: if (visible) colorPicked(root._hex())
+    onValChanged: if (visible) colorPicked(root._hex())
 
     Column {
         anchors {
@@ -286,7 +293,7 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.close()
+                    onClicked: root.closeRequested()
                 }
             }
         }

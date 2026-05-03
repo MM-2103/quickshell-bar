@@ -201,16 +201,21 @@ PanelWindow {
         ColorPicker {
             id: pickerOverlay
             z: 1000
-            // Driven entirely by SettingsService — `open` is the
-            // public visibility binding, currentColor reflects the
-            // active swatch's value, and `colorPicked` writes back via
-            // Local.set keyed on pickerKey.
-            open: SettingsService.pickerOpen
+            // Driven entirely by SettingsService — `visible` is bound
+            // directly to pickerOpen (NOT routed through an internal
+            // ColorPicker.open property, which would break the binding
+            // when ColorPicker self-assigned to clear it on Done click).
+            // currentColor reflects the active swatch's value;
+            // `colorPicked` writes back via Local.set keyed on pickerKey;
+            // `closeRequested` (Done button) routes through the service
+            // so visibility stays bound.
+            visible: SettingsService.pickerOpen
             currentColor: SettingsService.pickerColor
             onColorPicked: c => {
                 if (SettingsService.pickerKey)
                     Local.set(SettingsService.pickerKey, c);
             }
+            onCloseRequested: SettingsService.closePicker()
 
             // Position: anchored under the swatch that triggered the
             // picker, in card-relative coordinates. mapToItem returns a
