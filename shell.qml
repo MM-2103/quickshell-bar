@@ -16,6 +16,7 @@ import qs.launcher          // for Launcher + LauncherService singleton
 import qs.lock              // for Lock + LockService singleton
 import qs.wallpaper         // for WallpaperLayer + WallpaperPickerPopup + WallpaperService
 import qs.weather           // for WeatherDetailPopup + WeatherService singleton
+import qs.settings          // for SettingsPopup + SettingsService singleton
 
 ShellRoot {
     id: root
@@ -192,6 +193,17 @@ ShellRoot {
         }
     }
 
+    // Settings page — centered Overlay layer surface for visually
+    // editing ~/.config/quickshell-bar/config.jsonc. Triggered by the
+    // gear icon in the Control Center header or via IPC keybind.
+    Variants {
+        model: Quickshell.screens
+
+        SettingsPopup {
+            focusedOutput: Compositor.focusedOutput
+        }
+    }
+
     // Session lock. NOT inside a Variants block — WlSessionLock is itself
     // per-shell; per-screen surfaces fan out via its `surface` Component.
     // Triggered via the IPC handler below (called from a compositor keybind
@@ -224,6 +236,15 @@ ShellRoot {
     IpcHandler {
         target: "lock"
         function open(): void  { LockService.lock(); }
+    }
+
+    // IPC: `qs ipc call settings open` opens the Settings page. Bind to
+    // a compositor keybind (Mod+, by convention) for keyboard access.
+    IpcHandler {
+        target: "settings"
+        function open(): void   { SettingsService.openPopup(); }
+        function close(): void  { SettingsService.closePopup(); }
+        function toggle(): void { SettingsService.togglePopup(); }
     }
 
     // Diagnostic IPC for the popup mutex/controller.
