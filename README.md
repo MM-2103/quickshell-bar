@@ -68,6 +68,7 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Pinned to KNMI HARMONIE-AROME 2 km Netherlands model (`models=knmi_seamless`) — authentic KNMI data without the GRIB / NetCDF / API-key tax
 - 25-city NL picker baked in; first run shows "Set location"
 - 15-minute auto-refresh + manual refresh button
+- Click the card body to open the detail popup: scrollable 24-hour strip, 7-day forecast, sunrise/sunset
 
 **Session lock** (Mod+Shift+X)
 - `WlSessionLock` + PAM auth via `/etc/pam.d/qslock`
