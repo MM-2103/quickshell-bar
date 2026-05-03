@@ -20,9 +20,26 @@ WlSessionLockSurface {
     color: "black"
 
     // Live ticking clock for the centered display.
-    SystemClock {
-        id: clock
-        precision: SystemClock.Minutes
+    //
+    // We deliberately use a plain Timer + `new Date()` instead of
+    // Quickshell's SystemClock here. SystemClock's internal timer is
+    // monotonic-clock based and doesn't recover cleanly from system
+    // suspend: with `precision: Minutes`, the displayed `date` property
+    // gets stuck at the pre-suspend value and only refreshes when the
+    // surface is rebuilt (i.e. via lock-unlock-relock). On a lock screen
+    // this is exactly the wrong place to have a stale clock.
+    //
+    // `new Date()` always reads the system clock fresh, so the next 1 s
+    // tick after wake repaints with the correct time. The 1 s cadence
+    // costs nothing visually because Text bindings only re-render when
+    // the formatted string actually changes (i.e. once per minute).
+    // See gotcha #64 in docs/QUICKSHELL_REFERENCE.md.
+    property var now: new Date()
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: surface.now = new Date()
     }
 
     // ---- Background: wallpaper + blur + darkening overlay ----
@@ -97,7 +114,7 @@ WlSessionLockSurface {
                 spacing: 0
 
                 Text {
-                    text: Qt.formatDateTime(clock.date, "HH")
+                    text: Qt.formatDateTime(surface.now, "HH")
                     color: Theme.text
                     font.family: Theme.fontMono
                     font.pixelSize: 144
@@ -110,7 +127,7 @@ WlSessionLockSurface {
                     font.pixelSize: 144
                 }
                 Text {
-                    text: Qt.formatDateTime(clock.date, "mm")
+                    text: Qt.formatDateTime(surface.now, "mm")
                     color: Theme.text
                     font.family: Theme.fontMono
                     font.pixelSize: 144
@@ -133,7 +150,7 @@ WlSessionLockSurface {
         // ---- Date ----
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDateTime(clock.date, "dddd · MMMM d")
+            text: Qt.formatDateTime(surface.now, "dddd · MMMM d")
             color: Theme.text
             opacity: 0.85
             font.family: Theme.fontMono
