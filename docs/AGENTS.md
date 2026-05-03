@@ -222,6 +222,8 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Add a tile to the Control Center | `controlcenter/Tile.qml` + `controlcenter/TilesView.qml` | [STYLE.md "Tile recipe"](STYLE.md#tile-recipe) — body click vs chevron click pattern |
 | Add a CC detail view | `network/NetworkView.qml` (or any `*View.qml`) + register in `controlcenter/ControlCenterPopup.qml` Loader switch | [STYLE.md "View-stack recipe"](STYLE.md#view-stack-recipe), [STYLE.md "Extracted view recipe"](STYLE.md#extracted-view-recipe) |
 | Add a card (Weather / NowPlaying-style) | `weather/WeatherCard.qml` or `lock/NowPlayingCard.qml` | [STYLE.md "Card recipe"](STYLE.md#card-recipe) |
+| Add a setting to the Settings page | the appropriate `settings/sections/*.qml` (Colours / Typography / LayoutMotion / Behavior); reuse the existing `settings/controls/*` widgets | route the new key via `Local.get(key, default)` from its consumer; add a row to the section using one of `ColorRow` / `NumberSlider` / `TextRow` / `ToggleRow` / `PresetDropdown`; keep `examples/config.jsonc` and `docs/CUSTOMIZATION.md` in sync |
+| Add an in-popup floating overlay (picker / dropdown / similar) | settings/controls/`ColorPicker.qml` + `PresetDropdownList.qml` for production examples | [STYLE.md "Hoisted overlay recipe"](STYLE.md#hoisted-overlay-recipe) — must hoist to the popup root and pass through a service singleton; gotchas #66 (Repeater parent chain) and #68 (assignment severs bindings) both apply |
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
@@ -433,6 +435,41 @@ Each links to the full template in `STYLE.md`. Cliff notes here:
 3. Visually inspect (screenshot if appropriate)
 4. Commit with `theme: <description>` prefix
 
+### Adding a new setting
+
+When a new value should be user-overridable via the Settings page +
+`config.jsonc`:
+
+1. Pick a `key` (camelCase, namespaced if needed) and a default value of
+   the right type (color / int / string / bool / array).
+2. Route the key through `Local.get(key, default)` from the consumer.
+   For Theme tokens, that's a one-line edit in `Theme.qml`. For service
+   values (`searchUrl`, refresh intervals, etc.), edit the relevant
+   service singleton.
+3. Add a row to the matching settings section:
+   - `settings/sections/ColorsSection.qml` for colours (`ColorRow`)
+   - `settings/sections/TypographySection.qml` for fonts and font sizes
+   - `settings/sections/LayoutMotionSection.qml` for geometry / animation
+     durations (`NumberSlider`)
+   - `settings/sections/BehaviorSection.qml` for booleans (`ToggleRow`)
+     and search-engine-style presets (`PresetDropdown` + `TextRow`)
+   The reusable controls in `settings/controls/` cover every type we
+   currently expose; if a setting needs a new control kind, that's a
+   bigger conversation (it'll eventually land alongside the others in
+   `settings/controls/`).
+4. Update `examples/config.jsonc` with the new key + default so users
+   copying the example still see no behaviour change.
+5. Update `docs/CUSTOMIZATION.md`'s reference table with the new key,
+   its type, default, and what it controls.
+6. Smoke-test both states: no override (defaults stand), then add the
+   key to `~/.config/quickshell-bar/config.jsonc` and verify the live
+   shell picks it up.
+7. Commit; a single `settings: add <feature> override key` is fine.
+
+The 31 keys merged so far are exactly this pattern repeated. New keys
+should match — no per-key state in `SettingsService`, no special-cased
+controls; everything routes through `Local`'s generic store.
+
 ---
 
 ## 7. Workflow conventions
@@ -487,7 +524,7 @@ implications. ALWAYS ask before modifying.
 - Drop shadow parameters (color, opacity, offset, blur)
 
 > **NOTE:** every Theme value above is now routed through `Local.get(key, default)`,
-> so users CAN override these per-machine via `~/.config/quickshell-bar/config.json`
+> so users CAN override these per-machine via `~/.config/quickshell-bar/config.jsonc`
 > without touching the repo. The bar above is about *what defaults ship in this
 > repo* — those are still settled. User overrides are out of scope for that
 > caveat. See [`CUSTOMIZATION.md`](CUSTOMIZATION.md).
@@ -501,6 +538,9 @@ implications. ALWAYS ask before modifying.
 - The CC tile order (Wi-Fi · Bluetooth · Profile / Caffeine · DND · Wallpaper) — fixed in `controlcenter/TilesView.qml` for muscle-memory stability; reordering requires user sign-off
 - The `Tile.qml` API (`icon`, `brand`, `label`, `stateText`, `active`, `showChevron`, `iconColor`, `clicked`, `chevronClicked`) — used by all 6 tiles
 - The `WeatherService` URL shape and the `models=knmi_seamless` pin — changing the model loses the user's "I want KNMI" preference even if the data still shows up
+- The `Local` API surface (`get(key, default)` / `set(key, value)` / `reset(key)` / `resetAll()`) and the `config.jsonc` write format — every Theme token, every settings row, and the Settings page itself depend on these. The 500 ms write debounce and the first-save `.bak` backup are part of the contract; changing those without user sign-off would silently affect users mid-edit
+- The `SettingsService.openPicker(key, color, anchor)` and `openDropdown(key, presets, selectedValue, companionKey, anchor)` signatures — every `ColorRow` and `PresetDropdown` instance depends on these. Adding overload arguments is fine; changing the existing positional contract breaks all 31 settings rows
+- The `Local`-routed nature of every Theme token — when adding a new Theme value, route it through `Local.get(key, default)` from the start. A token that ships without `Local.get()` is invisible to the Settings page and `config.jsonc`, defeating the override system
 
 ### Tooling / conventions
 - `examples/*` — these are copy-paste targets for users; format matters
