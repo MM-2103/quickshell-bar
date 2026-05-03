@@ -28,6 +28,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs
 
 Singleton {
@@ -275,13 +276,15 @@ Singleton {
         }
     ]
 
-    // ---- User-defined themes (filled in a later commit) ----
+    // ---- User-defined themes ----
     //
-    // For now this stays empty; the next commit adds a Process-driven
-    // scanner that populates it from ~/.config/quickshell-bar/themes/*.jsonc.
-    // The `all` property already concatenates so once userThemes starts
-    // being populated, every consumer picks them up with no further
-    // changes here.
+    // Populated from ~/.config/quickshell-bar/themes/*.jsonc on shell
+    // start and on every rescan() call (the SettingsService wires the
+    // latter to popup-open). Each file is a single JSONC document of
+    // shape: id, label, palette as a record of the 14 colour keys.
+    // Files whose JSON is malformed or which lack id/label/palette are
+    // skipped silently with a console.warn — same forgiveness Local.qml
+    // gives malformed config.jsonc, since theme files are user-edited.
     property var userThemes: []
 
     // ---- Surfaced to the UI ----
@@ -354,4 +357,99 @@ Singleton {
         if (s.length === 9 && s.charAt(0) === "#") return "#" + s.substr(3);
         return s;
     }
+
+    // ---- User-theme directory scan ----
+    //
+    // Single Process running a small shell loop that cats each
+    // *.jsonc in ~/.config/quickshell-bar/themes, separated by a
+    // sentinel line so the parser can split chunks back out. The
+    // sentinel is unlikely to appear inside a real palette file, and
+    // the parser tolerates either CRLF or LF.
+    //
+    // Pattern lifted from WallpaperService._scan but with file CONTENT
+    // collected via StdioCollector instead of file LISTINGS streamed
+    // via SplitParser — themes need their full bodies parsed as JSONC,
+    // not enumerated line by line.
+    //
+    // We don't use FileView here because FileView is per-file and we
+    // want to enumerate a directory; one Process per scan is the
+    // accepted cost (cheap — under a millisecond for a handful of
+    // small theme files; runs on shell start + on Settings popup open).
+
+    readonly property string _userThemeSentinel: "###QS-THEME-SEP###"
+
+    Process {
+        id: scanProc
+        running: false
+
+        stdout: StdioCollector { id: scanCollector }
+
+        onRunningChanged: {
+            if (running) return;
+            const text = scanCollector.text || "";
+            root.userThemes = root._parseUserThemes(text);
+        }
+    }
+
+    function rescan() {
+        // Re-running an already-running Process is a no-op; flip false
+        // first so the next true edge actually re-triggers the scan.
+        // Cheap enough that we don't bother debouncing — even on a
+        // rapid open/close/open of the Settings popup, the scan is sub-
+        // millisecond and the StdioCollector swap is atomic.
+        scanProc.command = ["sh", "-c", `
+d="$HOME/.config/quickshell-bar/themes"
+if [ -d "$d" ]; then
+    for f in "$d"/*.jsonc; do
+        [ -f "$f" ] && {
+            cat "$f"
+            printf '\\n${root._userThemeSentinel}\\n'
+        }
+    done
+fi
+`];
+        scanProc.running = false;
+        scanProc.running = true;
+    }
+
+    function _parseUserThemes(text) {
+        const out = [];
+        if (!text) return out;
+        const sep = root._userThemeSentinel;
+        const chunks = text.split(sep);
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i].trim();
+            if (!chunk) continue;
+            try {
+                // JSONC comment strip — string-aware regex copied from
+                // Local.qml so URLs like "https://..." inside palette
+                // strings stay intact while // and /* */ comments are
+                // dropped before JSON.parse.
+                const cleaned = chunk.replace(
+                    /"(?:\\.|[^"\\])*"|\/\/.*$|\/\*[\s\S]*?\*\//gm,
+                    m => m.charAt(0) === '"' ? m : ""
+                );
+                const parsed = JSON.parse(cleaned);
+                if (!parsed
+                    || typeof parsed.id !== "string"
+                    || typeof parsed.label !== "string"
+                    || !parsed.palette
+                    || typeof parsed.palette !== "object") {
+                    console.warn(
+                        "[ThemePresets] skipping user theme: missing id/label/palette");
+                    continue;
+                }
+                out.push({
+                    id: parsed.id,
+                    label: parsed.label,
+                    palette: parsed.palette
+                });
+            } catch (e) {
+                console.warn("[ThemePresets] user theme parse error:", e);
+            }
+        }
+        return out;
+    }
+
+    Component.onCompleted: rescan()
 }
