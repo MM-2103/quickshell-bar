@@ -45,6 +45,24 @@ Rectangle {
     border.color: Theme.border
     border.width: 1
 
+    // Catch-all MouseArea inside the picker — absorbs clicks landing on
+    // the picker's background (margins, between widgets) so they don't
+    // fall through to the settings rows underneath. SV square, hue
+    // slider, and the Done button each have their own MouseAreas
+    // declared LATER in the tree so they win the hit-test against this
+    // catcher (later siblings render on top + intercept first). Without
+    // this, a click between widgets would land on whatever's under the
+    // picker — usually a row header, sometimes another swatch — and
+    // produce surprising behaviour.
+    MouseArea {
+        anchors.fill: parent
+        // hoverEnabled keeps the cursor as ArrowCursor inside the picker
+        // (rather than inheriting PointingHand from the swatch that
+        // launched it). Subtle but feels correct.
+        hoverEnabled: true
+        onClicked: { /* swallow */ }
+    }
+
     // ---- HSV state, derived from currentColor on open ----
     //
     // We don't continuously re-derive from currentColor while open
