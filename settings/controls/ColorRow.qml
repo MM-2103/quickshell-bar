@@ -8,9 +8,12 @@
 //
 // The hex TextInput accepts `#rrggbb` (or six chars without `#`) and
 // live-applies via `Local.set()` once it parses to a valid colour. The
-// swatch is a small clickable rectangle; clicking it opens a custom
-// ColorPicker popup anchored under the swatch with an SV square + hue
-// slider. Picker writes via the same Local.set path.
+// swatch is a small clickable rectangle; clicking it asks the
+// SettingsService to open the shared ColorPicker (anchored to the
+// swatch). The picker is a single instance owned by SettingsPopup —
+// embedding it per-row would lose to QML's sibling z-ordering (later-
+// declared sibling Rows in the Column draw over a child popup
+// extending below its parent's bounds, regardless of z).
 
 import QtQuick
 import qs
@@ -80,7 +83,9 @@ SettingRow {
         }
     }
 
-    // Swatch — visual preview + click-to-open-picker.
+    // Swatch — visual preview + click-to-open-picker. Click delegates
+    // to SettingsService.openPicker which routes through the shared
+    // ColorPicker instance at SettingsPopup's root.
     Rectangle {
         id: swatch
         anchors.left: hexBox.right
@@ -90,7 +95,13 @@ SettingRow {
         height: 24
         radius: Theme.radiusSmall
         color: row.currentValue
-        border.color: swatchMa.containsMouse ? Theme.text : Theme.border
+        // Highlight border when the shared picker is currently bound to
+        // this row's key — visual confirmation of which swatch is being
+        // edited.
+        border.color: SettingsService.pickerOpen
+                      && SettingsService.pickerKey === row.settingKey
+            ? Theme.text
+            : (swatchMa.containsMouse ? Theme.text : Theme.border)
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
@@ -99,22 +110,8 @@ SettingRow {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: picker.toggle()
+            onClicked: SettingsService.openPicker(
+                row.settingKey, row.currentValue, swatch)
         }
-    }
-
-    // Picker — inline overlay positioned relative to the swatch. z is
-    // bumped above sibling rows so it floats over rows below; it can
-    // however be clipped by the section's Flickable if it extends past
-    // the visible bounds. Sections size their content area so the
-    // picker has room.
-    ColorPicker {
-        id: picker
-        anchors.top: swatch.bottom
-        anchors.left: hexBox.left
-        anchors.topMargin: 6
-        z: 100
-        currentColor: row.currentValue
-        onColorPicked: c => Local.set(row.settingKey, c)
     }
 }
