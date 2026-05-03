@@ -49,8 +49,15 @@ PanelWindow {
 
     // No anchors → wlroots horizontally + vertically centers the surface.
     // 24 px padding on each side for the drop shadow.
+    //
+    // Height math (with 16 px outer margins + 16 px Column spacing):
+    //   header(24) + divider(1) + current(80) + divider(1) + label(16) +
+    //   hourly(110) + divider(1) + label(16) + daily(7×28 + 6×4 = 220)
+    //   = 469 px content + 8 × 16 = 128 px gaps = ~597 px.
+    // 620 inner gives ~23 px breathing room so the last day row never
+    // clips when the section labels render at their natural height.
     implicitWidth:  720 + 24
-    implicitHeight: 520 + 24
+    implicitHeight: 620 + 24
 
     // ---- Card ----
     Rectangle {
@@ -309,6 +316,31 @@ PanelWindow {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 flickableDirection: Flickable.HorizontalFlick
+
+                // Mouse-wheel → horizontal scroll. A horizontal Flickable
+                // doesn't translate vertical wheel ticks to contentX changes
+                // on its own; this MouseArea intercepts wheel events without
+                // stealing clicks (acceptedButtons: NoButton) and converts
+                // both wheel axes into a contentX delta. Touchpad two-finger
+                // scrolls report on the relevant axis directly.
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    onWheel: wheel => {
+                        const delta = wheel.angleDelta.y !== 0
+                            ? wheel.angleDelta.y
+                            : wheel.angleDelta.x;
+                        const next = hourlyFlick.contentX - delta;
+                        hourlyFlick.contentX = Math.max(
+                            0,
+                            Math.min(
+                                hourlyFlick.contentWidth - hourlyFlick.width,
+                                next
+                            )
+                        );
+                        wheel.accepted = true;
+                    }
+                }
 
                 Row {
                     id: hourlyRow
