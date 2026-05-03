@@ -124,8 +124,9 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 
 | Service singleton | Owns |
 |---|---|
-| `Local` | per-machine config overrides — reads `~/.config/quickshell-bar/config.json` and exposes `get(key, defaultValue)`. See [`docs/CUSTOMIZATION.md`](CUSTOMIZATION.md) for the full key list. |
+| `Local` | per-machine config overrides — reads `~/.config/quickshell-bar/config.jsonc` and exposes `get(key, defaultValue)` / `set(key, value)` / `reset(key)` / `resetAll()`. Writes are debounced 500 ms; first write per session backs up to `config.jsonc.bak`. See [`docs/CUSTOMIZATION.md`](CUSTOMIZATION.md) for the full key list. |
 | `Theme` | colors, font tokens, sizes, animation durations, `volumeFeedbackEnabled` flag — **all values routed through `Local.get()` for user overrides** |
+| `SettingsService` | popupOpen, activeTab. Visual editor for `config.jsonc`; rows call `Local.set/reset` directly (no service-level state for individual keys). |
 | `Compositor` | workspaces, focusedOutput, currentLayout, windowFocused signal, dispatch helpers |
 | `MediaService` | currentPlayer, playback state, cachedArtUrl, transport actions |
 | `NotificationService` | tracked notifications, popup queue, DND state, current screen |

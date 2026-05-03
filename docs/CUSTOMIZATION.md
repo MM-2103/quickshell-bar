@@ -2,6 +2,18 @@
 
 Per-machine overrides without touching tracked files.
 
+## Two ways to edit
+
+| Method | When to use |
+|---|---|
+| **Visual settings page** — open Control Center, click the gear icon (top-right of the header), or run `qs ipc call settings open`. | Casual tweaking. Sliders, hex-input + colour picker, dropdowns. Live preview as you change values; auto-saves to disk after 500 ms idle. |
+| **Hand-edit `~/.config/quickshell-bar/config.jsonc`** | Power users, scripting, copying configs between machines, dotfiles repos. JSONC syntax with comments allowed. |
+
+Both write to the same file. The settings page rewrites the file in
+canonical format (header comment + minimal JSON of overridden keys);
+the first save of each session backs up the existing content to
+`config.jsonc.bak` so manual edits with custom comments aren't lost.
+
 ## How it works
 
 The shell reads `~/.config/quickshell-bar/config.jsonc` (an XDG-compliant
