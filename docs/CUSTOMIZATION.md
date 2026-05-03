@@ -4,11 +4,17 @@ Per-machine overrides without touching tracked files.
 
 ## How it works
 
-The shell reads `~/.config/quickshell-bar/config.json` (an XDG-compliant
+The shell reads `~/.config/quickshell-bar/config.jsonc` (an XDG-compliant
 location, **outside the repo**) at startup and on every save. Anything
 listed below can be overridden by adding a key to that file. Unspecified
 keys keep their defaults. The override file is created by you — it
 doesn't exist by default.
+
+> The `.jsonc` extension is intentional: we accept JSONC-style `//`
+> line comments. Editors like VS Code, nvim-cmp, and Helix recognise
+> the extension and use the JSONC parser, which won't flag your
+> comments as syntax errors. A plain `.json` file at the same path is
+> NOT loaded — the extension is part of the contract.
 
 Hot-reload is enabled: edit the JSON, save, and most values update live
 in the running shell. Theme bindings are reactive; long-running Timers
@@ -26,7 +32,7 @@ defaults if nothing has been). Your shell will not crash from a typo.
 
 ```bash
 mkdir -p ~/.config/quickshell-bar
-cat > ~/.config/quickshell-bar/config.json <<'EOF'
+cat > ~/.config/quickshell-bar/config.jsonc <<'EOF'
 {
   // Visual overrides
   "accent": "#7aa2f7",
@@ -43,6 +49,13 @@ EOF
 ```
 
 Save the file and your running shell picks the changes up immediately.
+
+> **First-time setup**: if you've just pulled / merged the branch that
+> introduces `Local.qml`, you need to restart `qs` once for the new
+> singleton to register (per gotcha #62 — hot-reload picks up file
+> content but not new singleton entries in the qmldir cache).
+> `pkill qs && qs -p /path/to/repo -d &` does it. Subsequent edits to
+> your `config.jsonc` hot-reload normally.
 
 ## Overridable keys (Phase 1)
 
@@ -224,18 +237,29 @@ If any of these are blocking your tweaks, ask and we'll promote them.
 
 ### My override isn't taking effect
 
-1. Verify the JSON parses. Most likely cause: trailing comma, missing
-   quote, single quotes instead of double. `python3 -m json.tool < ~/.config/quickshell-bar/config.json` will show the exact line.
-2. Check `qs log` for `[Local] config parse error:` — that's logged on
-   any parse failure, with the JSON.parse exception attached.
-3. Make sure the key name matches exactly (case-sensitive).
-4. Some values (font family changes especially) need a full shell
+1. **Make sure the file is `.jsonc`, not `.json`.** The shell reads
+   `~/.config/quickshell-bar/config.jsonc` literally — a plain `.json`
+   at the same path is silently ignored. `mv config.json config.jsonc`
+   if you started with the wrong extension.
+2. **Restart `qs` once after pulling the `Local` singleton for the
+   first time.** New singletons require a daemon restart per gotcha
+   #62 — hot-reload picks up file content but not new qmldir entries.
+   `pkill qs && qs -p <path> -d &`.
+3. Verify the JSON parses. Most likely cause: trailing comma, missing
+   quote, single quotes instead of double. JSONC line comments (`//`)
+   are stripped before parsing — but everything else must be valid
+   JSON. `python3 -c 'import json,sys,re; t=sys.stdin.read(); t="\n".join(l for l in t.splitlines() if not l.lstrip().startswith("//")); json.loads(t)' < ~/.config/quickshell-bar/config.jsonc`
+   will validate.
+4. Check `qs log` for `[Local] config parse error:` — logged on any
+   parse failure, with the JSON.parse exception attached.
+5. Make sure the key name matches exactly (case-sensitive).
+6. Some values (font family changes especially) need a full shell
    restart to repaint everything. Hot-reload covers most cases but not
    all. `pkill qs && qs -p <path> -d &`.
 
 ### My override broke something
 
-Delete or rename `~/.config/quickshell-bar/config.json` and restart.
+Delete or rename `~/.config/quickshell-bar/config.jsonc` and restart.
 You're back to defaults instantly. The override file is purely additive
 — there's no destructive state stored in it.
 

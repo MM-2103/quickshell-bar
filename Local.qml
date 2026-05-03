@@ -49,7 +49,11 @@ Singleton {
         // XDG-compliant location, outside the repo so it's portable
         // across re-clones and survives `git clean`. Users `mkdir -p`
         // the directory and create the file themselves.
-        path: Quickshell.env("HOME") + "/.config/quickshell-bar/config.json"
+        //
+        // .jsonc extension (not .json) because we accept JSONC-style
+        // line comments — tells editors like VS Code / nvim-cmp to load
+        // the JSONC parser, which understands `//` comments natively.
+        path: Quickshell.env("HOME") + "/.config/quickshell-bar/config.jsonc"
         watchChanges: true
         printErrors: false      // missing-file is normal
         onFileChanged: reload()
