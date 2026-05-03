@@ -293,12 +293,20 @@ Rehearse this once before you ever need it for real.
 
 ### Per-machine overrides (no edits to tracked files)
 
-Drop a JSONC file at `~/.config/quickshell-bar/config.jsonc` to override
-visual + behavioural defaults without touching the repo. Hot-reloaded
-on save; missing keys keep their defaults; `//` and `/* */` comments allowed.
+Two ways to edit, both writing to the same `~/.config/quickshell-bar/config.jsonc`:
 
-Fastest path — copy the bundled example (every key at its current default,
-so an unmodified copy changes nothing) and edit what you want:
+**Visual editor** — open the Control Center, click the gear icon in the
+header (or run `qs ipc call settings open` for a keybind). Tabs for
+Colours / Typography / Layout & Motion / Behaviour with sliders,
+hex-input + colour picker, dropdowns. Live preview; auto-saves after
+500 ms of idle. First save per session creates `config.jsonc.bak`.
+
+**Hand-edit** the JSONC file directly. Hot-reloaded on save; missing
+keys keep their defaults; `//` and `/* */` comments allowed.
+
+Fastest path for hand-editing — copy the bundled example (every key at
+its current default, so an unmodified copy changes nothing) and edit
+what you want:
 
 ```bash
 mkdir -p ~/.config/quickshell-bar
