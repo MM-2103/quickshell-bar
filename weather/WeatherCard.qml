@@ -100,6 +100,31 @@ Rectangle {
     // ================================================================
     // Loaded state — two-row weather display
     // ================================================================
+    //
+    // Body MouseArea sits at z = -1 so the city pill and refresh button
+    // (default z = 0) win their sub-regions; clicks anywhere else on the
+    // card open the detail popup. Same body-vs-region pattern Tile.qml
+    // uses for body-vs-chevron clicks.
+    MouseArea {
+        id: bodyMa
+        anchors.fill: parent
+        visible: !card._empty
+        z: -1
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: WeatherService.openDetail()
+
+        // Subtle hover indicator on the whole card. Using border tone shift
+        // rather than fill so the temperature numbers don't get a box around
+        // them on hover.
+        Rectangle {
+            anchors.fill: parent
+            radius: card.radius
+            color: bodyMa.containsMouse ? Theme.surfaceHi : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        }
+    }
+
     Item {
         anchors.fill: parent
         anchors.margins: 10
