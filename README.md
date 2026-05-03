@@ -291,10 +291,38 @@ Rehearse this once before you ever need it for real.
 
 ## Customization
 
+### Per-machine overrides (no edits to tracked files)
+
+Drop a JSON file at `~/.config/quickshell-bar/config.json` to override
+visual + behavioural defaults without touching the repo. Hot-reloaded
+on save; missing keys keep their defaults; line comments allowed.
+
+```jsonc
+{
+  // Visual
+  "accent": "#7aa2f7",
+  "fontMono": "JetBrains Mono Nerd Font",
+  "barHeight": 36,
+
+  // Switch web search to DuckDuckGo
+  "searchUrl": "https://duckduckgo.com/?q=%s",
+  "searchName": "DuckDuckGo",
+
+  // Quieter shell
+  "volumeFeedbackEnabled": false
+}
+```
+
+See [`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md) for the full list
+of overridable keys (currently 27: all Theme tokens + the launcher's
+search engine).
+
+### Things that still require touching tracked files
+
 | What                   | Where                                                             |
 |------------------------|-------------------------------------------------------------------|
-| Colors, sizes, radii   | `Theme.qml` — single source of truth                              |
-| Web-search engine      | `searchUrl` and `searchName` constants at top of `launcher/LauncherService.qml` (defaults to DuckDuckGo) |
+| Colors, sizes, radii   | Override per-machine via `config.json` above (see CUSTOMIZATION.md). Defaults live in `Theme.qml`. |
+| Web-search engine      | Override per-machine via `config.json` (`searchUrl` / `searchName`). |
 | Wallpaper folder       | Open the Control Center (sliders icon, just before Power) → click the **Wallpaper** tile → folder browser opens. Use the up-arrow / subfolder pills to navigate. Persisted to `~/.local/state/quickshell/by-shell/<id>/wallpaper.json`. |
 | Weather location       | Open the Control Center → click the weather card body → "Choose city" view opens with 25 NL cities. Persisted to `~/.local/state/quickshell/by-shell/<id>/weather.json`. |
 | Idle / dim / suspend timings | `~/.config/hypr/hypridle.conf` or `swayidle` invocation (see `examples/`) |
