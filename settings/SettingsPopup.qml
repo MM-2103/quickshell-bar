@@ -81,14 +81,17 @@ PanelWindow {
             shadowBlur: 0.6
         }
 
-        // Esc closes — picker first if it's open, then the popup.
+        // Esc closes — innermost overlay first (dropdown / picker),
+        // then the popup itself if no overlay is showing.
         Item {
             id: keyTarget
             anchors.fill: parent
             focus: true
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
-                    if (SettingsService.pickerOpen) {
+                    if (SettingsService.dropdownOpen) {
+                        SettingsService.closeDropdown();
+                    } else if (SettingsService.pickerOpen) {
                         SettingsService.closePicker();
                     } else {
                         SettingsService.closePopup();
@@ -248,20 +251,70 @@ PanelWindow {
             }
         }
 
-        // Close the picker on any tab change OR scroll — the swatch
+        // ================================================================
+        // Shared PresetDropdown list — same architecture as the colour
+        // picker. The trigger Rectangle stays inside its row; only this
+        // floating list is hoisted up to render above all rows.
+        // ================================================================
+        PresetDropdownList {
+            id: dropdownOverlay
+            z: 1000
+            visible: SettingsService.dropdownOpen
+            presets: SettingsService.dropdownPresets
+            selectedValue: SettingsService.dropdownSelectedValue
+            settingKey: SettingsService.dropdownKey
+            companionKey: SettingsService.dropdownCompanionKey
+            onDismissRequested: SettingsService.closeDropdown()
+
+            // Match the trigger's width when possible (cleanest when the
+            // user can see the list aligned with the trigger they
+            // clicked). Falls back to 280 if no anchor.
+            width: SettingsService.dropdownAnchor
+                ? SettingsService.dropdownAnchor.width
+                : 280
+
+            // Position: anchored under the trigger, in card-relative
+            // coords. Same clamp-and-flip logic as the colour picker —
+            // if the natural y would push past the card bottom, render
+            // ABOVE the trigger instead.
+            x: {
+                if (!SettingsService.dropdownAnchor) return 0;
+                const p = SettingsService.dropdownAnchor.mapToItem(card, 0, 0);
+                const maxX = card.width - width - 16;
+                return Math.max(16, Math.min(p.x, maxX));
+            }
+            y: {
+                if (!SettingsService.dropdownAnchor) return 0;
+                const p = SettingsService.dropdownAnchor.mapToItem(card, 0, 0);
+                const proposed = p.y + SettingsService.dropdownAnchor.height + 4;
+                const maxY = card.height - height - 16;
+                if (proposed > maxY) {
+                    return Math.max(16, p.y - height - 4);
+                }
+                return proposed;
+            }
+        }
+
+        // Close any open overlay on tab change OR active scroll — the
         // anchor's coordinates would otherwise drift relative to the
-        // card and the picker would float away from where the user
+        // card and the overlay would float away from where the user
         // clicked.
         Connections {
             target: SettingsService
-            function onActiveTabChanged() { SettingsService.closePicker(); }
+            function onActiveTabChanged() {
+                SettingsService.closePicker();
+                SettingsService.closeDropdown();
+            }
         }
         Connections {
             target: contentFlick
             function onContentYChanged() {
                 // Only close if the user is actively scrolling — small
                 // contentY changes from layout settling shouldn't dismiss.
-                if (contentFlick.moving) SettingsService.closePicker();
+                if (contentFlick.moving) {
+                    SettingsService.closePicker();
+                    SettingsService.closeDropdown();
+                }
             }
         }
     }

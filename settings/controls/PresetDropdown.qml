@@ -1,8 +1,12 @@
 // PresetDropdown.qml
-// Setting row backed by a small dropdown of preset values. Used for the
-// launcher's `searchUrl` (Kagi / DuckDuckGo / Google / Brave / Startpage),
-// where free-form text via TextRow.qml is also possible but most users
-// just want a known engine.
+// Setting row backed by a small dropdown of preset values. The TRIGGER
+// (the labelled button users click) lives here; the FLOATING LIST is
+// owned by SettingsPopup and rendered at the popup root via
+// SettingsService.openDropdown(...). Splitting the two pieces is
+// necessary because the inline list — declared as a child of this row
+// — would render under any subsequent row in the same Column (z-order
+// only works between siblings; later-declared sibling rows render
+// after earlier ones, regardless of z values inside the row's subtree).
 //
 // `presets` is `[{ label, value, companionLabel? }]`:
 //   - `value` is what gets written to Local for `settingKey`
@@ -49,7 +53,13 @@ SettingRow {
     readonly property string _displayLabel:
         row._matchedPreset ? row._matchedPreset.label : "Custom"
 
-    // ---- collapsed dropdown button ----
+    // Visual highlight when this row's dropdown is currently the open
+    // one — same idea as ColorRow's swatch border highlight.
+    readonly property bool _isActiveDropdown:
+        SettingsService.dropdownOpen
+        && SettingsService.dropdownKey === row.settingKey
+
+    // ---- collapsed dropdown trigger ----
     Rectangle {
         id: trigger
         anchors.left: parent.left
@@ -58,9 +68,10 @@ SettingRow {
         height: 24
         radius: Theme.radiusSmall
         color: triggerMa.containsMouse ? Theme.surfaceHi : Theme.surface
-        border.color: Theme.border
+        border.color: row._isActiveDropdown ? Theme.text : Theme.border
         border.width: 1
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
         Row {
             anchors.fill: parent
@@ -98,79 +109,12 @@ SettingRow {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: dropdown.visible = !dropdown.visible
-        }
-    }
-
-    // ---- dropdown list ----
-    //
-    // Rendered as a same-tree Item with high z so it floats over the
-    // sections below without pushing them. Click any preset to apply
-    // and close.
-    Rectangle {
-        id: dropdown
-        z: 200
-        visible: false
-        anchors.top: trigger.bottom
-        anchors.left: trigger.left
-        anchors.right: trigger.right
-        anchors.topMargin: 4
-        height: presetCol.implicitHeight + 8
-        color: Theme.bg
-        border.color: Theme.border
-        border.width: 1
-        radius: Theme.radiusSmall
-
-        Column {
-            id: presetCol
-            anchors {
-                left: parent.left
-                right: parent.right
-                top: parent.top
-                margins: 4
-            }
-            spacing: 2
-
-            Repeater {
-                model: row.presets
-                delegate: Rectangle {
-                    required property var modelData
-                    width: parent.width
-                    height: 26
-                    radius: Theme.radiusSmall
-                    readonly property bool _isSelected:
-                        row._matchedPreset && row._matchedPreset.value === modelData.value
-                    color: presetMa.containsMouse
-                        ? Theme.surfaceHi
-                        : (_isSelected ? Theme.surface : "transparent")
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                    Text {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.leftMargin: 8
-                        text: modelData.label
-                        color: Theme.text
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: parent._isSelected ? Font.Bold : Font.Normal
-                    }
-
-                    MouseArea {
-                        id: presetMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            Local.set(row.settingKey, modelData.value);
-                            if (row.companionKey && modelData.companionLabel !== undefined) {
-                                Local.set(row.companionKey, modelData.companionLabel);
-                            }
-                            dropdown.visible = false;
-                        }
-                    }
-                }
-            }
+            onClicked: SettingsService.openDropdown(
+                row.settingKey,
+                row.presets,
+                row.currentValue,
+                row.companionKey,
+                trigger)
         }
     }
 }
