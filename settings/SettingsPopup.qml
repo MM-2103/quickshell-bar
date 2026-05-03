@@ -189,33 +189,14 @@ PanelWindow {
         // AFTER the Column) is the only reliable way to put it visually
         // above all rows.
         //
-        // Click-outside dismiss: a transparent MouseArea covers the
-        // entire card *behind* the picker. Click anywhere outside the
-        // picker's bounding box → close. Picker itself catches the click
-        // before the MouseArea sees it (z order).
-        MouseArea {
-            id: pickerOutsideCatcher
-            anchors.fill: parent
-            visible: SettingsService.pickerOpen
-            z: 999
-            // Don't change cursor — make the click-to-dismiss feel like
-            // an empty area, not an interactive zone.
-            onPressed: function(mouse) {
-                // If the click is within the picker's bounds, ignore —
-                // let the picker handle it.
-                const px = pickerOverlay.x;
-                const py = pickerOverlay.y;
-                const pw = pickerOverlay.width;
-                const ph = pickerOverlay.height;
-                if (mouse.x >= px && mouse.x <= px + pw
-                    && mouse.y >= py && mouse.y <= py + ph) {
-                    mouse.accepted = false;   // pass through
-                    return;
-                }
-                SettingsService.closePicker();
-                mouse.accepted = true;
-            }
-        }
+        // No "click-outside" catcher: an outside-catcher MouseArea would
+        // consume the click event before the swatch (or any other
+        // control) saw it, so clicking a *different* swatch while the
+        // picker was open would close the picker but lose the second
+        // click — feel like the picker is broken until a shell reload.
+        // Instead, dismiss happens via explicit Done / Esc / clicking
+        // the same swatch (toggle) / clicking a different swatch
+        // (auto-switches; openPicker handles re-anchoring) / tab change.
 
         ColorPicker {
             id: pickerOverlay
