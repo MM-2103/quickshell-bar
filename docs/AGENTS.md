@@ -124,7 +124,8 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 
 | Service singleton | Owns |
 |---|---|
-| `Theme` | colors, font tokens, sizes, animation durations, `volumeFeedbackEnabled` flag |
+| `Local` | per-machine config overrides — reads `~/.config/quickshell-bar/config.json` and exposes `get(key, defaultValue)`. See [`docs/CUSTOMIZATION.md`](CUSTOMIZATION.md) for the full key list. |
+| `Theme` | colors, font tokens, sizes, animation durations, `volumeFeedbackEnabled` flag — **all values routed through `Local.get()` for user overrides** |
 | `Compositor` | workspaces, focusedOutput, currentLayout, windowFocused signal, dispatch helpers |
 | `MediaService` | currentPlayer, playback state, cachedArtUrl, transport actions |
 | `NotificationService` | tracked notifications, popup queue, DND state, current screen |
@@ -478,6 +479,12 @@ implications. ALWAYS ask before modifying.
 - The 5-step font scale shape itself (Badge/Small/Normal/Large/XL) — adding a new step requires asking
 - Animation durations (`animFast: 100`, `animMed: 140`, popup fade 150ms)
 - Drop shadow parameters (color, opacity, offset, blur)
+
+> **NOTE:** every Theme value above is now routed through `Local.get(key, default)`,
+> so users CAN override these per-machine via `~/.config/quickshell-bar/config.json`
+> without touching the repo. The bar above is about *what defaults ship in this
+> repo* — those are still settled. User overrides are out of scope for that
+> caveat. See [`CUSTOMIZATION.md`](CUSTOMIZATION.md).
 
 ### Architectural contracts
 - The `compositor/Compositor.qml` interface (workspaces shape, signal names, dispatch helpers) — changing it means updating all 4 backends
