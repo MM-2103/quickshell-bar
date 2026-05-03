@@ -6,7 +6,7 @@ file end-to-end. ~10 minutes.
 
 > Companion docs:
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 64+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 67+ gotchas
 > - [`README.md`](../README.md) — install + user-facing overview
 
 ---
