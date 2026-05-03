@@ -37,9 +37,12 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Power menu
 
 **Control Center** (drawer behind the sliders icon)
+- Volume + brightness sliders
 - 3 × 2 tile grid: Wi-Fi · Bluetooth · Power Profile · Caffeine · DND · Wallpaper
 - Tiles with chevrons drill into in-place detail views (Network list, Bluetooth devices, 3-radio profile picker)
 - Tiles without chevrons toggle in place (Caffeine, DND) or open the standalone wallpaper picker
+- Weather card with KNMI HARMONIE-AROME 2 km Dutch model data (via Open-Meteo)
+- Now Playing card (auto-hides when no MPRIS player)
 
 **Popups** (mutex-managed; auto-dismiss on app focus)
 - Volume mixer · Notification center · Calendar · Media · Tray menus
@@ -59,6 +62,12 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Background-layer surface with 400 ms cross-fade on change
 - Picker: folder browse, fill-mode selector, per-monitor or "All" target
 - Lock screen reads from the same source — single source of truth
+
+**Weather** (KNMI via Open-Meteo)
+- Current temperature + today's high/low + feels-like + wind + humidity
+- Pinned to KNMI HARMONIE-AROME 2 km Netherlands model (`models=knmi_seamless`) — authentic KNMI data without the GRIB / NetCDF / API-key tax
+- 25-city NL picker baked in; first run shows "Set location"
+- 15-minute auto-refresh + manual refresh button
 
 **Session lock** (Mod+Shift+X)
 - `WlSessionLock` + PAM auth via `/etc/pam.d/qslock`
@@ -153,6 +162,7 @@ will catch things our test pass on niri couldn't.
 | `wl-clipboard`         | `wl-copy` for launcher's calc/emoji copy        |
 | `cliphist`             | Backend for the clipboard history popup         |
 | `brightnessctl`        | Backlight control (laptops only)                |
+| `curl`                 | Used by the weather widget to fetch Open-Meteo  |
 | Linux PAM              | Standard on any modern distro                   |
 
 ### Optional
@@ -319,6 +329,7 @@ Rehearse this once before you ever need it for real.
 ├── tray/                     — StatusNotifierHost + tray menus
 │
 ├── controlcenter/            — drawer hosting moved widgets (Wi-Fi/BT/Profile/Caffeine/DND/Wallpaper)
+├── weather/                  — weather widget (KNMI via Open-Meteo)
 ├── clipboard/                — clipboard history (Mod+V), cliphist-backed
 ├── launcher/                 — app launcher (Mod+P): apps / calc / web / emoji
 │   └── emoji.json            — bundled gemoji catalog (MIT — see NOTICE)
