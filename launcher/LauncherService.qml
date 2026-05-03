@@ -47,8 +47,11 @@ Singleton {
     //   Brave Search:  "https://search.brave.com/search?q=%s"   "Brave Search"
     //   Kagi:          "https://kagi.com/search?q=%s"           "Kagi"          (requires login)
     //
-    readonly property string searchUrl:  "https://kagi.com/search?q=%s"
-    readonly property string searchName: "Kagi"
+    // Both are routed through `Local.get()` so users can override per-machine
+    // by setting "searchUrl" / "searchName" in
+    // ~/.config/quickshell-bar/config.json without touching this file.
+    readonly property string searchUrl:  Local.get("searchUrl",  "https://kagi.com/search?q=%s")
+    readonly property string searchName: Local.get("searchName", "Kagi")
 
     // ---- Public state ----
 
