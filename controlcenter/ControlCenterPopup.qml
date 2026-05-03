@@ -1,8 +1,9 @@
 // ControlCenterPopup.qml
 // The single anchored popup behind the bar's CC trigger. Hosts a fixed-
-// size 340 × 480 card whose interior is a Loader keyed on
+// size 440 × 440 card whose interior is a Loader keyed on
 // ControlCenterService.currentView. Detail views (network/bluetooth/
-// powerprofile) get a back-arrow header that returns to the tiles view.
+// powerprofile/cities) get a back-arrow header that returns to the
+// tiles view.
 //
 // Why fixed size: detail views (especially Network) can grow tall; we
 // scroll inside the view rather than animating popup height per swap
@@ -17,6 +18,7 @@ import qs.controlcenter
 import qs.network
 import qs.bluetooth
 import qs.system
+import qs.weather
 
 PopupWindow {
     id: popup
@@ -54,13 +56,13 @@ PopupWindow {
     anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    // 440 wide × 400 tall — landscape-ish. Wider gives tile state strings
-    // ("MyNetwork", "Power Saver") room to breathe without eliding;
-    // shorter cuts the empty space the tiles view used to leave below
-    // the 2 × 3 grid. Detail views (Network, Bluetooth) still scroll
-    // internally when their list overflows.
+    // 440 wide × 440 tall. Width still gives tile state strings room to
+    // breathe; the extra 40 px of height (was 400) makes room for the
+    // weather card sitting between the tile grid and NowPlayingCard.
+    // Detail views (Network, Bluetooth, Cities) still scroll internally
+    // when their list overflows.
     implicitWidth:  440 + 24  // 24 = shadow padding (12 each side)
-    implicitHeight: 400 + 24
+    implicitHeight: 440 + 24
 
     // ---- Card surface ----
     Rectangle {
@@ -149,6 +151,7 @@ PopupWindow {
                     case "network":      return "Wi-Fi";
                     case "bluetooth":    return "Bluetooth";
                     case "powerprofile": return "Power Profile";
+                    case "cities":       return "Choose city";
                     default:             return "Control Center";
                     }
                 }
@@ -190,6 +193,7 @@ PopupWindow {
                 case "network":      return networkViewC;
                 case "bluetooth":    return bluetoothViewC;
                 case "powerprofile": return powerProfileViewC;
+                case "cities":       return citiesViewC;
                 default:             return tilesViewC;
                 }
             }
@@ -229,9 +233,10 @@ PopupWindow {
             }
         }
 
-        Component { id: tilesViewC;       TilesView { } }
-        Component { id: networkViewC;     NetworkView { } }
-        Component { id: bluetoothViewC;   BluetoothView { } }
+        Component { id: tilesViewC;        TilesView { } }
+        Component { id: networkViewC;      NetworkView { } }
+        Component { id: bluetoothViewC;    BluetoothView { } }
         Component { id: powerProfileViewC; PowerProfileView { } }
+        Component { id: citiesViewC;       CitiesView { } }
     }
 }

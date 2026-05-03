@@ -1,5 +1,6 @@
 // TilesView.qml
-// Default tiles view: SlidersBlock + 3 × 2 tile grid + NowPlayingCard.
+// Default tiles view: SlidersBlock + 3 × 2 tile grid + WeatherCard +
+// NowPlayingCard.
 // The tile *order* is fixed to keep muscle memory stable across versions:
 //
 //   Row 1:  Wi-Fi    · Bluetooth   · Power Profile
@@ -12,9 +13,10 @@
 // Clicking any tile that triggers a separate popup will also auto-close
 // the CC via PopupController's mutex.
 //
-// Sliders + NowPlaying are placed only here (not in detail views) — when
-// the user drills into a Wi-Fi / BT / Profile detail view, the Loader
-// swaps to that view and they get the full body height for scrolling.
+// Sliders + Weather + NowPlaying are placed only here (not in detail
+// views) — when the user drills into a Wi-Fi / BT / Profile / Cities
+// detail view, the Loader swaps to that view and it gets the full body
+// height for scrolling.
 
 import QtQuick
 import Quickshell
@@ -26,6 +28,7 @@ import qs.lock
 import qs.notifications
 import qs.network
 import qs.wallpaper
+import qs.weather
 
 Item {
     id: root
@@ -204,6 +207,16 @@ Item {
             onClicked: WallpaperService.openPicker()
         }
         }   // end Grid
+
+        // ---- Weather card ----
+        //
+        // KNMI-backed (via Open-Meteo's `models=knmi_seamless`) current
+        // conditions + today's high/low. Clicking the city pill opens
+        // the cities detail view in the CC's view-stack. First-run state
+        // ("Set location") is whole-card clickable to the same view.
+        WeatherCard {
+            width: parent.width
+        }
 
         // ---- Now Playing card ----
         //
