@@ -60,15 +60,23 @@ Singleton {
 
         onLoaded: {
             try {
-                // Strip line-leading `//` comments (JSONC-friendly) but
-                // leave `//` inside values alone — only the pattern of
-                // optional whitespace then `//` at the very start of a
-                // line is consumed. URLs in quoted values are unaffected
-                // because they don't begin a line.
+                // Strip JSONC comments (line `//...` and block `/* ... */`)
+                // while preserving `//` and `/*` that appear inside string
+                // values. The regex matches three alternatives in order:
+                //   1. A complete quoted string (with escape handling) —
+                //      preserved verbatim by the replacer.
+                //   2. A `//` line-comment to end-of-line.
+                //   3. A `/* ... */` block-comment (non-greedy, multi-line).
+                // Alternatives 2 and 3 are replaced with empty strings;
+                // alternative 1 is returned as-is. Net effect: URLs like
+                // "https://example.com" stay intact while
+                //   "key": "value", // trailing comment
+                // becomes
+                //   "key": "value",
+                // which JSON.parse accepts cleanly.
                 const cleaned = (configFile.text() || "")
-                    .split("\n")
-                    .filter(line => !line.match(/^\s*\/\//))
-                    .join("\n");
+                    .replace(/"(?:\\.|[^"\\])*"|\/\/.*$|\/\*[\s\S]*?\*\//gm,
+                             m => m.charAt(0) === '"' ? m : "");
                 const parsed = JSON.parse(cleaned || "{}");
                 root.data = parsed;
             } catch (e) {
