@@ -44,6 +44,9 @@ Singleton {
     }
     function closePopup() {
         if (!popupOpen) return;
+        // Close the picker too if it was open — orphan picker state on
+        // close looks weird and would re-show on next openPopup().
+        root.closePicker();
         root.popupOpen = false;
     }
     function togglePopup() {
@@ -51,4 +54,41 @@ Singleton {
         else            openPopup();
     }
     onPopupOpenChanged: if (!popupOpen) PopupController.closed(root)
+
+    // ---- color picker state ----
+    //
+    // The colour picker is a SINGLE instance owned by SettingsPopup at
+    // its top level (after the Column → after the Flickable → drawn
+    // on top of every settings row regardless of which row triggered
+    // it). ColorRow doesn't embed its own picker because z-ordering
+    // wouldn't beat sibling rows that render after it in the Column.
+    //
+    // ColorRow's swatch click calls `openPicker(key, color, anchor)`;
+    // SettingsPopup binds the picker's visibility, position, and
+    // current colour from these properties. Picker writes go through
+    // `Local.set(pickerKey, c)`.
+
+    property bool pickerOpen: false
+    property string pickerKey: ""
+    property color pickerColor: "#000000"
+    // The swatch Item itself — used by SettingsPopup to compute card-
+    // relative position via mapToItem.
+    property var pickerAnchor: null
+
+    function openPicker(key, color, anchor) {
+        // Click same swatch again → close (toggle behaviour, KDE-like).
+        if (root.pickerOpen && root.pickerKey === key) {
+            root.closePicker();
+            return;
+        }
+        root.pickerKey = key;
+        root.pickerColor = color;
+        root.pickerAnchor = anchor;
+        root.pickerOpen = true;
+    }
+    function closePicker() {
+        if (!pickerOpen) return;
+        root.pickerOpen = false;
+        root.pickerAnchor = null;
+    }
 }
