@@ -15,6 +15,7 @@ import qs.clipboard         // for ClipboardPopup + ClipboardService singleton
 import qs.launcher          // for Launcher + LauncherService singleton
 import qs.lock              // for Lock + LockService singleton
 import qs.wallpaper         // for WallpaperLayer + WallpaperPickerPopup + WallpaperService
+import qs.weather           // for WeatherDetailPopup + WeatherService singleton
 
 ShellRoot {
     id: root
@@ -176,6 +177,17 @@ ShellRoot {
         model: Quickshell.screens
 
         WallpaperPickerPopup {
+            focusedOutput: Compositor.focusedOutput
+        }
+    }
+
+    // Weather detail popup — centered Overlay layer surface showing the
+    // 24-hour and 7-day forecast. Triggered by clicking the body of the
+    // weather card inside the Control Center.
+    Variants {
+        model: Quickshell.screens
+
+        WeatherDetailPopup {
             focusedOutput: Compositor.focusedOutput
         }
     }
