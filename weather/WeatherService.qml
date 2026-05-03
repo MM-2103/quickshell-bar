@@ -47,9 +47,56 @@ Singleton {
     property real tempMax: 0            // today's high
     property var  lastUpdated: null     // Date | null
 
+    // ---- Sunrise/sunset (today only) ----
+    //
+    // Open-Meteo returns these as ISO local-time strings under daily.{sunrise,sunset}[0].
+    // We keep the raw string and let the consumer format with Qt.formatDateTime().
+    property string sunrise: ""         // e.g. "2026-05-03T06:12"
+    property string sunset:  ""         // e.g. "2026-05-03T21:18"
+
+    // ---- Hourly forecast ----
+    //
+    // Sliced to next 24 hours from current time on each fetch (Open-Meteo
+    // returns 168 entries — 7 days worth — and we want only the upcoming
+    // 24 for the detail popup's strip). Indices align across all four
+    // arrays.
+    property var hourlyTimes:  []       // ISO strings ("2026-05-03T14:00")
+    property var hourlyTemps:  []       // numbers (°C)
+    property var hourlyCodes:  []       // ints (WMO codes)
+    property var hourlyPrecip: []       // ints (0..100, % probability)
+
+    // ---- Daily forecast (7 days starting today) ----
+    property var dailyTimes:    []      // ISO date strings ("2026-05-03")
+    property var dailyTempMax:  []      // numbers
+    property var dailyTempMin:  []      // numbers
+    property var dailyCodes:    []      // ints
+    property var dailyPrecip:   []      // ints (0..100)
+
     // ---- Fetch state ----
     property bool loading: false
     property string lastError: ""
+
+    // ---- Detail popup state ----
+    //
+    // Lives here so multiple per-monitor WeatherDetailPopup instances all
+    // see the same flag (one is true at a time, gated by isFocusedScreen
+    // in the popup itself — same architecture as WallpaperPickerPopup).
+    property bool detailOpen: false
+
+    function openDetail() {
+        if (!root.hasLocation) return;       // nothing to show without a location
+        if (detailOpen) return;
+        PopupController.open(root, () => root.closeDetail());
+        root.detailOpen = true;
+    }
+    function closeDetail() {
+        if (!detailOpen) return;
+        root.detailOpen = false;
+    }
+    function toggleDetail() {
+        if (detailOpen) closeDetail(); else openDetail();
+    }
+    onDetailOpenChanged: if (!detailOpen) PopupController.closed(root)
 
     // ================================================================
     // Public actions
@@ -75,7 +122,10 @@ Singleton {
                 + "&longitude=" + root.lon
                 + "&current=temperature_2m,apparent_temperature,weather_code,"
                 + "wind_speed_10m,relative_humidity_2m"
-                + "&daily=temperature_2m_max,temperature_2m_min"
+                + "&hourly=temperature_2m,weather_code,precipitation_probability"
+                + "&daily=temperature_2m_max,temperature_2m_min,weather_code,"
+                + "precipitation_probability_max,sunrise,sunset"
+                + "&forecast_days=7"
                 + "&timezone=auto"
                 + "&models=knmi_seamless"
         ];
@@ -195,19 +245,58 @@ Singleton {
             onStreamFinished: {
                 try {
                     const data = JSON.parse(text);
-                    // Open-Meteo top-level: current.{...}, daily.{...} arrays.
+
+                    // -------- current --------
                     const c = data.current || {};
-                    const d = data.daily || {};
                     root.currentTemp   = (c.temperature_2m ?? 0) * 1.0;
                     root.apparentTemp  = (c.apparent_temperature ?? 0) * 1.0;
                     root.weatherCode   = (c.weather_code ?? 0) | 0;
                     root.windSpeed     = (c.wind_speed_10m ?? 0) * 1.0;
                     root.humidity      = (c.relative_humidity_2m ?? 0) | 0;
-                    // Daily arrays — index 0 is "today" given timezone=auto.
-                    if (d.temperature_2m_max && d.temperature_2m_max.length > 0)
-                        root.tempMax = d.temperature_2m_max[0] * 1.0;
-                    if (d.temperature_2m_min && d.temperature_2m_min.length > 0)
-                        root.tempMin = d.temperature_2m_min[0] * 1.0;
+
+                    // -------- daily (today + 6 forecast days) --------
+                    //
+                    // Index 0 is "today" because timezone=auto aligns daily
+                    // buckets to local midnight. We keep all 7 entries for
+                    // the detail popup's 7-day strip.
+                    const d = data.daily || {};
+                    root.dailyTimes   = d.time || [];
+                    root.dailyTempMax = d.temperature_2m_max || [];
+                    root.dailyTempMin = d.temperature_2m_min || [];
+                    root.dailyCodes   = d.weather_code || [];
+                    root.dailyPrecip  = d.precipitation_probability_max || [];
+                    if (root.dailyTempMax.length > 0)
+                        root.tempMax = root.dailyTempMax[0] * 1.0;
+                    if (root.dailyTempMin.length > 0)
+                        root.tempMin = root.dailyTempMin[0] * 1.0;
+
+                    // sunrise/sunset arrive as ISO local-time strings under
+                    // daily.{sunrise,sunset}[0..6] — keep [0] for "today".
+                    if (d.sunrise && d.sunrise.length > 0) root.sunrise = d.sunrise[0];
+                    if (d.sunset  && d.sunset.length  > 0) root.sunset  = d.sunset[0];
+
+                    // -------- hourly (sliced to next 24h from now) --------
+                    //
+                    // Open-Meteo returns 168 hourly entries (7 days). We
+                    // want only the next 24 starting from the *current*
+                    // hour. Find the first index where time >= now and
+                    // slice 24 entries from there. Times are returned as
+                    // ISO local strings without TZ when timezone=auto;
+                    // JS parses these as local time, so compares correctly
+                    // against Date.now().
+                    const h = data.hourly || {};
+                    const hTimes = h.time || [];
+                    const now = Date.now();
+                    let startIdx = 0;
+                    for (let i = 0; i < hTimes.length; i++) {
+                        if (new Date(hTimes[i]).getTime() >= now) { startIdx = i; break; }
+                    }
+                    const endIdx = Math.min(startIdx + 24, hTimes.length);
+                    root.hourlyTimes  = hTimes.slice(startIdx, endIdx);
+                    root.hourlyTemps  = (h.temperature_2m         || []).slice(startIdx, endIdx);
+                    root.hourlyCodes  = (h.weather_code           || []).slice(startIdx, endIdx);
+                    root.hourlyPrecip = (h.precipitation_probability || []).slice(startIdx, endIdx);
+
                     root.lastUpdated = new Date();
                     root.lastError = "";
                 } catch (e) {
