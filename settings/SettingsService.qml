@@ -81,6 +81,10 @@ Singleton {
             root.closePicker();
             return;
         }
+        // Opening a different overlay closes any existing one first so
+        // we don't render a colour picker and a dropdown list on top of
+        // each other.
+        root.closeDropdown();
         root.pickerKey = key;
         root.pickerColor = color;
         root.pickerAnchor = anchor;
@@ -90,5 +94,42 @@ Singleton {
         if (!pickerOpen) return;
         root.pickerOpen = false;
         root.pickerAnchor = null;
+    }
+
+    // ---- preset-dropdown state ----
+    //
+    // Same architecture as the colour picker: a SINGLE dropdown list
+    // owned by SettingsPopup at root level so it draws above all rows.
+    // The trigger Rectangle stays embedded in `PresetDropdown`; only
+    // the floating list is hoisted, positioned via mapToItem from the
+    // trigger anchor.
+
+    property bool dropdownOpen: false
+    property string dropdownKey: ""
+    // Optional secondary key (e.g. companionLabel write for searchName
+    // when picking a search-engine preset for searchUrl).
+    property string dropdownCompanionKey: ""
+    property var dropdownPresets: []         // [{ label, value, companionLabel? }]
+    property string dropdownSelectedValue: ""
+    property var dropdownAnchor: null
+
+    function openDropdown(key, presets, selectedValue, companionKey, anchor) {
+        if (root.dropdownOpen && root.dropdownKey === key) {
+            root.closeDropdown();
+            return;
+        }
+        // Mutually-exclusive with the colour picker.
+        root.closePicker();
+        root.dropdownKey = key;
+        root.dropdownPresets = presets || [];
+        root.dropdownSelectedValue = selectedValue || "";
+        root.dropdownCompanionKey = companionKey || "";
+        root.dropdownAnchor = anchor;
+        root.dropdownOpen = true;
+    }
+    function closeDropdown() {
+        if (!dropdownOpen) return;
+        root.dropdownOpen = false;
+        root.dropdownAnchor = null;
     }
 }
