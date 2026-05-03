@@ -20,15 +20,31 @@ Hot-reload is enabled: edit the JSON, save, and most values update live
 in the running shell. Theme bindings are reactive; long-running Timers
 re-arm on their next fire.
 
-JSONC-style line comments are supported — lines starting with `//`
-(after optional whitespace) are stripped before parsing. Inline `//`
-inside string values (e.g. URLs) is untouched.
+JSONC-style comments are supported — both `//` line comments (anywhere
+on a line, including trailing after a value) and `/* ... */` block
+comments are stripped before parsing. `//` and `/*` inside quoted
+string values (e.g. URLs like `"https://..."`) are preserved correctly
+— the strip logic is string-aware.
 
 If the JSON is malformed, a warning is logged via `console.warn` and the
 shell keeps running with whatever was last successfully parsed (or
 defaults if nothing has been). Your shell will not crash from a typo.
 
 ## Quick start
+
+The repo ships an example config at [`examples/config.jsonc`](../examples/config.jsonc)
+with **every overridable key set to its current default**. Copy it
+verbatim and the shell behaves identically — no visible change. Then
+edit just the keys you want to override; delete or comment out the rest.
+
+```bash
+mkdir -p ~/.config/quickshell-bar
+cp examples/config.jsonc ~/.config/quickshell-bar/config.jsonc
+# now edit ~/.config/quickshell-bar/config.jsonc
+```
+
+Or, if you only want a few overrides without the full reference, drop in
+just the keys you care about:
 
 ```bash
 mkdir -p ~/.config/quickshell-bar
