@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #64+) represents original
+> "Gotchas & quirks" section (entries #1 through #67+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2666,6 +2666,104 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     `new Date()` always reads the system clock fresh — it can't go stale. The 1 s tick interval costs nothing visually because Text bindings only re-render when the formatted string changes (i.e. once per minute for an HH:mm clock). For surfaces that exist only briefly (lock surface, popups), the efficiency saving SystemClock provides over Date polling is irrelevant.
 
     Bar clocks at `precision: Seconds` can keep using SystemClock — the bug is masked there. The trade-off only matters when you specifically need correct time after wake without a fresh widget construction.
+
+65. **`Behavior on sourceComponent` does not animate.** A `Loader` switching between view components (a "view-stack" pattern, e.g. tile grid → detail view inside a popup) feels like it deserves a fade transition. The intuitive thing to write is:
+
+    ```qml
+    Loader {
+        sourceComponent: tilesView // or networkView, etc.
+        Behavior on sourceComponent {
+            // ...crossfade animation...
+        }
+    }
+    ```
+
+    But `Behavior` only animates types it can interpolate (`real`, `int`, `color`, `vector`-types, etc.). `Component` is not an interpolatable type, so the Behavior is silently ignored — the swap happens instantly, no errors, no warnings.
+
+    **Fix**: indirect through a separate property that *is* animated, and update it inside a `ScriptAction` mid-animation:
+
+    ```qml
+    Loader {
+        id: viewLoader
+        property string _appliedView: someService.currentView   // mirror
+
+        sourceComponent: switch (_appliedView) {
+            case "network": return networkView;
+            // ...
+        }
+
+        opacity: 1.0   // animated, not sourceComponent
+
+        Connections {
+            target: someService
+            function onCurrentViewChanged() {
+                if (someService.currentView === viewLoader._appliedView) return;
+                transition.restart();
+            }
+        }
+
+        SequentialAnimation {
+            id: transition
+            NumberAnimation { target: viewLoader; property: "opacity"; to: 0.0; duration: 100 }
+            ScriptAction { script: viewLoader._appliedView = someService.currentView }
+            NumberAnimation { target: viewLoader; property: "opacity"; to: 1.0; duration: 140 }
+        }
+    }
+    ```
+
+    The opacity tween + script-action swap is the canonical workaround. See `controlcenter/ControlCenterPopup.qml` for the production implementation in this repo.
+
+66. **`Repeater` delegate's `parent` is the Repeater's parent — not the Repeater itself.** When you write:
+
+    ```qml
+    Item {
+        id: outer
+        property real cellWidth: width / 12
+
+        Row {
+            Repeater {
+                model: 12
+                delegate: Item {
+                    width: parent.parent.parent.cellWidth   // BUG
+                }
+            }
+        }
+    }
+    ```
+
+    The delegate items are inserted as siblings of the Repeater inside the Repeater's parent (the `Row`). So inside the delegate:
+    - `parent` is the **Row** (not the Repeater)
+    - `parent.parent` is **`outer`** (where `cellWidth` lives)
+    - `parent.parent.parent` is whatever's *above* `outer` — wrong target, undefined property, silent 0-width result.
+
+    Symptom: items render with zero size; the Repeater area appears empty. No console error.
+
+    **Fix**: always reference the surrounding container by `id`, never by `parent` chain from a delegate:
+
+    ```qml
+    delegate: Item { width: outer.cellWidth }
+    ```
+
+    More robust against refactoring (adding/removing wrapper Items doesn't break the binding) and self-documenting. This bit us in `weather/WeatherDetailPopup.qml`'s 12-cell hourly strip — the strip rendered as 0-px-wide cells until we replaced `parent.parent.parent._cellWidth` with `hourlyStrip._cellWidth`.
+
+67. **Horizontal `Flickable` wheel-scroll is unreliable.** A `Flickable` with `flickableDirection: Flickable.HorizontalFlick` accepts mouse-drag and touch flicks horizontally as expected, but vertical mouse-wheel events are NOT translated to horizontal `contentX` changes by default — wheel just doesn't scroll the strip. The standard workaround is a child `MouseArea` with `acceptedButtons: Qt.NoButton` (so it doesn't steal clicks) intercepting `onWheel` and writing to `contentX` manually:
+
+    ```qml
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        onWheel: wheel => {
+            const delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
+            flick.contentX = Math.max(0, Math.min(flick.contentWidth - flick.width,
+                                                  flick.contentX - delta));
+            wheel.accepted = true;
+        }
+    }
+    ```
+
+    This *works* but feels janky in practice — wheel ticks deliver large `angleDelta` values that map awkwardly to `contentX` deltas, motion isn't smooth, and per-Qt-version tuning is unpleasant. Touchpad two-finger scroll on horizontal axis works better but isn't universal.
+
+    **Pragmatic fix**: avoid horizontally-scrollable Flickables entirely on desktop. Pick a fixed set of items that fits the popup width (e.g. 12 hours at `parent.width / 12` per cell instead of 24 in a scrollable strip). The visual completeness of "everything visible at once" tends to beat "more data behind a scroll".
 
 ### Style & best practices
 
