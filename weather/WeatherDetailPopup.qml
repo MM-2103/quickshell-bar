@@ -315,6 +315,7 @@ PanelWindow {
             // the popup is later resized. Each cell stacks: hour label /
             // icon / temp / precip%.
             Item {
+                id: hourlyStrip
                 width: parent.width
                 height: 110
 
@@ -327,12 +328,18 @@ PanelWindow {
                     spacing: 0
 
                     Repeater {
-                        model: Math.min(parent.parent._cellCount,
+                        // Reference the outer strip by id rather than
+                        // parent-chain — the delegate's parent is this
+                        // Row (Repeater inserts items into its own parent),
+                        // so `parent.parent.parent` skips the outer Item
+                        // entirely and lands on the Column. That bug was
+                        // the reason the strip rendered as 0-width cells.
+                        model: Math.min(hourlyStrip._cellCount,
                                         WeatherService.hourlyTimes.length)
                         delegate: Item {
                             id: cell
                             required property int index
-                            width: parent.parent.parent._cellWidth
+                            width: hourlyStrip._cellWidth
                             height: 110
 
                             // Subtle background on every other cell so the
