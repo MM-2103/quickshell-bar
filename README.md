@@ -51,6 +51,7 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - App launcher (Mod+P) — apps + calculator + web search + emoji
 - Emoji picker shortcut (Mod+;)
 - Wallpaper picker (folder browse + thumbnails + per-monitor)
+- Settings page — visual editor for all 31 overridable keys (colours, fonts, sizes, animations, search engine, behaviour) with live preview; opens via the gear icon in the Control Center or `qs ipc call settings open`
 
 **Notifications & OSD**
 - Native NotificationServer (replaces external daemons)
@@ -100,6 +101,10 @@ Weather detail popup — current conditions, sunrise/sunset, the next 12 hours, 
 Wallpaper picker — folder browse + thumbnail grid + per-monitor target + fill-mode selector (replaces waypaper):
 
 ![Wallpaper picker](docs/screenshots/11-wallpaper-picker.png)
+
+Settings page — visual editor for `~/.config/quickshell-bar/config.jsonc`. Tabs for Colours / Typography / Layout & Motion / Behaviour; sliders, hex inputs, custom HSV colour picker, search-engine presets. Live preview, debounced auto-save, `.bak` on first save:
+
+![Settings page](docs/screenshots/12-settings.png)
 
 Lock screen with the now-playing card:
 
