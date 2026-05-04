@@ -17,6 +17,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import qs
+import qs.themes
 
 Singleton {
     id: root
@@ -25,12 +26,15 @@ Singleton {
 
     property bool popupOpen: false
 
-    // Active tab. One of: "colors" | "typography" | "layout" | "behavior".
-    // Reset to "colors" on each open so users land at a predictable spot.
-    property string activeTab: "colors"
+    // Active tab. One of: "theme" | "colors" | "typography" | "layout"
+    // | "behavior". Reset to "theme" on each open — the lighter-touch
+    // entry point. Users browsing settings land on the visual catalogue
+    // first; if they want to drill into individual colour overrides
+    // they're one click into "Colours" away.
+    property string activeTab: "theme"
 
     function setTab(name) {
-        if (!name) name = "colors";
+        if (!name) name = "theme";
         root.activeTab = name;
     }
 
@@ -39,7 +43,12 @@ Singleton {
     function openPopup() {
         if (popupOpen) return;
         PopupController.open(root, () => root.closePopup());
-        root.activeTab = "colors";
+        root.activeTab = "theme";
+        // Re-scan ~/.config/quickshell-bar/themes on every open so a
+        // user-dropped theme file appears without a daemon restart.
+        // Cheap (sub-ms for ~10 small JSONC files) and runs only on
+        // explicit popup-open, not on every interaction.
+        ThemePresets.rescan();
         root.popupOpen = true;
     }
     function closePopup() {
