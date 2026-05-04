@@ -38,16 +38,12 @@ Rectangle {
     // Glassy panel: semi-transparent white over the already-blurred
     // wallpaper, with a 1 px highlight border. Matches the input card's
     // alpha intensity (0.10) for visual consistency.
-    //
-    // DIAGNOSTIC: border swapped to bright red 4 px to verify whether
-    // hot-reload + restart actually reach this file. Revert immediately
-    // after visual confirmation.
     width: 360
     height: 64
     radius: 14
     color: Qt.rgba(1, 1, 1, 0.10)
-    border.color: "red"
-    border.width: 4
+    border.color: Qt.rgba(1, 1, 1, 0.18)
+    border.width: 1
 
     // ---- Album art availability ----
     //
@@ -67,13 +63,17 @@ Rectangle {
 
     // Layout constants used in two places.
     // _padding controls the inset between the card edge and the inner
-    // content. Set to 14 px so left (album art) and right (controls)
-    // both get visible breathing room. The previous Row-based layout
-    // had a "-8" hack in Column.width that made the controls' right
-    // gap depend on a chain of bindings; this version anchors controls
-    // explicitly to the card's right edge so the gap is exactly
-    // _padding pixels — visible and predictable.
-    readonly property int _padding: 14
+    // content. Set to 24 px so the rightmost media-control button has
+    // unambiguously visible breathing room from the card's right edge,
+    // mirrored on the left for the album art slot. Iterated up from
+    // 12 → 14 → 24 over multiple rounds of "still looks cramped"
+    // feedback; 24 is the value where the gap reads clearly even at
+    // small zoom levels. The previous Row-based layout had a "-8" hack
+    // in Column.width that made the controls' right gap depend on a
+    // chain of bindings; this version anchors controls explicitly to
+    // the card's right edge so the gap is exactly _padding pixels —
+    // visible and predictable.
+    readonly property int _padding: 24
     readonly property int _artSize: 48
     readonly property int _artGap: 12
 
