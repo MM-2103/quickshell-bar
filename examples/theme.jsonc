@@ -6,9 +6,20 @@
 // dropped theme files appear in the Theme tab without a daemon restart.
 //
 // Each file is one theme. Required top-level keys:
-//   id      — stable slug (used for current-theme matching)
+//   id      — stable slug (used for current-theme matching and for
+//             siblingId references)
 //   label   — display text on the theme card
 //   palette — record of the 14 overridable colour keys
+//
+// Optional top-level keys:
+//   kind      — "dark" or "light" (default "dark"). Used by the
+//               Control Center's light/dark toggle to pick its icon
+//               (sun/moon) and decide what direction the toggle goes.
+//   siblingId — id of the paired light/dark variant. When set and the
+//               sibling exists, the Control Center toggle is enabled
+//               on this theme; clicking it applies the sibling. When
+//               omitted (or pointing at a missing id), the toggle is
+//               disabled on this theme.
 //
 // Files with malformed JSON or missing id/label/palette are skipped
 // silently with a console.warn — same forgiveness Local.qml gives the
@@ -16,9 +27,16 @@
 //
 // Tips:
 //   - Pick an `id` that's unlikely to collide with built-ins (avoid
-//     "default" / "gruvbox-dark" / "catppuccin-mocha" / "tokyo-night-storm"
-//     / "nord" / "rose-pine" / "dracula" / "everforest-dark" / "kanagawa"
-//     / "solarized-dark" — those are taken).
+//     "default" / "default-light" / "gruvbox-dark" / "gruvbox-light" /
+//     "catppuccin-mocha" / "catppuccin-latte" / "tokyo-night-storm" /
+//     "tokyo-night-day" / "nord" / "nord-light" / "rose-pine" /
+//     "rose-pine-dawn" / "dracula" / "dracula-light" / "everforest-dark" /
+//     "everforest-light" / "kanagawa" / "kanagawa-lotus" / "solarized-dark" /
+//     "solarized-light" — those are taken).
+//   - To pair two of your own themes, set their siblingId fields to point
+//     at each other's id. Each file references the other:
+//       my-theme.jsonc       → siblingId: "my-theme-light"
+//       my-theme-light.jsonc → siblingId: "my-theme"
 //   - If the user's effective state matches multiple theme palettes,
 //     the first match wins (built-ins are checked before user themes).
 //   - Comments (// and /* */) are stripped before JSON.parse, so feel
@@ -26,8 +44,10 @@
 //
 // Reference: docs/CUSTOMIZATION.md → Themes
 {
-  "id":    "my-custom",
-  "label": "My Custom Theme",
+  "id":        "my-custom",
+  "label":     "My Custom Theme",
+  "kind":      "dark",
+  "siblingId": "my-custom-light",   // delete this line if no light variant exists
   "palette": {
     // ─── Surfaces ──────────────────────────────────────────────
     "bg":          "#1a1a1a",   // bar / popup base background

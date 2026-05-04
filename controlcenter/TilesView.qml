@@ -1,10 +1,16 @@
 // TilesView.qml
-// Default tiles view: SlidersBlock + 3 × 2 tile grid + WeatherCard +
+// Default tiles view: SlidersBlock + 3 × 3 tile grid + WeatherCard +
 // NowPlayingCard.
 // The tile *order* is fixed to keep muscle memory stable across versions:
 //
 //   Row 1:  Wi-Fi    · Bluetooth   · Power Profile
 //   Row 2:  Caffeine · DND         · Wallpaper
+//   Row 3:  Theme    · (empty)     · (empty)
+//
+// Row 3 currently hosts only the light/dark Theme toggle; cells 8 and 9
+// stay empty (the Grid simply doesn't render anything in those slots).
+// Future tiles slot into the empty cells without disturbing the existing
+// six.
 //
 // Each tile's body click does its "primary action"; tiles that have a
 // detail view show a chevron whose click navigates the CC into that view.
@@ -12,6 +18,11 @@
 // the CC, so it opens the existing centered WallpaperPickerPopup.
 // Clicking any tile that triggers a separate popup will also auto-close
 // the CC via PopupController's mutex.
+//
+// The Theme tile is a momentary action — it never enters an "active"
+// state. When enabled, click applies the sibling of the current theme
+// (Mocha → Latte etc.); when disabled (no current theme, or current
+// theme has no sibling), the tile renders dimmed and clicks no-op.
 //
 // Sliders + Weather + NowPlaying are placed only here (not in detail
 // views) — when the user drills into a Wi-Fi / BT / Profile / Cities
@@ -27,6 +38,7 @@ import qs.controlcenter
 import qs.lock
 import qs.notifications
 import qs.network
+import qs.themes
 import qs.wallpaper
 import qs.weather
 
@@ -205,6 +217,42 @@ Item {
             stateText: "Browse…"
             active: false
             onClicked: WallpaperService.openPicker()
+        }
+
+        // ---- Theme (light/dark toggle) ----
+        // Body: apply the sibling of the current theme (e.g. Catppuccin
+        // Mocha → Catppuccin Latte). Disabled when no current theme
+        // matches (Custom state) or the matched theme has no sibling
+        // declared (built-in or user theme without siblingId).
+        //
+        // Icon: sun glyph when current is dark (toggle would go light),
+        // moon glyph when current is light (toggle would go dark). The
+        // icon points at the destination kind, mirroring how a "dark
+        // mode" toggle in mainstream OSes shows the moon when in light
+        // mode (and vice versa).
+        //
+        // State text shows "Switch to Light" / "Switch to Dark" rather
+        // than the sibling's full label — a 104 px tile can't fit
+        // "Switch to Catppuccin Latte" without elision, and the kind
+        // alone is unambiguous in context (the user knows which theme
+        // family they're on from the Theme tab).
+        Tile {
+            width: root._tileWidth
+            height: root._tileHeight
+            icon: ThemePresets.currentTheme && ThemePresets.currentTheme.kind === "light"
+                ? "\uf186"   // moon (toggling FROM light TO dark)
+                : "\uf185"   // sun  (toggling FROM dark TO light)
+            label: "Theme"
+            stateText: {
+                if (!ThemePresets.currentTheme) return "Apply a theme first";
+                if (!ThemePresets.currentSibling) return "No light/dark variant";
+                return ThemePresets.currentSibling.kind === "light"
+                    ? "Switch to Light"
+                    : "Switch to Dark";
+            }
+            active: false
+            enabled: ThemePresets.currentSibling !== null
+            onClicked: ThemePresets.toggleLightDark()
         }
         }   // end Grid
 

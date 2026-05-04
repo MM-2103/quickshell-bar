@@ -52,31 +52,48 @@ Singleton {
 
     // ---- Built-in catalogue ----
     //
-    // Order is the visual order in the Theme tab. "Default" is first so
-    // users always have a one-click revert path back to the shipped
-    // monochrome palette. Subsequent themes are roughly grouped by warmth
-    // (warm earth tones, then pastels, then cool blues, then greens).
+    // Visual order in the Theme tab is "all darks first, then all lights"
+    // — preserves the existing dark-theme ordering (Default first, then
+    // warm-to-cool grouping) and stacks the light variants beneath in
+    // the same order. Each dark theme's lightId field cross-references
+    // its sibling, so toggleLightDark can flip between paired themes.
     //
-    // Each entry: id (stable slug, also used for user-theme files),
-    // label (display text), palette (the 14 keys above).
+    // Each entry has FIVE fields:
+    //   id        — stable slug, used for user-theme references and the
+    //               currentTheme/_paletteMatches identity check
+    //   label     — display text on the card
+    //   kind      — "dark" or "light"; used by the toggle tile to pick
+    //               its icon (sun ↔ moon)
+    //   siblingId — id of the paired light/dark variant, or null when
+    //               no sibling exists (currently every built-in has a
+    //               sibling; nullability is for user themes)
+    //   palette   — record of the 14 colour keys
     //
     // Sources:
-    //   - Default          : Theme.qml's hardcoded defaults
-    //   - Gruvbox Dark     : morhetz/gruvbox dark0 base + bright_yellow accent
-    //   - Catppuccin Mocha : catppuccin/palette flavors.json (Mocha)
-    //   - Tokyo Night Storm: folke/tokyonight.nvim Storm variant palette
-    //   - Nord             : Nord Theme by Arctic Ice Studio (nord0..nord15)
-    //   - Rose Pine        : rose-pine.io official palette (iris accent)
-    //   - Dracula          : draculatheme.com (synthesised mid-tones for
-    //                        surface/border because upstream defines only
-    //                        2 dark levels)
-    //   - Everforest Dark  : sainnhe/everforest medium variant
-    //   - Kanagawa Wave    : rebelot/kanagawa.nvim Wave variant
-    //   - Solarized Dark   : Ethan Schoonover's canonical specification
+    //   - Default            : Theme.qml's hardcoded defaults
+    //   - Default Light      : synthesised inversion (no upstream)
+    //   - Gruvbox            : morhetz/gruvbox dark0 / light0 medium
+    //   - Catppuccin         : catppuccin/palette flavors.json (Mocha + Latte)
+    //   - Tokyo Night        : folke/tokyonight.nvim (Storm + Day)
+    //   - Nord               : Arctic Ice Studio nord0..nord15 (dark
+    //                          canonical; light is community-derived
+    //                          inversion using Snow Storm tones)
+    //   - Rosé Pine          : rose-pine.io (Main + Dawn)
+    //   - Dracula            : draculatheme.com (dark canonical; light
+    //                          is community-derived; both synthesise
+    //                          surface/border mid-tones)
+    //   - Everforest         : sainnhe/everforest medium variant (dark + light)
+    //   - Kanagawa           : rebelot/kanagawa.nvim (Wave + Lotus)
+    //   - Solarized          : Ethan Schoonover's canonical specification
+    //                          (light surfaceHi/border synthesised between
+    //                          base2 and base1)
     readonly property var builtIn: [
+        // ---- Dark themes ----
         {
             id: "default",
             label: "Default",
+            kind: "dark",
+            siblingId: "default-light",
             palette: {
                 bg:          "#16181c",
                 surface:     "#1e1e22",
@@ -97,6 +114,8 @@ Singleton {
         {
             id: "gruvbox-dark",
             label: "Gruvbox Dark",
+            kind: "dark",
+            siblingId: "gruvbox-light",
             palette: {
                 bg:          "#282828",
                 surface:     "#32302f",
@@ -117,6 +136,8 @@ Singleton {
         {
             id: "catppuccin-mocha",
             label: "Catppuccin Mocha",
+            kind: "dark",
+            siblingId: "catppuccin-latte",
             palette: {
                 bg:          "#1e1e2e",
                 surface:     "#313244",
@@ -137,6 +158,8 @@ Singleton {
         {
             id: "tokyo-night-storm",
             label: "Tokyo Night Storm",
+            kind: "dark",
+            siblingId: "tokyo-night-day",
             palette: {
                 bg:          "#24283b",
                 surface:     "#292e42",
@@ -157,6 +180,8 @@ Singleton {
         {
             id: "nord",
             label: "Nord",
+            kind: "dark",
+            siblingId: "nord-light",
             palette: {
                 bg:          "#2e3440",
                 surface:     "#3b4252",
@@ -177,6 +202,8 @@ Singleton {
         {
             id: "rose-pine",
             label: "Rosé Pine",
+            kind: "dark",
+            siblingId: "rose-pine-dawn",
             palette: {
                 bg:          "#191724",
                 surface:     "#1f1d2e",
@@ -197,6 +224,8 @@ Singleton {
         {
             id: "dracula",
             label: "Dracula",
+            kind: "dark",
+            siblingId: "dracula-light",
             palette: {
                 bg:          "#282a36",
                 surface:     "#343746",
@@ -217,6 +246,8 @@ Singleton {
         {
             id: "everforest-dark",
             label: "Everforest Dark",
+            kind: "dark",
+            siblingId: "everforest-light",
             palette: {
                 bg:          "#2e383c",
                 surface:     "#374145",
@@ -237,6 +268,8 @@ Singleton {
         {
             id: "kanagawa",
             label: "Kanagawa Wave",
+            kind: "dark",
+            siblingId: "kanagawa-lotus",
             palette: {
                 bg:          "#1f1f28",
                 surface:     "#2a2a37",
@@ -257,6 +290,8 @@ Singleton {
         {
             id: "solarized-dark",
             label: "Solarized Dark",
+            kind: "dark",
+            siblingId: "solarized-light",
             palette: {
                 bg:          "#002b36",
                 surface:     "#073642",
@@ -271,6 +306,228 @@ Singleton {
                 errorBright: "#cb4b16",
                 pipIdle:     "#073642",
                 pipActive:   "#586e75",
+                pipFocused:  "#268bd2"
+            }
+        },
+
+        // ---- Light themes ----
+        {
+            id: "default-light",
+            label: "Default Light",
+            kind: "light",
+            siblingId: "default",
+            palette: {
+                bg:          "#fafafa",
+                surface:     "#f0f0f0",
+                surfaceHi:   "#e0e0e0",
+                border:      "#d0d0d0",
+                text:        "#16181c",
+                textDim:     "#6e6e6e",
+                textMuted:   "#a0a0a0",
+                accent:      "#16181c",
+                accentText:  "#fafafa",
+                error:       "#d32f2f",
+                errorBright: "#b71c1c",
+                pipIdle:     "#d0d0d0",
+                pipActive:   "#a0a0a0",
+                pipFocused:  "#16181c"
+            }
+        },
+        {
+            id: "gruvbox-light",
+            label: "Gruvbox Light",
+            kind: "light",
+            siblingId: "gruvbox-dark",
+            palette: {
+                bg:          "#fbf1c7",
+                surface:     "#ebdbb2",
+                surfaceHi:   "#d5c4a1",
+                border:      "#bdae93",
+                text:        "#282828",
+                textDim:     "#504945",
+                textMuted:   "#665c54",
+                accent:      "#b57614",
+                accentText:  "#fbf1c7",
+                error:       "#cc241d",
+                errorBright: "#9d0006",
+                pipIdle:     "#bdae93",
+                pipActive:   "#a89984",
+                pipFocused:  "#b57614"
+            }
+        },
+        {
+            id: "catppuccin-latte",
+            label: "Catppuccin Latte",
+            kind: "light",
+            siblingId: "catppuccin-mocha",
+            palette: {
+                bg:          "#eff1f5",
+                surface:     "#e6e9ef",
+                surfaceHi:   "#ccd0da",
+                border:      "#bcc0cc",
+                text:        "#4c4f69",
+                textDim:     "#6c6f85",
+                textMuted:   "#8c8fa1",
+                accent:      "#8839ef",
+                accentText:  "#eff1f5",
+                error:       "#d20f39",
+                errorBright: "#e64553",
+                pipIdle:     "#ccd0da",
+                pipActive:   "#bcc0cc",
+                pipFocused:  "#8839ef"
+            }
+        },
+        {
+            id: "tokyo-night-day",
+            label: "Tokyo Night Day",
+            kind: "light",
+            siblingId: "tokyo-night-storm",
+            palette: {
+                bg:          "#e1e2e7",
+                surface:     "#d0d5e1",
+                surfaceHi:   "#c4c8da",
+                border:      "#a8aecb",
+                text:        "#3760bf",
+                textDim:     "#6172b0",
+                textMuted:   "#848cb5",
+                accent:      "#2e7de9",
+                accentText:  "#e1e2e7",
+                error:       "#f52a65",
+                errorBright: "#d20065",
+                pipIdle:     "#c4c8da",
+                pipActive:   "#8990b3",
+                pipFocused:  "#2e7de9"
+            }
+        },
+        {
+            id: "nord-light",
+            label: "Nord Light",
+            kind: "light",
+            siblingId: "nord",
+            palette: {
+                bg:          "#eceff4",
+                surface:     "#e5e9f0",
+                surfaceHi:   "#d8dee9",
+                border:      "#b9c4d4",
+                text:        "#2e3440",
+                textDim:     "#3b4252",
+                textMuted:   "#4c566a",
+                accent:      "#5e81ac",
+                accentText:  "#eceff4",
+                error:       "#bf616a",
+                errorBright: "#d08770",
+                pipIdle:     "#d8dee9",
+                pipActive:   "#b9c4d4",
+                pipFocused:  "#5e81ac"
+            }
+        },
+        {
+            id: "rose-pine-dawn",
+            label: "Rosé Pine Dawn",
+            kind: "light",
+            siblingId: "rose-pine",
+            palette: {
+                bg:          "#faf4ed",
+                surface:     "#f2e9e1",
+                surfaceHi:   "#dfdad9",
+                border:      "#cecacd",
+                text:        "#575279",
+                textDim:     "#797593",
+                textMuted:   "#9893a5",
+                accent:      "#907aa9",
+                accentText:  "#faf4ed",
+                error:       "#b4637a",
+                errorBright: "#d7827e",
+                pipIdle:     "#dfdad9",
+                pipActive:   "#cecacd",
+                pipFocused:  "#907aa9"
+            }
+        },
+        {
+            id: "dracula-light",
+            label: "Dracula Light",
+            kind: "light",
+            siblingId: "dracula",
+            palette: {
+                bg:          "#f8f8f2",
+                surface:     "#ebebe5",
+                surfaceHi:   "#dcdcd6",
+                border:      "#b8b8b2",
+                text:        "#282a36",
+                textDim:     "#44475a",
+                textMuted:   "#6272a4",
+                accent:      "#8a4ad9",
+                accentText:  "#f8f8f2",
+                error:       "#dc2626",
+                errorBright: "#d33682",
+                pipIdle:     "#dcdcd6",
+                pipActive:   "#b8b8b2",
+                pipFocused:  "#8a4ad9"
+            }
+        },
+        {
+            id: "everforest-light",
+            label: "Everforest Light",
+            kind: "light",
+            siblingId: "everforest-dark",
+            palette: {
+                bg:          "#fdf6e3",
+                surface:     "#f4f0d9",
+                surfaceHi:   "#efebd4",
+                border:      "#e0dcc7",
+                text:        "#5c6a72",
+                textDim:     "#829181",
+                textMuted:   "#a6b0a0",
+                accent:      "#8da101",
+                accentText:  "#fdf6e3",
+                error:       "#f85552",
+                errorBright: "#f57d26",
+                pipIdle:     "#efebd4",
+                pipActive:   "#e0dcc7",
+                pipFocused:  "#8da101"
+            }
+        },
+        {
+            id: "kanagawa-lotus",
+            label: "Kanagawa Lotus",
+            kind: "light",
+            siblingId: "kanagawa",
+            palette: {
+                bg:          "#f2ecbc",
+                surface:     "#e7dba0",
+                surfaceHi:   "#dcd5ac",
+                border:      "#afb1bb",
+                text:        "#545464",
+                textDim:     "#43443a",
+                textMuted:   "#836f4a",
+                accent:      "#4e8ca2",
+                accentText:  "#f2ecbc",
+                error:       "#c84053",
+                errorBright: "#e82424",
+                pipIdle:     "#dcd5ac",
+                pipActive:   "#afb1bb",
+                pipFocused:  "#4e8ca2"
+            }
+        },
+        {
+            id: "solarized-light",
+            label: "Solarized Light",
+            kind: "light",
+            siblingId: "solarized-dark",
+            palette: {
+                bg:          "#fdf6e3",
+                surface:     "#eee8d5",
+                surfaceHi:   "#d7d0bd",
+                border:      "#c5beac",
+                text:        "#586e75",
+                textDim:     "#657b83",
+                textMuted:   "#93a1a1",
+                accent:      "#268bd2",
+                accentText:  "#fdf6e3",
+                error:       "#dc322f",
+                errorBright: "#cb4b16",
+                pipIdle:     "#eee8d5",
+                pipActive:   "#93a1a1",
                 pipFocused:  "#268bd2"
             }
         }
@@ -312,6 +569,39 @@ Singleton {
                 Local.set(k, pal[k]);
             }
         }
+    }
+
+    // ---- Light/dark toggle ----
+    //
+    // toggleLightDark applies whichever theme is the sibling of the
+    // user's current theme, or no-ops when there's no current theme
+    // (Custom state) or no sibling defined. Consumers that want to
+    // disable a UI control read currentSibling (null = disabled).
+    //
+    // Why a reactive property rather than a function call: the
+    // controlcenter Tile binds enabled / stateText / icon to live
+    // state; a function-only API would force every consumer to wire
+    // its own change tracking on Local.data.
+    function toggleLightDark() {
+        const sibling = root.currentSibling;
+        if (sibling) root.applyTheme(sibling);
+    }
+
+    // The theme that toggleLightDark would apply right now, or null
+    // when no toggle target exists. Reactive on Local.data via the
+    // currentTheme dependency.
+    readonly property var currentSibling: {
+        const cur = root.currentTheme;
+        if (!cur || !cur.siblingId) return null;
+        const list = root.all;
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].id === cur.siblingId) return list[i];
+        }
+        // siblingId points at an id we couldn't resolve — typically a
+        // user theme referencing a sibling file that wasn't loaded
+        // (deleted, renamed, or the file failed validation). Treated
+        // the same as no sibling so the UI disables cleanly.
+        return null;
     }
 
     // ---- Selection-state matching ----
@@ -476,10 +766,25 @@ fi
                         "[ThemePresets] skipping user theme: missing id/label/palette");
                     continue;
                 }
+                // `kind` defaults to "dark" so existing user themes
+                // without the field continue to behave as before. Only
+                // an explicit "light" string opts into the light
+                // codepath (sun icon on the toggle, etc.); any other
+                // value is normalised to "dark".
+                const kind = parsed.kind === "light" ? "light" : "dark";
+                // `siblingId` is optional. When omitted or non-string,
+                // the toggle button stays disabled on this theme. Two
+                // user themes can pair by setting each other's id as
+                // their siblingId.
+                const siblingId = typeof parsed.siblingId === "string"
+                    ? parsed.siblingId
+                    : null;
                 out.push({
-                    id: parsed.id,
-                    label: parsed.label,
-                    palette: parsed.palette
+                    id:        parsed.id,
+                    label:     parsed.label,
+                    kind:      kind,
+                    siblingId: siblingId,
+                    palette:   parsed.palette
                 });
             } catch (e) {
                 console.warn("[ThemePresets] user theme parse error:", e);
