@@ -3,26 +3,33 @@ pragma Singleton
 // SystemTheme.qml
 // Bridges the in-shell theme state to the rest of the desktop. When
 // ThemePresets.currentTheme changes (any theme card click, the CC
-// light/dark toggle, or a user-theme apply), this singleton runs
-// gsettings to update the XDG portal's color-scheme + the gtk-theme,
-// so apps outside the shell follow the same dark/light preference.
+// light/dark toggle, or a user-theme apply), this singleton runs three
+// commands to push the dark/light preference outward:
 //
-// Apps that respect the result (via xdg-desktop-portal):
-//   - GTK4 / libadwaita apps              via color-scheme
-//   - GTK3 apps (Nautilus 3.x, Inkscape)  via gtk-theme
-//   - Qt6 apps                            via color-scheme on the portal
-//   - Electron 14+ (Discord, VS Code, …)  via color-scheme
-//   - Firefox 119+, Chromium-based        via color-scheme
+//   1. gsettings color-scheme  — XDG portal preference, picked up by
+//                                GTK4/libadwaita, Qt6 via portal,
+//                                Electron 14+, Firefox 119+, Chromium
+//   2. gsettings gtk-theme     — GTK3 apps that don't use libadwaita
+//   3. plasma-apply-colorscheme — KDE/Qt apps using QT_QPA_PLATFORMTHEME=kde
+//                                (Dolphin, Kate, Konsole, etc.) — writes
+//                                kdeglobals + emits the DBus signal so
+//                                running KDE apps re-theme live
+//
+// Step 3 is gracefully skipped if plasma-apply-colorscheme isn't on
+// PATH (non-KDE installs). The shell command uses `command -v` so the
+// absence is not an error.
 //
 // Apps that DON'T follow (deliberately out of scope):
-//   - Qt apps via QT_QPA_PLATFORMTHEME=kde (read kdeglobals, not gsettings)
 //   - Apps with custom themes (Spotify userstyles, Discord stylesheets)
 //   - Apps the user has explicitly overridden via env var or per-app config
+//   - Qt5 apps with neither QPA-kde nor portal support (rare)
 //
 // Configurable keys (all live in ~/.config/quickshell-bar/config.jsonc):
-//   systemThemeSync (bool, default true)  — master switch; false = no-op
-//   gtkThemeDark    (string, "Adwaita-dark") — gtk-theme set on dark applies
-//   gtkThemeLight   (string, "Adwaita")      — gtk-theme set on light applies
+//   systemThemeSync     (bool, default true)  — master switch; false = no-op
+//   gtkThemeDark        (string, "Adwaita-dark")  — gtk-theme on dark
+//   gtkThemeLight       (string, "Adwaita")       — gtk-theme on light
+//   kdeColorSchemeDark  (string, "BreezeDark")    — KDE scheme on dark
+//   kdeColorSchemeLight (string, "BreezeLight")   — KDE scheme on light
 //
 // Hot-reload safety: NEW singleton (gotcha #62), requires daemon restart
 // the first time this file lands. Subsequent edits hot-reload normally.
@@ -42,14 +49,16 @@ Singleton {
 
     // ---- State ----
     //
-    // Cache the (scheme, gtkTheme) pair last sent to gsettings so we can
+    // Cache the (scheme, gtkTheme, kdeScheme) tuple last sent so we can
     // bail out on duplicate Connections fires — currentTheme can re-
     // evaluate even when the resolved system state would be identical
     // (e.g. when the user toggles between two dark themes, scheme stays
-    // "prefer-dark"). Skipping the redundant gsettings spawn avoids both
-    // process churn and any perceptible UI lag during rapid theme browsing.
+    // "prefer-dark"). Skipping the redundant external calls avoids both
+    // process churn and any perceptible UI lag during rapid theme
+    // browsing.
     property string _lastScheme: ""
     property string _lastGtkTheme: ""
+    property string _lastKdeScheme: ""
 
     // True while the gsettings process is running. Useful for diagnostic
     // IPC if we ever add one; otherwise harmless.
@@ -98,29 +107,43 @@ Singleton {
         const gtkTheme = t.kind === "light"
             ? Local.get("gtkThemeLight", "Adwaita")
             : Local.get("gtkThemeDark", "Adwaita-dark");
+        const kdeScheme = t.kind === "light"
+            ? Local.get("kdeColorSchemeLight", "BreezeLight")
+            : Local.get("kdeColorSchemeDark", "BreezeDark");
 
         // Skip duplicate calls — see _lastScheme docstring above.
-        if (scheme === root._lastScheme && gtkTheme === root._lastGtkTheme) {
+        if (scheme === root._lastScheme
+            && gtkTheme === root._lastGtkTheme
+            && kdeScheme === root._lastKdeScheme) {
             return;
         }
         root._lastScheme = scheme;
         root._lastGtkTheme = gtkTheme;
+        root._lastKdeScheme = kdeScheme;
 
-        // Two gsettings calls chained with `&&` so both settle as one
-        // unit; if the first fails (e.g. dconf daemon hiccup) the second
-        // is skipped and the next theme change retries. Running them in
-        // a single sh process avoids the overhead of two separate
-        // QML Process objects and keeps stderr aggregated.
+        // Three external calls chained in a single sh process:
+        //   1. gsettings color-scheme  (portal preference)
+        //   2. gsettings gtk-theme     (GTK3 apps)
+        //   3. plasma-apply-colorscheme (KDE/Qt apps via kdeglobals + DBus)
+        //
+        // The plasma-apply-colorscheme step is gated on `command -v` so
+        // non-KDE installs (where the binary doesn't exist) skip it
+        // silently rather than spamming stderr. The trailing `|| true`
+        // makes failures non-fatal so the chain doesn't break and the
+        // next theme change still gets the gsettings calls fresh.
         //
         // Single-quote the values so spaces in theme names (rare but
         // possible — "Adwaita Dark" vs "Adwaita-dark") survive the
         // shell pass-through. Theme names that include single quotes
-        // would break this; gsettings theme names don't, in practice.
+        // would break this; in practice they don't.
         proc.command = ["sh", "-c",
             "gsettings set org.gnome.desktop.interface color-scheme '"
                 + scheme + "' && "
             + "gsettings set org.gnome.desktop.interface gtk-theme '"
-                + gtkTheme + "'"];
+                + gtkTheme + "' ; "
+            + "command -v plasma-apply-colorscheme >/dev/null 2>&1 && "
+            + "plasma-apply-colorscheme '" + kdeScheme + "' "
+            + "|| true"];
         root.applying = true;
         proc.running = false;
         proc.running = true;
