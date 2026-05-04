@@ -2,17 +2,21 @@
 
 Per-machine overrides without touching tracked files.
 
-## Two ways to edit
+## Three ways to edit
 
 | Method | When to use |
 |---|---|
-| **Visual settings page** — open Control Center, click the gear icon (top-right of the header), or run `qs ipc call settings open`. | Casual tweaking. Sliders, hex-input + colour picker, dropdowns. Live preview as you change values; auto-saves to disk after 500 ms idle. |
+| **Pick a pre-made theme** — open the Settings page (gear icon in Control Center, or `qs ipc call settings open`) and click a card on the Theme tab. | Easiest. One click sets all 14 colour keys to a curated palette. Built-in themes: Default, Gruvbox Dark, Catppuccin Mocha, Tokyo Night Storm, Nord, Rosé Pine, Dracula, Everforest Dark, Kanagawa Wave, Solarized Dark. User-defined themes loaded from `~/.config/quickshell-bar/themes/*.jsonc` appear alongside. |
+| **Visual settings page (other tabs)** — same Settings popup, Colours / Typography / Layout & Motion / Behaviour tabs. | Casual tweaking on top of (or independent of) a theme. Sliders, hex-input + colour picker, dropdowns. Live preview as you change values; auto-saves to disk after 500 ms idle. |
 | **Hand-edit `~/.config/quickshell-bar/config.jsonc`** | Power users, scripting, copying configs between machines, dotfiles repos. JSONC syntax with comments allowed. |
 
-Both write to the same file. The settings page rewrites the file in
-canonical format (header comment + minimal JSON of overridden keys);
-the first save of each session backs up the existing content to
-`config.jsonc.bak` so manual edits with custom comments aren't lost.
+All three write to the same `config.jsonc`. The settings page rewrites
+the file in canonical format (header comment + minimal JSON of
+overridden keys); the first save of each session backs up the
+existing content to `config.jsonc.bak` so manual edits with custom
+comments aren't lost. Theme-card clicks write all 14 colour keys at
+once via the same debounced flush, so a theme switch is one
+`config.jsonc` write, not 14.
 
 ## How it works
 
@@ -41,6 +45,81 @@ string values (e.g. URLs like `"https://..."`) are preserved correctly
 If the JSON is malformed, a warning is logged via `console.warn` and the
 shell keeps running with whatever was last successfully parsed (or
 defaults if nothing has been). Your shell will not crash from a typo.
+
+## Themes
+
+The Settings popup's Theme tab is the fastest way to recolour the
+shell. Click a card and all 14 colour keys are written at once;
+the rest of the customization keys (fonts, sizes, behaviour) are
+unaffected, so your typography and layout choices stay intact across
+theme swaps.
+
+### Built-in catalogue
+
+| Theme | Notes |
+|---|---|
+| **Default** | The shipped monochrome with white accent. One-click revert. |
+| **Gruvbox Dark** | morhetz/gruvbox dark0 base, bright_yellow accent. |
+| **Catppuccin Mocha** | catppuccin/palette Mocha flavour, mauve accent. |
+| **Tokyo Night Storm** | folke/tokyonight.nvim Storm variant, blue accent. |
+| **Nord** | Arctic Ice Studio's nord0..nord15, frost (nord8) accent. |
+| **Rosé Pine** | rose-pine.io main palette, iris accent (purple). |
+| **Dracula** | draculatheme.com canonical palette, purple accent. |
+| **Everforest Dark** | sainnhe/everforest medium variant, green accent. |
+| **Kanagawa Wave** | rebelot/kanagawa.nvim Wave variant, crystalBlue accent. |
+| **Solarized Dark** | Ethan Schoonover's classic, blue accent. |
+
+The "Current: <theme name>" label above the grid identifies which
+theme (if any) your current state matches. If you tweak any colour
+manually after applying a theme, the label flips to "Current: Custom"
+and the card's selected indicator clears — apply the same theme card
+again to reset back to its palette.
+
+### User-defined themes
+
+Drop a JSONC file into `~/.config/quickshell-bar/themes/` to add your
+own theme. Each file holds one theme:
+
+```jsonc
+// ~/.config/quickshell-bar/themes/my-custom.jsonc
+{
+  "id":    "my-custom",
+  "label": "My Custom Theme",
+  "palette": {
+    "bg":          "#1a1a1a",
+    "surface":     "#2a2a2a",
+    "surfaceHi":   "#3a3a3a",
+    "border":      "#404040",
+    "text":        "#ffffff",
+    "textDim":     "#a0a0a0",
+    "textMuted":   "#606060",
+    "accent":      "#ff6b6b",
+    "accentText":  "#1a1a1a",
+    "error":       "#ff4444",
+    "errorBright": "#ff6666",
+    "pipIdle":     "#404040",
+    "pipActive":   "#606060",
+    "pipFocused":  "#ff6b6b"
+  }
+}
+```
+
+A copy-pasteable template lives at [`examples/theme.jsonc`](../examples/theme.jsonc).
+
+Required top-level keys: `id` (stable slug, used for current-theme
+matching), `label` (display text), `palette` (record of the 14
+overridable colour keys). Files with malformed JSON or missing
+required fields are skipped silently with a `console.warn`.
+
+The directory is rescanned on shell start and on every Settings popup
+open — drop a theme file in, open Settings, and your card appears
+right after the built-ins. No daemon restart needed.
+
+> **First-time setup**: when you first pull the branch that introduces
+> `ThemePresets`, you need to restart `qs` once for the new singleton
+> to register (per gotcha #62 — hot-reload picks up file content but
+> not new qmldir entries). `pkill qs && qs -p /path/to/repo -d &`.
+> After that, edits to your theme files hot-reload normally.
 
 ## Quick start
 
@@ -184,27 +263,31 @@ Save the file and your running shell picks the changes up immediately.
 
 ## Recipes
 
-### "Tokyo Night"-ish accent + JetBrains font
+> Tokyo Night Storm and Solarized Dark are now both built-in themes;
+> click them on the Theme tab and the 14 colour keys are written for
+> you. The recipes below show how to **layer extra tweaks on top of**
+> a theme — typography, geometry, animation — that the theme system
+> deliberately doesn't touch.
+
+### Tokyo Night Storm + JetBrains font
+
+Pick the **Tokyo Night Storm** card on the Theme tab, then add to
+`~/.config/quickshell-bar/config.jsonc`:
 
 ```jsonc
 {
-  "accent":     "#7aa2f7",   // soft blue
-  "accentText": "#1a1b26",   // dark text on accent
-  "fontMono":   "JetBrains Mono Nerd Font"
+  "fontMono": "JetBrains Mono Nerd Font"
 }
 ```
 
-### Solarized Dark surfaces
+### Solarized Dark with custom accent
+
+Pick the **Solarized Dark** card, then override just the accent in
+`config.jsonc` if you want to deviate (this flips the Theme card to
+"Custom" until you reset the accent):
 
 ```jsonc
 {
-  "bg":        "#002b36",
-  "surface":   "#073642",
-  "surfaceHi": "#08404d",
-  "border":    "#0d4a55",
-  "text":      "#fdf6e3",
-  "textDim":   "#93a1a1",
-  "textMuted": "#586e75",
   "accent":    "#268bd2",
   "accentText": "#fdf6e3"
 }

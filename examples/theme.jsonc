@@ -1,0 +1,56 @@
+// quickshell-bar — user-defined theme template.
+//
+// Drop a copy of this file (with your own values) into
+// ~/.config/quickshell-bar/themes/<your-theme>.jsonc. The shell scans
+// the directory at startup and on every Settings popup open, so newly-
+// dropped theme files appear in the Theme tab without a daemon restart.
+//
+// Each file is one theme. Required top-level keys:
+//   id      — stable slug (used for current-theme matching)
+//   label   — display text on the theme card
+//   palette — record of the 14 overridable colour keys
+//
+// Files with malformed JSON or missing id/label/palette are skipped
+// silently with a console.warn — same forgiveness Local.qml gives the
+// main config.jsonc, since theme files are user-edited.
+//
+// Tips:
+//   - Pick an `id` that's unlikely to collide with built-ins (avoid
+//     "default" / "gruvbox-dark" / "catppuccin-mocha" / "tokyo-night-storm"
+//     / "nord" / "rose-pine" / "dracula" / "everforest-dark" / "kanagawa"
+//     / "solarized-dark" — those are taken).
+//   - If the user's effective state matches multiple theme palettes,
+//     the first match wins (built-ins are checked before user themes).
+//   - Comments (// and /* */) are stripped before JSON.parse, so feel
+//     free to annotate.
+//
+// Reference: docs/CUSTOMIZATION.md → Themes
+{
+  "id":    "my-custom",
+  "label": "My Custom Theme",
+  "palette": {
+    // ─── Surfaces ──────────────────────────────────────────────
+    "bg":          "#1a1a1a",   // bar / popup base background
+    "surface":     "#2a2a2a",   // hover state, mild elevation
+    "surfaceHi":   "#3a3a3a",   // pinned / pressed / active state
+    "border":      "#404040",   // lines, popup borders, dividers
+
+    // ─── Text ──────────────────────────────────────────────────
+    "text":        "#ffffff",   // primary text
+    "textDim":     "#a0a0a0",   // secondary text
+    "textMuted":   "#606060",   // tertiary text (separators, dim labels)
+
+    // ─── Accent ────────────────────────────────────────────────
+    "accent":      "#ff6b6b",   // focused / today / slider thumb / active tile
+    "accentText":  "#1a1a1a",   // text drawn on top of accent fill
+
+    // ─── Error / warning ───────────────────────────────────────
+    "error":       "#ff4444",   // error borders / strokes
+    "errorBright": "#ff6666",   // error text on dark backgrounds
+
+    // ─── Workspace pips ────────────────────────────────────────
+    "pipIdle":     "#404040",   // idle workspace pip
+    "pipActive":   "#606060",   // active on output but not focused
+    "pipFocused":  "#ff6b6b"    // focused workspace pip (typically = accent)
+  }
+}
