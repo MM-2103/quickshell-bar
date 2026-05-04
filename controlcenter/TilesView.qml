@@ -272,7 +272,7 @@ Item {
         // a track (its `visible` binding handles that internally), so a
         // collapsed item takes 0 vertical space in this Column and the
         // popup appears more compact when there's nothing to show.
-        // Width override fills the CC's inner width (~404 px after the
+        // Width override fills the CC's inner width (~396 px after the
         // popup-padding bump); the card's hardcoded 360 default would
         // leave awkward asymmetric padding.
         NowPlayingCard {
