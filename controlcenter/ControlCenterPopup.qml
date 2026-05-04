@@ -57,13 +57,15 @@ PopupWindow {
     anchor.rect.y: anchorItem ? anchorItem.height + 6 - 12 : 0
     anchor.adjustment: PopupAdjustment.SlideX
 
-    // 440 wide × 440 tall. Width still gives tile state strings room to
-    // breathe; the extra 40 px of height (was 400) makes room for the
-    // weather card sitting between the tile grid and NowPlayingCard.
+    // 440 wide × 520 tall. Height bumped from 440 → 520 to make room
+    // for the third tile row (Theme toggle added in the light/dark
+    // toggle work) — 64 px tile + 12 px Column spacing = 76 px of
+    // additional content that previously caused the NowPlayingCard at
+    // the bottom of the Column to clip below the popup boundary.
     // Detail views (Network, Bluetooth, Cities) still scroll internally
     // when their list overflows.
     implicitWidth:  440 + 24  // 24 = shadow padding (12 each side)
-    implicitHeight: 440 + 24
+    implicitHeight: 520 + 24
 
     // ---- Card surface ----
     Rectangle {
