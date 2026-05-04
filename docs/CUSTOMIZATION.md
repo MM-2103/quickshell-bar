@@ -116,12 +116,20 @@ The tile renders **disabled** in three cases:
 
 ### System theme sync
 
-Applying a theme (via the Theme tab or the CC light/dark toggle) also
-runs `gsettings` to update the XDG portal's `color-scheme` setting and
-the `gtk-theme`, so apps outside the shell follow the same dark/light
-preference. The orchestration is one-way: shell → gsettings. External
-changes (e.g. `gnome-tweaks`) don't sync back into the shell — clicking
-the toggle re-syncs from the shell side.
+Applying a theme (via the Theme tab or the CC light/dark toggle) runs
+three external commands to push the dark/light preference outward:
+
+1. `gsettings color-scheme` — XDG portal preference
+2. `gsettings gtk-theme` — GTK3 apps that don't use libadwaita
+3. `plasma-apply-colorscheme` — KDE/Qt apps using `QT_QPA_PLATFORMTHEME=kde`
+   (Dolphin, Kate, Konsole, etc.) — writes kdeglobals + emits the DBus
+   signal so running KDE apps re-theme live
+
+Step 3 is gracefully skipped if `plasma-apply-colorscheme` isn't on
+`PATH` (non-KDE installs). The orchestration is one-way: shell →
+gsettings → kdeglobals. External changes (e.g. `gnome-tweaks`,
+`systemsettings`) don't sync back into the shell — click the toggle to
+re-sync from the shell side.
 
 #### What follows automatically
 
@@ -129,24 +137,27 @@ the toggle re-syncs from the shell side.
 |---|---|
 | GTK4 / libadwaita apps | reads `color-scheme` via portal |
 | GTK3 apps (Nautilus 3.x, Inkscape, etc.) | reads `gtk-theme` setting |
-| Qt6 apps | reads `color-scheme` via portal |
+| Qt6 apps via portal | reads `color-scheme` via portal |
+| Qt apps via `QT_QPA_PLATFORMTHEME=kde` (Dolphin, Kate, Konsole) | reads kdeglobals; live update via DBus |
 | Electron 14+ (Discord, VS Code, Slack) | reads `color-scheme` via `nativeTheme` |
 | Firefox 119+ | reads `color-scheme` via portal (default since 119) |
 | Chromium-based browsers | reads `color-scheme` for `prefers-color-scheme` media query |
 
 #### What doesn't follow
 
-- **Qt apps via `QT_QPA_PLATFORMTHEME=kde`** — read kdeglobals, not gsettings. Modern Qt6 apps still follow `color-scheme` via the portal, but Qt5 / older platform-themed apps stay where they are.
 - **Apps with custom themes** (Spotify userstyles, Discord stylesheets) — out of scope; they need their own theme files.
-- **Apps you've explicitly overridden** (per-app config, env vars like `GTK_THEME`) — those win.
+- **Apps you've explicitly overridden** (per-app config, env vars like `GTK_THEME` or `QT_STYLE_OVERRIDE`) — those win.
+- **Qt5 apps with neither QPA-kde nor portal support** — rare; depends on per-app config.
 
 #### Configurable keys
 
 | Key | Type | Default | What it controls |
 |---|---|---|---|
-| `systemThemeSync` | bool | `true` | Master switch. Set `false` to disable system-theme orchestration entirely — the shell theme still works, but `gsettings` is never touched. |
+| `systemThemeSync` | bool | `true` | Master switch. Set `false` to disable system-theme orchestration entirely — the shell theme still works, but no external commands run. |
 | `gtkThemeDark` | string | `"Adwaita-dark"` | The `gtk-theme` value set when applying a dark palette. Must be installed in `/usr/share/themes` or `~/.themes`. |
 | `gtkThemeLight` | string | `"Adwaita"` | The `gtk-theme` value set when applying a light palette. |
+| `kdeColorSchemeDark` | string | `"BreezeDark"` | KDE color-scheme name applied via `plasma-apply-colorscheme` on dark. Available schemes live in `/usr/share/color-schemes/` (system) or `~/.local/share/color-schemes/` (user); use the filename without the `.colors` extension. |
+| `kdeColorSchemeLight` | string | `"BreezeLight"` | KDE color-scheme name applied on light. |
 
 The `color-scheme` value is always derived from the theme's `kind`
 field (`dark` → `prefer-dark`, `light` → `prefer-light`) and isn't
