@@ -114,6 +114,53 @@ The tile renders **disabled** in three cases:
 - The `siblingId` points at an id that doesn't exist (a sibling file
   was deleted or failed validation).
 
+### System theme sync
+
+Applying a theme (via the Theme tab or the CC light/dark toggle) also
+runs `gsettings` to update the XDG portal's `color-scheme` setting and
+the `gtk-theme`, so apps outside the shell follow the same dark/light
+preference. The orchestration is one-way: shell → gsettings. External
+changes (e.g. `gnome-tweaks`) don't sync back into the shell — clicking
+the toggle re-syncs from the shell side.
+
+#### What follows automatically
+
+| App class | Mechanism |
+|---|---|
+| GTK4 / libadwaita apps | reads `color-scheme` via portal |
+| GTK3 apps (Nautilus 3.x, Inkscape, etc.) | reads `gtk-theme` setting |
+| Qt6 apps | reads `color-scheme` via portal |
+| Electron 14+ (Discord, VS Code, Slack) | reads `color-scheme` via `nativeTheme` |
+| Firefox 119+ | reads `color-scheme` via portal (default since 119) |
+| Chromium-based browsers | reads `color-scheme` for `prefers-color-scheme` media query |
+
+#### What doesn't follow
+
+- **Qt apps via `QT_QPA_PLATFORMTHEME=kde`** — read kdeglobals, not gsettings. Modern Qt6 apps still follow `color-scheme` via the portal, but Qt5 / older platform-themed apps stay where they are.
+- **Apps with custom themes** (Spotify userstyles, Discord stylesheets) — out of scope; they need their own theme files.
+- **Apps you've explicitly overridden** (per-app config, env vars like `GTK_THEME`) — those win.
+
+#### Configurable keys
+
+| Key | Type | Default | What it controls |
+|---|---|---|---|
+| `systemThemeSync` | bool | `true` | Master switch. Set `false` to disable system-theme orchestration entirely — the shell theme still works, but `gsettings` is never touched. |
+| `gtkThemeDark` | string | `"Adwaita-dark"` | The `gtk-theme` value set when applying a dark palette. Must be installed in `/usr/share/themes` or `~/.themes`. |
+| `gtkThemeLight` | string | `"Adwaita"` | The `gtk-theme` value set when applying a light palette. |
+
+The `color-scheme` value is always derived from the theme's `kind`
+field (`dark` → `prefer-dark`, `light` → `prefer-light`) and isn't
+configurable per-key — that's the whole point of dark/light pairing.
+
+#### Why one-way only
+
+Reverse sync (subscribing to gsettings change events to update the
+shell) was deliberately skipped for v1. It would require either
+spawning `dconf monitor` or making DBus calls to the portal's
+`SettingChanged` signal, both of which add code surface for a payoff
+that's mostly cosmetic. If you change `gsettings` externally, click
+the CC Theme tile and the shell catches up.
+
 ### User-defined themes
 
 Drop a JSONC file into `~/.config/quickshell-bar/themes/` to add your
