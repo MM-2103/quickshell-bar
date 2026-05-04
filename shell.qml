@@ -17,6 +17,7 @@ import qs.lock              // for Lock + LockService singleton
 import qs.wallpaper         // for WallpaperLayer + WallpaperPickerPopup + WallpaperService
 import qs.weather           // for WeatherDetailPopup + WeatherService singleton
 import qs.settings          // for SettingsPopup + SettingsService singleton
+import qs.themes            // for SystemTheme singleton (system-theme orchestration)
 
 ShellRoot {
     id: root
@@ -28,9 +29,15 @@ ShellRoot {
     //
     // Also keep OsdService.layoutName in sync with the compositor's
     // currentLayout so the layout OSD has something to render.
+    //
+    // SystemTheme.bootstrap() forces the system-theme singleton to
+    // instantiate (singletons are lazy in QML — Connections inside an
+    // unreferenced singleton never fire) and runs an initial gsettings
+    // sync against whatever theme override is loaded from config.jsonc.
     Component.onCompleted: {
         NotificationService.currentScreen = Qt.binding(() => Compositor.focusedOutput);
         OsdService.layoutName            = Qt.binding(() => Compositor.currentLayout);
+        SystemTheme.bootstrap();
     }
 
     // Trigger a layout OSD whenever the compositor reports a new layout
