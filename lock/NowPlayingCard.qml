@@ -38,12 +38,16 @@ Rectangle {
     // Glassy panel: semi-transparent white over the already-blurred
     // wallpaper, with a 1 px highlight border. Matches the input card's
     // alpha intensity (0.10) for visual consistency.
+    //
+    // DIAGNOSTIC: border swapped to bright red 4 px to verify whether
+    // hot-reload + restart actually reach this file. Revert immediately
+    // after visual confirmation.
     width: 360
     height: 64
     radius: 14
     color: Qt.rgba(1, 1, 1, 0.10)
-    border.color: Qt.rgba(1, 1, 1, 0.18)
-    border.width: 1
+    border.color: "red"
+    border.width: 4
 
     // ---- Album art availability ----
     //
