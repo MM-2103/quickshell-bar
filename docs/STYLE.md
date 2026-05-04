@@ -649,9 +649,11 @@ themselves — they assume their host did.
 ### Width assumption
 
 Extracted views are bound to the host popup's inner width. CC views fit
-the 412 px width they get; popups smaller than the original popup width
-(BluetoothPopup was 360, NetworkPopup was 380) get cramped — be willing
-to widen the host or compress the content.
+the 396 px width they get (440 px popup card minus 22 px margins on
+each side after the padding bump for the 3-row tile grid); popups
+smaller than the original popup width (BluetoothPopup was 360,
+NetworkPopup was 380) get cramped — be willing to widen the host or
+compress the content.
 
 ---
 
