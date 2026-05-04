@@ -172,6 +172,96 @@ spawning `dconf monitor` or making DBus calls to the portal's
 that's mostly cosmetic. If you change `gsettings` externally, click
 the CC Theme tile and the shell catches up.
 
+#### How to verify it's working
+
+When apps don't seem to follow a theme switch, walk down the layers
+top-to-bottom and stop at the first one that doesn't match the
+expected state.
+
+```bash
+# 1. Click the CC Theme tile (or apply any theme), then:
+
+# 2. Inspect each layer the shell touches.
+gsettings get org.gnome.desktop.interface color-scheme    # 'prefer-dark' / 'prefer-light'
+gsettings get org.gnome.desktop.interface gtk-theme       # 'Adwaita-dark' / 'Adwaita' (or your override)
+grep -E '^(ColorScheme|LookAndFeelPackage)' ~/.config/kdeglobals  # BreezeDark / BreezeLight
+
+# 3. Check the shell's own logs for SystemTheme errors.
+qs -p /path/to/quickshell-bar log -t 100 | grep -i systemtheme
+# Empty output = no errors. The singleton uses console.warn("[SystemTheme]", ...)
+# for any gsettings or plasma-apply-colorscheme stderr.
+
+# 4. Confirm the singleton is even alive.
+qs -p /path/to/quickshell-bar log -t 200 | grep -iE "themepresets|systemtheme"
+# Should at least show theme presets being parsed at startup.
+```
+
+If steps 2–3 all report the expected state but a specific app didn't
+follow, the issue is the app itself — see "Common failure modes"
+below for the typical culprits.
+
+#### Common failure modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `gsettings get` shows the right value but a GTK3 app didn't follow | `gtkThemeDark` / `gtkThemeLight` names a theme that isn't installed | `ls /usr/share/themes/ ~/.themes/ 2>/dev/null` to find valid names; update the override in `config.jsonc` |
+| Dolphin / Kate / Konsole didn't re-theme live | `plasma-apply-colorscheme` not on `PATH`, or the scheme name is wrong | `which plasma-apply-colorscheme` (must be installed); `ls /usr/share/color-schemes/` to see valid names (omit the `.colors` extension when setting `kdeColorSchemeDark` / `kdeColorSchemeLight`) |
+| Firefox stuck on the wrong mode | `widget.use-xdg-desktop-portal.settings` not enabled | Open `about:config`, set the pref to `true` (default since FF 119; older versions need this manually); reload tabs |
+| Electron app stuck (Discord, VS Code, Slack) | App is on Electron < 14, or has its own theme override in its settings | Per-app config; out of shell scope. Recent Electron does follow `color-scheme` automatically. |
+| Nothing changed externally — only the shell flipped | `"systemThemeSync": false` is set in `config.jsonc` | Flip to `true` or remove the key. Check `Local.get("systemThemeSync", true)` is the master switch. |
+| Shell theme changed but `gsettings` didn't update | `currentTheme` is `null` (Custom state — manual ColorRow tweaks diverged the palette) | Apply any preset theme card; SystemTheme bails when `currentTheme` is null because there's no `kind` to derive light/dark from |
+| Daemon was just restarted and now nothing reacts | New singletons need a daemon restart (gotcha #62), but you also need to trigger at least one theme change for the apply chain to fire after the bootstrap initial sync | Click the CC Theme tile to flip light↔dark and back |
+| `qs log` shows `gsettings: command not found` | `gsettings` isn't installed (extremely minimal setup) | Install `glib2` (Arch) / `glib2.0-bin` (Debian) — `gsettings` ships with the GNOME settings daemon dependency tree, present on virtually all Linux desktops |
+| `qs log` shows `Schema 'org.gnome.desktop.interface' not found` | `gsettings-desktop-schemas` not installed | Install `gsettings-desktop-schemas` (Arch ships this with `glib2`, but minimal containers may not have it) |
+
+#### Manual reset / desync recovery
+
+If `gsettings` and `kdeglobals` end up out of sync (e.g. you used
+`gnome-tweaks` and the shell side doesn't match anymore), you have
+three escalation levels:
+
+```bash
+# 1. Cheapest: click the CC Theme tile twice (light → dark or vice versa).
+#    SystemTheme re-runs the full apply chain on every theme change.
+
+# 2. Force a fresh apply by hand. Equivalent to what the shell would run.
+gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark'
+plasma-apply-colorscheme BreezeDark
+
+# 3. Wipe state and let the shell re-bootstrap on next theme change.
+qs -p /path/to/quickshell-bar kill
+qs -p /path/to/quickshell-bar -d &
+# The first SystemTheme.bootstrap() call after restart will sync gsettings
+# + kdeglobals to whatever ThemePresets.currentTheme resolves to from your
+# saved overrides. Then click the CC Theme tile to verify.
+```
+
+#### The actual shell command being run
+
+For copy-paste debugging — the resolved `sh -c` string SystemTheme
+spawns on every theme change:
+
+```sh
+gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' && \
+gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark' ; \
+command -v plasma-apply-colorscheme >/dev/null 2>&1 && \
+plasma-apply-colorscheme 'BreezeDark' || true
+```
+
+(Substitute `'prefer-light'` / `'Adwaita'` / `'BreezeLight'` for the
+light path.)
+
+Run this manually in a terminal to test the whole chain end-to-end
+without involving the shell. If it works there but not from the
+shell, the singleton itself is failing — `qs log -t 100 | grep -i
+systemtheme` will surface the reason.
+
+The trailing `|| true` is intentional: `plasma-apply-colorscheme` is
+gated on `command -v` so non-KDE installs skip silently, and any
+failure in the KDE step is masked so the gsettings calls stay
+authoritative even if KDE tooling is broken.
+
 ### User-defined themes
 
 Drop a JSONC file into `~/.config/quickshell-bar/themes/` to add your
