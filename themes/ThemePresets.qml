@@ -571,6 +571,39 @@ Singleton {
         }
     }
 
+    // ---- Light/dark toggle ----
+    //
+    // toggleLightDark applies whichever theme is the sibling of the
+    // user's current theme, or no-ops when there's no current theme
+    // (Custom state) or no sibling defined. Consumers that want to
+    // disable a UI control read currentSibling (null = disabled).
+    //
+    // Why a reactive property rather than a function call: the
+    // controlcenter Tile binds enabled / stateText / icon to live
+    // state; a function-only API would force every consumer to wire
+    // its own change tracking on Local.data.
+    function toggleLightDark() {
+        const sibling = root.currentSibling;
+        if (sibling) root.applyTheme(sibling);
+    }
+
+    // The theme that toggleLightDark would apply right now, or null
+    // when no toggle target exists. Reactive on Local.data via the
+    // currentTheme dependency.
+    readonly property var currentSibling: {
+        const cur = root.currentTheme;
+        if (!cur || !cur.siblingId) return null;
+        const list = root.all;
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].id === cur.siblingId) return list[i];
+        }
+        // siblingId points at an id we couldn't resolve — typically a
+        // user theme referencing a sibling file that wasn't loaded
+        // (deleted, renamed, or the file failed validation). Treated
+        // the same as no sibling so the UI disables cleanly.
+        return null;
+    }
+
     // ---- Selection-state matching ----
     //
     // currentTheme is the first theme in `all` whose palette matches
@@ -733,10 +766,25 @@ fi
                         "[ThemePresets] skipping user theme: missing id/label/palette");
                     continue;
                 }
+                // `kind` defaults to "dark" so existing user themes
+                // without the field continue to behave as before. Only
+                // an explicit "light" string opts into the light
+                // codepath (sun icon on the toggle, etc.); any other
+                // value is normalised to "dark".
+                const kind = parsed.kind === "light" ? "light" : "dark";
+                // `siblingId` is optional. When omitted or non-string,
+                // the toggle button stays disabled on this theme. Two
+                // user themes can pair by setting each other's id as
+                // their siblingId.
+                const siblingId = typeof parsed.siblingId === "string"
+                    ? parsed.siblingId
+                    : null;
                 out.push({
-                    id: parsed.id,
-                    label: parsed.label,
-                    palette: parsed.palette
+                    id:        parsed.id,
+                    label:     parsed.label,
+                    kind:      kind,
+                    siblingId: siblingId,
+                    palette:   parsed.palette
                 });
             } catch (e) {
                 console.warn("[ThemePresets] user theme parse error:", e);
