@@ -43,8 +43,19 @@ Rectangle {
     property bool showChevron: false
 
     // Optional: override the icon's tint (e.g. PowerProfile uses accent on
-    // Performance even when the tile itself isn't active).
-    property color iconColor: root.active ? Theme.accentText : Theme.text
+    // Performance even when the tile itself isn't active). Disabled tiles
+    // render the icon dimmed regardless of override, so consumers don't
+    // have to special-case the disabled state.
+    property color iconColor: !root.enabled
+        ? Theme.textMuted
+        : (root.active ? Theme.accentText : Theme.text)
+
+    // Note on `enabled`: this property is inherited from Item; consumers
+    // bind `enabled: false` to render a dimmed, non-interactive tile
+    // (used by the light/dark toggle when the current theme has no
+    // sibling). Item.enabled cascades to all child MouseAreas, so click
+    // suppression and hover suppression happen automatically — we only
+    // need to express the visual delta here.
 
     signal clicked()
     signal chevronClicked()
@@ -88,7 +99,9 @@ Rectangle {
                 width: parent.width - 16 - parent.spacing
                        - (root.showChevron ? 12 + parent.spacing : 0)
                 text: root.label
-                color: root.active ? Theme.accentText : Theme.text
+                color: !root.enabled
+                    ? Theme.textMuted
+                    : (root.active ? Theme.accentText : Theme.text)
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Font.Bold
@@ -115,9 +128,11 @@ Rectangle {
         Text {
             width: parent.width
             text: root.stateText
-            color: root.active
-                ? Qt.rgba(Theme.accentText.r, Theme.accentText.g, Theme.accentText.b, 0.75)
-                : Theme.textDim
+            color: !root.enabled
+                ? Theme.textMuted
+                : (root.active
+                    ? Qt.rgba(Theme.accentText.r, Theme.accentText.g, Theme.accentText.b, 0.75)
+                    : Theme.textDim)
             font.family: Theme.fontMono
             font.pixelSize: Theme.fontSizeSmall
             elide: Text.ElideRight
