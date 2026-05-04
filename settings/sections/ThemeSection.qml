@@ -1,8 +1,7 @@
 // ThemeSection.qml
 // Settings tab content for the Theme picker. A "Current: X" status line
-// followed by a Flow of ThemeCard items (one per entry in
-// ThemePresets.all — built-in palettes first, then any user-defined
-// themes from ~/.config/quickshell-bar/themes/*.jsonc).
+// followed by two grouped Flows of ThemeCard items — DARK THEMES first,
+// then LIGHT THEMES, each preceded by a SectionHeader divider.
 //
 // Cards apply their palette on click, writing all 14 colour keys via
 // ThemePresets.applyTheme. The selected indicator on each card and
@@ -10,12 +9,19 @@
 // reactive on Local.data — so manual ColorRow edits flip the selection
 // to "Custom" without explicit wiring.
 //
+// Each Flow filters ThemePresets.all by the `kind` field on each theme
+// record. User-defined themes drop into whichever group their `kind`
+// declares ("dark" by default if omitted from the JSONC). The filter
+// re-runs reactively when ThemePresets.all changes (e.g. on user-theme
+// rescan), so newly-dropped theme files appear in the right group
+// without any extra wiring.
+//
 // Layout: Flow auto-wraps cards based on available width. At the
 // popup's 808 px content width with 8 px gaps, four cards fit per row
-// (4 × 188 + 3 × 8 = 776, plus padding). 10 built-in themes therefore
-// take three rows; user themes overflow onto subsequent rows. The Flow
-// wraps cleanly at any width, so resizing the popup later won't break
-// the layout.
+// (4 × 188 + 3 × 8 = 776, plus padding). 10 built-in dark + 10 light
+// take three rows each, so the section overflows the ~466 px Flickable
+// content area and scrolls — handled cleanly by SettingsPopup's
+// Flickable wrapper.
 
 import QtQuick
 import qs
@@ -59,17 +65,39 @@ Column {
         }
     }
 
-    // ---- Theme grid ----
-    //
-    // Flow wraps cards based on available width. Spacing matches the
-    // ColorPicker / PresetDropdownList padding norms (4–8 px) and
-    // pairs cleanly with ThemeCard's 188 × 80 size.
+    // ---- Dark themes ----
+    SectionHeader { label: "DARK THEMES" }
+
     Flow {
         width: parent.width
         spacing: 8
 
         Repeater {
-            model: ThemePresets.all
+            // Filter is reactive on ThemePresets.all — Repeater re-renders
+            // when user themes load. JS Array.filter creates a new array
+            // each evaluation; cheap at this scale (20+ entries) and the
+            // resulting model is iterated by Repeater synchronously.
+            model: ThemePresets.all.filter(t => t.kind !== "light")
+
+            delegate: ThemeCard {
+                required property var modelData
+                theme: modelData
+            }
+        }
+    }
+
+    // ---- Light themes ----
+    SectionHeader { label: "LIGHT THEMES" }
+
+    Flow {
+        width: parent.width
+        spacing: 8
+
+        Repeater {
+            // Themes whose kind is explicitly "light". User themes that
+            // omit kind default to "dark" (per ThemePresets._parseUserThemes)
+            // and so don't land here unless explicitly opted in.
+            model: ThemePresets.all.filter(t => t.kind === "light")
 
             delegate: ThemeCard {
                 required property var modelData
