@@ -62,7 +62,13 @@ Rectangle {
     readonly property bool _hasArt: card.cachedArtUrl !== ""
 
     // Layout constants used in two places.
-    readonly property int _padding: 12
+    // _padding bumped from 12 → 18 so the controls Row at the right
+    // end of the inner Row has visible breathing room inside the card.
+    // Affects the lock screen card too (it shares this component) but
+    // the lock card sits over a blurred wallpaper with plenty of room
+    // around it, so the slightly more compact internal layout reads
+    // fine there.
+    readonly property int _padding: 18
     readonly property int _artSize: 48
     readonly property int _artGap: 12
 
