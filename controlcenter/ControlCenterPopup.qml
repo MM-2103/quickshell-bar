@@ -218,7 +218,12 @@ PopupWindow {
                 left: parent.left
                 right: parent.right
                 bottom: parent.bottom
-                margins: 14
+                // Horizontal margin bumped from 14 → 18 so the Now Playing
+                // card (which fills the inner width) doesn't push its
+                // rightmost media-control button up against the card edge.
+                // The tile grid reflows automatically — _tileWidth in
+                // TilesView is computed from the available width.
+                margins: 18
                 topMargin: 10
             }
 
