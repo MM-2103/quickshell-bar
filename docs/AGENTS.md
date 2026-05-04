@@ -7,6 +7,7 @@ file end-to-end. ~10 minutes.
 > Companion docs:
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
 > - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 68+ gotchas
+> - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
 > - [`README.md`](../README.md) — install + user-facing overview
 
 ---
@@ -479,12 +480,14 @@ controls; everything routes through `Local`'s generic store.
 
 ### The cycle
 
-1. **Plan** — for non-trivial changes, propose the approach and ask clarifying questions before touching files. Especially important for cross-cutting changes (theme, abstractions, conventions).
-2. **Confirm** — let the user pick options where there are real tradeoffs.
-3. **Implement** — small, atomic file edits. One logical change at a time.
-4. **Smoke-test** — every change. Empty smoke output = clean.
-5. **Commit** — small commits, lowercase area-prefix message (`<area>: <imperative>`).
-6. **Visually verify** — screenshot for visual changes, IPC for behavioral.
+1. **Branch first** — `git checkout -b <area>/<topic>` BEFORE the first edit. Never commit on master. See [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) for the full rules and recovery steps if you slip.
+2. **Plan** — for non-trivial changes, propose the approach and ask clarifying questions before touching files. Especially important for cross-cutting changes (theme, abstractions, conventions).
+3. **Confirm** — let the user pick options where there are real tradeoffs.
+4. **Implement** — small, atomic file edits. One logical change at a time.
+5. **Smoke-test** — every change. Empty smoke output = clean.
+6. **Commit** — small commits, lowercase area-prefix message (`<area>: <imperative>`).
+7. **Visually verify** — screenshot for visual changes, IPC for behavioral.
+8. **Push the branch + open a PR** when the work is ready. Never push directly to master.
 
 ### Commit message style
 
