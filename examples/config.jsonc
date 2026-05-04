@@ -104,5 +104,14 @@
   "gtkThemeDark":   "Adwaita-dark",
 
   // gtk-theme set when applying a light palette.
-  "gtkThemeLight":  "Adwaita"
+  "gtkThemeLight":  "Adwaita",
+
+  // KDE/Qt color-scheme name applied via plasma-apply-colorscheme. Used
+  // by KDE apps (Dolphin, Kate, Konsole, etc.) and Qt apps with
+  // QT_QPA_PLATFORMTHEME=kde. Skipped silently if plasma-apply-colorscheme
+  // isn't on PATH. Available schemes live under /usr/share/color-schemes/
+  // (system) or ~/.local/share/color-schemes/ (user) — `.colors` extension
+  // omitted from the value here.
+  "kdeColorSchemeDark":  "BreezeDark",
+  "kdeColorSchemeLight": "BreezeLight"
 }
