@@ -62,152 +62,152 @@ Rectangle {
     readonly property bool _hasArt: card.cachedArtUrl !== ""
 
     // Layout constants used in two places.
-    // _padding bumped from 12 → 18 so the controls Row at the right
-    // end of the inner Row has visible breathing room inside the card.
-    // Affects the lock screen card too (it shares this component) but
-    // the lock card sits over a blurred wallpaper with plenty of room
-    // around it, so the slightly more compact internal layout reads
-    // fine there.
-    readonly property int _padding: 18
+    // _padding controls the inset between the card edge and the inner
+    // content. Set to 14 px so left (album art) and right (controls)
+    // both get visible breathing room. The previous Row-based layout
+    // had a "-8" hack in Column.width that made the controls' right
+    // gap depend on a chain of bindings; this version anchors controls
+    // explicitly to the card's right edge so the gap is exactly
+    // _padding pixels — visible and predictable.
+    readonly property int _padding: 14
     readonly property int _artSize: 48
     readonly property int _artGap: 12
 
+    // ---- Album art slot (collapses to 0 width if no URL) ----
+    Rectangle {
+        id: artSlot
+        anchors.left: parent.left
+        anchors.leftMargin: card._padding
+        anchors.verticalCenter: parent.verticalCenter
+        visible: card._hasArt
+        width: visible ? card._artSize : 0
+        height: card._artSize
+        radius: 8
+        color: Qt.rgba(0, 0, 0, 0.35)   // dark placeholder behind image
+        clip: true
+
+        Image {
+            id: artImage
+            anchors.fill: parent
+            source: card.cachedArtUrl
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            smooth: true
+            sourceSize.width: card._artSize * 2
+            sourceSize.height: card._artSize * 2
+        }
+    }
+
+    // ---- Controls (previous · play/pause · next) ----
+    //
+    // Anchored to the card's right edge with a fixed margin — guarantees
+    // _padding pixels of visible gap regardless of title length, art
+    // visibility, or parent width.
     Row {
-        anchors.fill: parent
-        anchors.margins: card._padding
-        spacing: 0
+        id: controls
+        anchors.right: parent.right
+        anchors.rightMargin: card._padding
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 2
 
-        // ---- Album art slot (collapses to 0 width if no URL) ----
-        Rectangle {
-            id: artSlot
-            anchors.verticalCenter: parent.verticalCenter
-            visible: card._hasArt
-            width: visible ? card._artSize : 0
-            height: card._artSize
-            radius: 8
-            color: Qt.rgba(0, 0, 0, 0.35)   // dark placeholder behind image
-            clip: true
+        // Reusable button factory — small Rectangle + MouseArea + Font
+        // Awesome glyph. Using FA Solid (private-use codepoints) bypasses
+        // Qt's font fallback to Noto Color Emoji entirely; we get clean
+        // monochrome icons that respect Theme.text.
+        component CtlButton: Rectangle {
+            id: btn
+            property string glyph: ""
+            property int diameter: 24
+            property real glyphScale: 1.0
+            signal activated()
 
-            Image {
-                id: artImage
+            width: diameter
+            height: diameter
+            radius: diameter / 2
+            color: ma.containsMouse
+                ? Qt.rgba(1, 1, 1, 0.14)
+                : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+            Text {
+                anchors.centerIn: parent
+                text: btn.glyph
+                color: Theme.text
+                font.family: Theme.fontIcon
+                font.styleName: "Solid"
+                font.pixelSize: btn.diameter * 0.50 * btn.glyphScale
+                renderType: Text.NativeRendering
+            }
+
+            MouseArea {
+                id: ma
                 anchors.fill: parent
-                source: card.cachedArtUrl
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                smooth: true
-                sourceSize.width: card._artSize * 2
-                sourceSize.height: card._artSize * 2
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: btn.activated()
             }
         }
 
-        // Spacer between art and title (zero width when art slot is collapsed).
-        Item {
+        // Font Awesome 7 Solid codepoints:
+        //   \uf048 = backward-step  (prev)
+        //   \uf04b = play
+        //   \uf04c = pause
+        //   \uf051 = forward-step   (next)
+        CtlButton {
             anchors.verticalCenter: parent.verticalCenter
-            width: card._hasArt ? card._artGap : 0
-            height: 1
+            glyph: "\uf048"
+            diameter: 26
+            onActivated: MediaService.previous()
         }
 
-        // ---- Title + artist column ----
-        Column {
+        CtlButton {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
-            // Fill the space between the art slot and the controls Row.
-            width: parent.width - artSlot.width
-                - (card._hasArt ? card._artGap : 0)
-                - controls.width - 8
-
-            Text {
-                width: parent.width
-                text: card.player ? (card.player.trackTitle || "Unknown title") : ""
-                color: Theme.text
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeLarge
-                font.weight: Font.Medium
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: card.player ? (card.player.trackArtist || "") : ""
-                color: Theme.text
-                opacity: 0.7
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeSmall
-                elide: Text.ElideRight
-                visible: text.length > 0
-            }
+            // Play / pause swaps based on actual playback state.
+            glyph: MediaService.isPlaying ? "\uf04c" : "\uf04b"
+            diameter: 32
+            onActivated: MediaService.togglePlay()
         }
 
-        // ---- Controls (previous · play/pause · next) ----
-        Row {
-            id: controls
+        CtlButton {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
+            glyph: "\uf051"
+            diameter: 26
+            onActivated: MediaService.next()
+        }
+    }
 
-            // Reusable button factory — small Rectangle + MouseArea + Font
-            // Awesome glyph. Using FA Solid (private-use codepoints) bypasses
-            // Qt's font fallback to Noto Color Emoji entirely; we get clean
-            // monochrome icons that respect Theme.text.
-            component CtlButton: Rectangle {
-                id: btn
-                property string glyph: ""
-                property int diameter: 24
-                property real glyphScale: 1.0
-                signal activated()
+    // ---- Title + artist column ----
+    //
+    // Anchored between artSlot.right and controls.left so it gets all
+    // remaining horizontal space. Eliding handles long titles without
+    // pushing the controls anywhere — they stay locked to the right.
+    Column {
+        anchors.left: artSlot.right
+        anchors.leftMargin: card._hasArt ? card._artGap : card._padding
+        anchors.right: controls.left
+        anchors.rightMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 2
 
-                width: diameter
-                height: diameter
-                radius: diameter / 2
-                color: ma.containsMouse
-                    ? Qt.rgba(1, 1, 1, 0.14)
-                    : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        Text {
+            width: parent.width
+            text: card.player ? (card.player.trackTitle || "Unknown title") : ""
+            color: Theme.text
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeLarge
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+        }
 
-                Text {
-                    anchors.centerIn: parent
-                    text: btn.glyph
-                    color: Theme.text
-                    font.family: Theme.fontIcon
-                    font.styleName: "Solid"
-                    font.pixelSize: btn.diameter * 0.50 * btn.glyphScale
-                    renderType: Text.NativeRendering
-                }
-
-                MouseArea {
-                    id: ma
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: btn.activated()
-                }
-            }
-
-            // Font Awesome 7 Solid codepoints:
-            //   \uf048 = backward-step  (prev)
-            //   \uf04b = play
-            //   \uf04c = pause
-            //   \uf051 = forward-step   (next)
-            CtlButton {
-                anchors.verticalCenter: parent.verticalCenter
-                glyph: "\uf048"
-                diameter: 26
-                onActivated: MediaService.previous()
-            }
-
-            CtlButton {
-                anchors.verticalCenter: parent.verticalCenter
-                // Play / pause swaps based on actual playback state.
-                glyph: MediaService.isPlaying ? "\uf04c" : "\uf04b"
-                diameter: 32
-                onActivated: MediaService.togglePlay()
-            }
-
-            CtlButton {
-                anchors.verticalCenter: parent.verticalCenter
-                glyph: "\uf051"
-                diameter: 26
-                onActivated: MediaService.next()
-            }
+        Text {
+            width: parent.width
+            text: card.player ? (card.player.trackArtist || "") : ""
+            color: Theme.text
+            opacity: 0.7
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fontSizeSmall
+            elide: Text.ElideRight
+            visible: text.length > 0
         }
     }
 }
