@@ -56,6 +56,12 @@ theme swaps.
 
 ### Built-in catalogue
 
+Twenty themes ship in the catalogue: ten dark themes followed by their
+ten light variants, in the same order. Cards appear in the Theme tab
+all-darks first, then all-lights.
+
+#### Dark variants
+
 | Theme | Notes |
 |---|---|
 | **Default** | The shipped monochrome with white accent. One-click revert. |
@@ -69,11 +75,44 @@ theme swaps.
 | **Kanagawa Wave** | rebelot/kanagawa.nvim Wave variant, crystalBlue accent. |
 | **Solarized Dark** | Ethan Schoonover's classic, blue accent. |
 
+#### Light variants
+
+| Theme | Notes |
+|---|---|
+| **Default Light** | Synthesised inversion of the monochrome Default; warm off-white bg, near-black accent. No upstream reference. |
+| **Gruvbox Light** | morhetz/gruvbox light0 base, mustard yellow accent. |
+| **Catppuccin Latte** | catppuccin/palette Latte flavour, mauve accent. |
+| **Tokyo Night Day** | folke/tokyonight.nvim Day variant, "blueprint paper" feel with deep-blue text. |
+| **Nord Light** | Community-derived inversion using Snow Storm tones (`nord4..nord6`), frost dark blue (`nord10`) accent. Not canonical Nord. |
+| **Rosé Pine Dawn** | rose-pine.io Dawn flavour, soft purple accent. |
+| **Dracula Light** | Community-derived inversion; darkened purple accent for legibility on light bg. Not canonical Dracula. |
+| **Everforest Light** | sainnhe/everforest medium light variant, mustard-green accent. |
+| **Kanagawa Lotus** | rebelot/kanagawa.nvim Lotus variant, ocean teal on parchment bg. |
+| **Solarized Light** | Ethan Schoonover's classic, blue accent (same as the dark variant). |
+
 The "Current: <theme name>" label above the grid identifies which
 theme (if any) your current state matches. If you tweak any colour
 manually after applying a theme, the label flips to "Current: Custom"
 and the card's selected indicator clears — apply the same theme card
 again to reset back to its palette.
+
+### Light/dark toggle
+
+The Control Center has a **Theme** tile (third row, first column) that
+toggles between the light and dark variants of the currently-applied
+theme. So if you're on Catppuccin Mocha, one click swaps to Catppuccin
+Latte; click again, back to Mocha. The icon shows a sun when on a dark
+theme (toggling FROM dark) and a moon when on a light theme — pointing
+at the destination, mirroring the convention in mainstream OS dark-mode
+toggles.
+
+The tile renders **disabled** in three cases:
+- No current theme matches (you're in "Custom" state — apply any theme
+  first to enable the toggle).
+- Your current theme has no `siblingId` set (typically a user-defined
+  theme without a paired variant).
+- The `siblingId` points at an id that doesn't exist (a sibling file
+  was deleted or failed validation).
 
 ### User-defined themes
 
@@ -83,8 +122,10 @@ own theme. Each file holds one theme:
 ```jsonc
 // ~/.config/quickshell-bar/themes/my-custom.jsonc
 {
-  "id":    "my-custom",
-  "label": "My Custom Theme",
+  "id":        "my-custom",
+  "label":     "My Custom Theme",
+  "kind":      "dark",                 // optional; defaults to "dark"
+  "siblingId": "my-custom-light",      // optional; omit if no sibling
   "palette": {
     "bg":          "#1a1a1a",
     "surface":     "#2a2a2a",
@@ -106,10 +147,27 @@ own theme. Each file holds one theme:
 
 A copy-pasteable template lives at [`examples/theme.jsonc`](../examples/theme.jsonc).
 
-Required top-level keys: `id` (stable slug, used for current-theme
-matching), `label` (display text), `palette` (record of the 14
-overridable colour keys). Files with malformed JSON or missing
-required fields are skipped silently with a `console.warn`.
+**Required** top-level keys: `id` (stable slug, used for current-theme
+matching and `siblingId` references), `label` (display text), `palette`
+(record of the 14 overridable colour keys).
+
+**Optional** top-level keys: `kind` (`"dark"` or `"light"`; default
+`"dark"`) and `siblingId` (id of the paired light/dark variant; default
+omitted = toggle disabled on this theme).
+
+To pair two of your own themes, set their `siblingId` fields to point
+at each other:
+
+```jsonc
+// my-theme.jsonc
+{ "id": "my-theme", "siblingId": "my-theme-light", "kind": "dark", ... }
+
+// my-theme-light.jsonc
+{ "id": "my-theme-light", "siblingId": "my-theme", "kind": "light", ... }
+```
+
+Files with malformed JSON or missing required fields are skipped
+silently with a `console.warn`.
 
 The directory is rescanned on shell start and on every Settings popup
 open — drop a theme file in, open Settings, and your card appears
