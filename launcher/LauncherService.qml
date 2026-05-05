@@ -175,7 +175,7 @@ Singleton {
     }
 
     function _scoreApp(entry)  { return entry ? _scoreKey(entry.id) : 0; }
-    function _scoreEmoji(char) { return _scoreKey("emoji:" + char); }
+    function _scoreEmoji(emoji) { return _scoreKey("emoji:" + emoji); }
 
     // ---- App matching ----
 
