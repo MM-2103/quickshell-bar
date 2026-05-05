@@ -19,7 +19,10 @@ MouseArea {
     readonly property var dev: UPower.displayDevice
     readonly property bool _present:
         dev && dev.ready && dev.isPresent && dev.type === UPowerDeviceType.Battery
-    readonly property real _pct: _present ? dev.percentage : 0
+    // `dev.percentage` is a 0.0–1.0 fraction (energy / energyCapacity),
+    // not a 0–100 number — scale it once so all thresholds and the
+    // displayed integer below read naturally.
+    readonly property real _pct: _present ? dev.percentage * 100 : 0
     readonly property bool _charging:
         _present && (dev.state === UPowerDeviceState.Charging
                      || dev.state === UPowerDeviceState.FullyCharged)
