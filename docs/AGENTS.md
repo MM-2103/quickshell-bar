@@ -1,10 +1,14 @@
-# Agents Guide
+# Agents Guide (full reference)
+
+This is the **full** contributor guide (~10 minutes). If you're an AI
+agent starting a session, start with the compact [`AGENTS.md`](../AGENTS.md)
+at the repo root — it covers the traps you're most likely to hit in
+your first 5 minutes.
 
 Orientation for new contributors — human or AI — picking up this repo.
-The fastest path from "git clone" to productive change is reading this
-file end-to-end. ~10 minutes.
 
 > Companion docs:
+> - [`AGENTS.md`](../AGENTS.md) — **compact root-level version** for AI agents; read this first
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
 > - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 68+ gotchas
 > - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
