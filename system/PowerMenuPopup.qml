@@ -1,7 +1,8 @@
 // PowerMenuPopup.qml
 // wlogout-style horizontal row of round buttons.
-// Click an action → fires the corresponding command via execDetached and
-// closes the popup. No confirmation dialog (matches wlogout convention).
+// Shutdown and Reboot require a second click to confirm (3 s timeout);
+// Lock, Suspend, and Logout fire immediately. Clicking any non-confirm
+// button while confirming cancels the pending confirm.
 
 import QtQuick
 import QtQuick.Effects
@@ -47,6 +48,16 @@ PopupWindow {
     function _run(args) {
         Quickshell.execDetached(args);
         popup.close();
+    }
+
+    // ---- Confirmation state (Shutdown / Reboot) ----
+    // Only one action can be in confirm state at a time. A 3-second timer
+    // resets it; clicking any other button also cancels.
+    property string confirmingAction: ""
+    Timer {
+        id: confirmTimer
+        interval: 3000
+        onTriggered: popup.confirmingAction = ""
     }
 
     Rectangle {
@@ -96,18 +107,37 @@ PopupWindow {
                 property string label
                 property string glyph         // Font Awesome 7 Solid codepoint
                 property var onActivate       // function to call
+                property string confirmAction: ""  // set to "reboot"/"shutdown" for two-step
+
+                readonly property bool isConfirming:
+                    btn.confirmAction !== "" && popup.confirmingAction === btn.confirmAction
 
                 width: 56
                 height: 64
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: btn.onActivate()
+
+                onClicked: {
+                    if (btn.isConfirming) {
+                        // Second click — execute.
+                        btn.onActivate();
+                    } else if (btn.confirmAction !== "") {
+                        // First click — enter confirm state.
+                        popup.confirmingAction = btn.confirmAction;
+                        confirmTimer.restart();
+                    } else {
+                        // Non-confirm button — execute immediately,
+                        // cancelling any pending confirm.
+                        popup.confirmingAction = "";
+                        btn.onActivate();
+                    }
+                }
 
                 Column {
                     anchors.fill: parent
                     spacing: 4
 
-                    // Round icon disk
+                    // Round icon disk — turns red when confirming.
                     Item {
                         width: 44
                         height: 44
@@ -116,7 +146,8 @@ PopupWindow {
                         Rectangle {
                             anchors.fill: parent
                             radius: width / 2
-                            color: btn.containsMouse ? Theme.text : Theme.surface
+                            color: btn.isConfirming ? Theme.error
+                                 : (btn.containsMouse ? Theme.text : Theme.surface)
                             border.color: Theme.border
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: Theme.animFast } }
@@ -127,7 +158,7 @@ PopupWindow {
                         Text {
                             anchors.centerIn: parent
                             text: btn.glyph
-                            color: btn.containsMouse ? Theme.bg : Theme.text
+                            color: (btn.isConfirming || btn.containsMouse) ? Theme.bg : Theme.text
                             font.family: Theme.fontIcon
                             font.styleName: "Solid"
                             font.pixelSize: 18
@@ -138,10 +169,11 @@ PopupWindow {
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: btn.label
-                        color: Theme.textDim
+                        text: btn.isConfirming ? "Confirm?" : btn.label
+                        color: btn.isConfirming ? Theme.errorBright : Theme.textDim
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fontSizeSmall
+                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     }
                 }
             }
@@ -172,11 +204,13 @@ PopupWindow {
             PowerButton {
                 label: "Reboot"
                 glyph: "\uf021"
+                confirmAction: "reboot"
                 onActivate: () => popup._run(["systemctl", "reboot"])
             }
             PowerButton {
                 label: "Shutdown"
                 glyph: "\uf011"
+                confirmAction: "shutdown"
                 onActivate: () => popup._run(["systemctl", "poweroff"])
             }
         }
