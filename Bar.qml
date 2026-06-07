@@ -76,9 +76,9 @@ PanelWindow {
         Media          { anchors.verticalCenter: parent.verticalCenter }
         Battery        { anchors.verticalCenter: parent.verticalCenter }
         Brightness     { anchors.verticalCenter: parent.verticalCenter }
-        Volume         { anchors.verticalCenter: parent.verticalCenter }
-        ControlCenter     { anchors.verticalCenter: parent.verticalCenter }
+        Volume            { anchors.verticalCenter: parent.verticalCenter }
         CaffeineIndicator { anchors.verticalCenter: parent.verticalCenter }
+        ControlCenter     { anchors.verticalCenter: parent.verticalCenter }
         Power             { anchors.verticalCenter: parent.verticalCenter }
     }
 }
