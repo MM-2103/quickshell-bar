@@ -110,14 +110,31 @@ QtObject {
         }
     }
 
+    // Hyprland 0.56's Lua config parser evaluates the dispatch payload as Lua:
+    // it runs `return hl.dispatch(<payload>)`. The old space-separated form is
+    // a syntax error there —
+    //
+    //   dispatch workspace 11    -> error: ')' expected near '11'
+    //   dispatch hl.dsp.no_op()  -> ok
+    //
+    // and Quickshell's dispatch() discards the reply, so a wrong payload fails
+    // silently. These therefore only work on a Lua-config Hyprland; hyprlang is
+    // deprecated upstream and deliberately unsupported here.
+
     function dispatchFocusWorkspace(idx) {
-        // For named workspaces (negative id, idx is the string name),
-        // dispatch by name; otherwise dispatch by index.
-        Hyprland.dispatch("workspace " + idx);
+        // Numeric ids go through bare. Named and special workspaces arrive as
+        // strings and have to become Lua string literals — stringify rather
+        // than concatenate, so a name can't inject into the evaluated Lua.
+        const sel = (typeof idx === "number")
+            ? String(idx)
+            : JSON.stringify(String(idx));
+        Hyprland.dispatch("hl.dsp.focus({ workspace = " + sel + " })");
     }
 
     function dispatchLogout() {
-        // `exit` cleanly terminates the Hyprland session.
-        Hyprland.dispatch("exit");
+        // Terminates the compositor. On session managers that own the
+        // lifecycle (uwsm and friends) this skips their ordered shutdown —
+        // set `logoutCommand` in config.jsonc to override the button.
+        Hyprland.dispatch("hl.dsp.exit()");
     }
 }
