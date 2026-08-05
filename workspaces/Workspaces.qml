@@ -1,10 +1,15 @@
 // Workspaces.qml
 // Renders a horizontal row of numbered chips for one output (monitor).
-// Each chip is a 22 × 22 square with the workspace index in the shell's
+// Each chip is a 22 × 22 square with the workspace label in the shell's
 // mono font; the focused workspace gets the accent fill, the active one
 // gets a subtle elevated background, and idle ones sit dim on transparent.
 //
-//   Click a chip -> Compositor.dispatchFocusWorkspace(idx)
+//   Chip text  -> workspace `label` (falls back to `idx`)
+//   Click      -> Compositor.dispatchFocusWorkspace(idx)
+//
+// Note the asymmetry: chips render `label` but dispatch `idx`. On Hyprland
+// those differ, because each monitor owns its own block of global workspace
+// ids while the chips still count 1..N per monitor.
 
 import QtQuick
 import Quickshell
@@ -42,6 +47,13 @@ Row {
             readonly property bool focused: modelData.is_focused
             readonly property bool active: modelData.is_active
 
+            // Display label. Optional in the backend interface — backends that
+            // don't set it (niri, sway, stub) already expose a per-monitor
+            // `idx`, so it is the correct label there. Hyprland's `idx` is a
+            // global id, so its backend supplies a separate label.
+            readonly property var label:
+                modelData.label !== undefined ? modelData.label : modelData.idx
+
             implicitWidth: 22
             implicitHeight: 22
             anchors.verticalCenter: parent ? parent.verticalCenter : undefined
@@ -66,7 +78,7 @@ Row {
             // Number label — always visible, mono, weight bumps on focus.
             Text {
                 anchors.centerIn: parent
-                text: chip.modelData.idx
+                text: chip.label
                 color: chip.focused ? Theme.accentText : Theme.text
                 opacity: chip.focused ? 1.0 : (chip.active ? 0.95 : 0.55)
                 font.family: Theme.fontMono
@@ -83,9 +95,12 @@ Row {
                 show: chip.containsMouse
                 text: {
                     const n = chip.modelData.name;
-                    if (n && n.length > 0 && n !== String(chip.modelData.idx))
+                    // Compare against the label, not the idx: when the name IS
+                    // the label (Hyprland's per-monitor slot names) it carries
+                    // no extra information and "Workspace N" reads better.
+                    if (n && n.length > 0 && n !== String(chip.label))
                         return n;
-                    return "Workspace " + chip.modelData.idx;
+                    return "Workspace " + chip.label;
                 }
             }
         }
