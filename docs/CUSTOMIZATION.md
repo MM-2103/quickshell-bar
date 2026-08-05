@@ -450,6 +450,7 @@ Save the file and your running shell picks the changes up immediately.
 | Key | Type | Default | What it controls |
 |---|---|---|---|
 | `volumeFeedbackEnabled` | bool | `true` | KDE-style audible cue on volume change. Set `false` for a silent shell. Requires `libcanberra` + `sound-theme-freedesktop`. |
+| `logoutCommand` | string | `""` | Shell command run by the power menu's Logout button. Empty means "ask the compositor to end the session". Set this when a session manager owns the lifecycle — on uwsm use `"uwsm stop"`, because terminating the compositor directly skips uwsm's ordered shutdown. |
 
 ### Launcher
 

@@ -197,6 +197,16 @@ PopupWindow {
                 label: "Logout"
                 glyph: "\uf2f5"
                 onActivate: () => {
+                    // Default is whatever ending the session means to the
+                    // running compositor. That is wrong when a session manager
+                    // owns the lifecycle — uwsm needs `uwsm stop`, since
+                    // killing the compositor directly skips its ordered
+                    // shutdown — so allow an override rather than guessing.
+                    const cmd = Local.get("logoutCommand", "");
+                    if (cmd.length > 0) {
+                        popup._run(["sh", "-c", cmd]);
+                        return;
+                    }
                     Compositor.dispatchLogout();
                     popup.close();
                 }
