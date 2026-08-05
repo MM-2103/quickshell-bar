@@ -17,11 +17,20 @@
 // must still *dispatch* the global id — otherwise clicking "3" on the second
 // monitor would jump to the first — but it should *read* 1-9 on every monitor.
 //
-// The per-monitor number arrives as the workspace name: the config sets
-// `default_name` to the slot number, so id 13 is named "3". Deriving the label
-// from the name rather than doing arithmetic here keeps the compositor config
-// as the single source of truth — the bar never needs to know the block size.
-// See dotfiles/hypr/lua/workspaces.lua.
+// The label is derived arithmetically from the id, which means wsStride below
+// duplicates a constant that really lives in the compositor config. That is
+// deliberate: the obvious alternative — having the config name each workspace
+// after its slot via `default_name`, so the bar could just render the name —
+// is broken. Workspace names are a global namespace in Hyprland, so naming both
+// DP-1's workspace 1 and DP-2's workspace 11 "1" makes the name-based IPC events
+// ambiguous:
+//
+//   focusedmon>>DP-2,1       <- which "1"?
+//   focusedmonv2>>DP-2,11    <- v2 events carry the id and stay unambiguous
+//
+// Quickshell resolves some of those by name, so duplicate names made it
+// re-parent DP-1's workspace onto DP-2: the Dell rendered two "1" chips and the
+// LG rendered none until refocused. Arithmetic here is the lesser evil.
 
 import QtQuick
 import Quickshell
@@ -29,6 +38,10 @@ import Quickshell.Hyprland
 
 QtObject {
     id: root
+
+    // Size of each monitor's block of workspace ids. MUST match M.stride in
+    // the Hyprland config: ~/system-config/dotfiles/hypr/lua/workspaces.lua
+    readonly property int wsStride: 10
 
     // Reactive readback of Hyprland.workspaces, mapped to the common shape.
     // ObjectModel's `values` property gives us a JS array.
@@ -44,9 +57,9 @@ QtObject {
             out.push({
                 id: w.id,
                 idx: isNamed ? w.name : w.id,
-                // Falls back to the id for workspaces created before the
-                // naming rules applied, and for any outside a monitor block.
-                label: (w.name && w.name.length > 0) ? w.name : w.id,
+                // Slot within the owning monitor's block: 1 -> 1, 11 -> 1,
+                // 13 -> 3. Named workspaces keep showing their name.
+                label: isNamed ? w.name : ((w.id - 1) % root.wsStride) + 1,
                 output: w.monitor ? w.monitor.name : "",
                 is_focused: w.focused || false,
                 is_active:  w.active  || false,

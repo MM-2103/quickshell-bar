@@ -95,10 +95,11 @@ Row {
                 show: chip.containsMouse
                 text: {
                     const n = chip.modelData.name;
-                    // Compare against the label, not the idx: when the name IS
-                    // the label (Hyprland's per-monitor slot names) it carries
-                    // no extra information and "Workspace N" reads better.
-                    if (n && n.length > 0 && n !== String(chip.label))
+                    // Only surface the name when it is a real one. Compositors
+                    // default it to the id as a string, which tells the user
+                    // nothing — and on Hyprland would show the global id (11)
+                    // rather than the slot the chip displays (1).
+                    if (n && n.length > 0 && n !== String(chip.modelData.idx))
                         return n;
                     return "Workspace " + chip.label;
                 }
