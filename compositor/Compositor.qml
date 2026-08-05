@@ -9,6 +9,11 @@ pragma Singleton
 //
 //   workspaces         - array of workspace records
 //                        each has: id, idx, output, is_focused, is_active, name
+//                        optional: label - the text a chip should render, when
+//                        it differs from idx. Consumers fall back to idx when
+//                        absent, so backends only set it if they must. Hyprland
+//                        does, because its idx is a global id while chips count
+//                        1..N per monitor.
 //   focusedOutput      - string, name of currently-focused monitor
 //   currentLayout      - string, current keyboard layout name
 //                        empty on backends that can't surface it

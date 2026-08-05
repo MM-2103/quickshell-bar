@@ -161,13 +161,20 @@ exactly one `Backend*.qml` adapter via a `Loader { sourceComponent }`.
 
 Public surface (consumed by Workspaces.qml, shell.qml, PowerMenuPopup.qml):
 ```qml
-Compositor.workspaces                    // [{id, idx, output, is_focused, is_active, name}, ...]
+Compositor.workspaces                    // [{id, idx, output, is_focused, is_active, name, label?}, ...]
 Compositor.focusedOutput                 // string (monitor name)
 Compositor.currentLayout                 // string ("" on Sway/i3)
 Compositor.windowFocused(id) signal      // for popup auto-dismiss
 Compositor.dispatchFocusWorkspace(idx)   // click-to-focus a chip
 Compositor.dispatchLogout()              // power-menu Logout button
 ```
+
+`label` is **optional**: the text a chip renders when it differs from `idx`.
+Consumers fall back to `idx` when it is absent, so a backend only sets it when
+it has to and adding it did not require touching the other three. Hyprland is
+currently the only one that does — its per-monitor workspace blocks mean `idx`
+is a global id (13) while the chip must read the slot (3). `idx` remains the
+dispatch and sort key on every backend.
 
 **RULE**: never reference `Hyprland.*`, `I3.*`, or shell out to
 `niri msg` outside `compositor/Backend*.qml`. The whole point of the

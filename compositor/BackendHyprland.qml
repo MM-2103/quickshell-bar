@@ -4,11 +4,24 @@
 //
 // HyprlandWorkspace fields → common shape mapping:
 //   id        → id   (negative for named workspaces; we surface name in that case)
-//   id (>0) / name → idx  (the label rendered on the chip)
+//   id (>0) / name → idx    (dispatch + sort key — always the global id)
+//   name / id      → label  (what the chip renders)
 //   active    → is_active
 //   focused   → is_focused   (active AND on the focused monitor)
 //   monitor.name → output
 //   name      → name (when distinct from idx)
+//
+// idx and label differ deliberately. The Hyprland config gives each monitor its
+// own block of workspace ids (DP-1 owns 1-9, DP-2 owns 11-19) so that every
+// output has an independent set, the way niri and AwesomeWM behave. The chip
+// must still *dispatch* the global id — otherwise clicking "3" on the second
+// monitor would jump to the first — but it should *read* 1-9 on every monitor.
+//
+// The per-monitor number arrives as the workspace name: the config sets
+// `default_name` to the slot number, so id 13 is named "3". Deriving the label
+// from the name rather than doing arithmetic here keeps the compositor config
+// as the single source of truth — the bar never needs to know the block size.
+// See dotfiles/hypr/lua/workspaces.lua.
 
 import QtQuick
 import Quickshell
@@ -31,6 +44,9 @@ QtObject {
             out.push({
                 id: w.id,
                 idx: isNamed ? w.name : w.id,
+                // Falls back to the id for workspaces created before the
+                // naming rules applied, and for any outside a monitor block.
+                label: (w.name && w.name.length > 0) ? w.name : w.id,
                 output: w.monitor ? w.monitor.name : "",
                 is_focused: w.focused || false,
                 is_active:  w.active  || false,
