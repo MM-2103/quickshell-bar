@@ -10,7 +10,7 @@ Orientation for new contributors — human or AI — picking up this repo.
 > Companion docs:
 > - [`AGENTS.md`](../AGENTS.md) — **compact root-level version** for AI agents; read this first
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 68+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 69+ gotchas
 > - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
 > - [`README.md`](../README.md) — install + user-facing overview
 
@@ -30,7 +30,7 @@ layer. Other wlroots-based compositors get a stub backend (bar still
 loads, workspaces module is empty).
 
 **Tech stack**:
-- Quickshell ≥ 0.2.1 (AUR `quickshell`)
+- Quickshell ≥ 0.3.0 (AUR `quickshell`) — `IdleMonitor` needs 0.3.0
 - Qt 6.5+ (`qt6-base`, `qt6-declarative`, `qt6-effects` for `MultiEffect`)
 - PAM (`/etc/pam.d/qslock` for the lock screen)
 - Pipewire (audio), NetworkManager (`nmcli`), BlueZ (`bluetoothctl` via DBus)
@@ -106,7 +106,7 @@ shell.qml (entry point)
 │
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
-└── IpcHandler × 4                  ← clipboard, launcher, lock, popups
+└── IpcHandler × 6                  ← clipboard, launcher, lock, settings, popups, idle
 ```
 
 The **ControlCenter** bar widget owns its anchored `ControlCenterPopup`,
@@ -145,7 +145,8 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `NetworkService` | wired/wifi state, networks list, connect/forget actions |
 | `WallpaperService` | per-monitor wallpaper map, fillMode, picker open state, scan/persistence |
 | `WeatherService` | location, current/hourly/daily forecast (KNMI via Open-Meteo), city catalogue, detail-popup open state |
-| `ControlCenterService` | view-stack (`currentView`), idle-inhibit toggle (no bar widget owns it now) |
+| `ControlCenterService` | view-stack (`currentView`), Caffeine toggle (no bar widget owns it now; drives `IdleService.enabled` + a logind `systemd-inhibit`) |
+| `IdleService` | `ext-idle-notifier-v1` monitor, staged idle lock + DPMS blank, master `enabled` switch |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
@@ -203,7 +204,7 @@ callback. The `Compositor.windowFocused` signal also triggers
 
 ### IPC for external triggers
 
-Compositor keybinds and idle daemons communicate with the running shell
+Compositor keybinds and systemd units communicate with the running shell
 via `qs ipc call <target> <fn>`. The shell registers `IpcHandler` blocks
 in `shell.qml`. **Never spawn separate processes per keybind** — IPC
 keeps a single source of truth and survives hot-reload.
@@ -243,7 +244,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #68) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #69) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
@@ -259,15 +260,15 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `osd/` | `OsdService.qml` + `Osd.qml` panel (`Overlay` layer — visible over fullscreen) |
 | `volume/`, `media/`, `tray/` | bar widgets + popups + services that stayed in the bar after the CC declutter |
 | `network/`, `bluetooth/` | services + `*View.qml` files (no bar widgets — accessed via the Control Center) |
-| `system/` | bar widgets that stayed (`Battery`, `Brightness`, `Power`, `PowerMenuPopup`, `BrightnessPopup`) + `PowerProfileView` (used by CC; no bar widget) |
+| `system/` | bar widgets that stayed (`Battery`, `Brightness`, `Power`, `PowerMenuPopup`, `BrightnessPopup`) + `PowerProfileView` (used by CC; no bar widget) + `IdleService` singleton (idle lock + DPMS blank; replaces hypridle/swayidle) |
 | `controlcenter/` | `ControlCenter` bar widget, `ControlCenterPopup`, `ControlCenterService` singleton, `Tile`, `TilesView`, `SlidersBlock` |
 | `wallpaper/` | `WallpaperService` singleton, `WallpaperLayer` (Background-layer surface, replaces swaybg), `WallpaperPickerPopup` (replaces waypaper) |
 | `weather/` | `WeatherService` singleton (KNMI via Open-Meteo), `WeatherCard` (in CC), `WeatherDetailPopup` (centered, hourly + 7-day), `CitiesView` (CC detail view) |
-| `settings/` | `SettingsService` singleton + `SettingsPopup` (centered visual config editor for the 31 overridable keys). Sub-trees: `sections/` (Theme/Colours/Typography/LayoutMotion/Behavior + SectionHeader) and `controls/` (SettingRow base + ColorRow + ColorPicker + NumberSlider + TextRow + ToggleRow + PresetDropdown + PresetDropdownList + ThemeCard) |
+| `settings/` | `SettingsService` singleton + `SettingsPopup` (centered visual config editor for the 33 overridable keys). Sub-trees: `sections/` (Theme/Colours/Typography/LayoutMotion/Behavior + SectionHeader) and `controls/` (SettingRow base + ColorRow + ColorPicker + NumberSlider + TextRow + ToggleRow + PresetDropdown + PresetDropdownList + ThemeCard) |
 | `themes/` | `ThemePresets` singleton (palette catalogue + apply/current/sibling logic) + `SystemTheme` singleton (orchestration that propagates the shell's dark/light preference to GTK / Qt6 / Electron / Firefox / Chromium via the XDG portal AND to KDE/Qt apps via `plasma-apply-colorscheme` writing kdeglobals + emitting a DBus signal). The Theme tab in the Settings page surfaces ThemePresets; the CC Theme tile drives toggleLightDark. SystemTheme is bootstrapped from `shell.qml`'s `Component.onCompleted` and reactively syncs on every theme change. Disable via `systemThemeSync: false` in `config.jsonc`. |
 | `clipboard/`, `launcher/`, `lock/` | popup-only features |
 | `docs/` | `QUICKSHELL_REFERENCE.md`, `STYLE.md`, this file (`AGENTS.md`), `screenshots/` |
-| `examples/` | copy-pasteable compositor + idle-daemon configs |
+| `examples/` | copy-pasteable compositor keybind configs + the lock-on-suspend systemd unit |
 
 ---
 
@@ -290,6 +291,11 @@ qs ipc call popups closeAll             # dismiss whatever's open
 qs ipc call settings open               # visual config editor (gear icon in CC also opens it)
 qs ipc call settings close
 qs ipc call settings toggle
+qs ipc call idle status                 # diagnostic: armed timeout + stage state
+qs ipc call idle enable                 # re-arm idle handling
+qs ipc call idle disable                # stay awake (same switch as the Caffeine tile)
+qs ipc call idle toggle
+qs ipc call idle blank                  # blank monitors now, skipping the timer
 ```
 
 **To add a new IPC handler**: add an `IpcHandler { target: "<name>"; ... }`
@@ -483,7 +489,7 @@ When a new value should be user-overridable via the Settings page +
    shell picks it up.
 7. Commit; a single `settings: add <feature> override key` is fine.
 
-The 31 keys merged so far are exactly this pattern repeated. New keys
+The 33 keys merged so far are exactly this pattern repeated. New keys
 should match — no per-key state in `SettingsService`, no special-cased
 controls; everything routes through `Local`'s generic store.
 

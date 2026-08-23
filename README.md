@@ -8,7 +8,7 @@ Replaces (in one configurable QML codebase):
 **waybar** · **swaync / mako / dunst** · **swayosd** ·
 **nm-applet** · **blueman-applet** · **KDE media controls** ·
 **wlogout** · **fuzzel** · **hyprlock** ·
-**swaybg / waypaper**.
+**swaybg / waypaper** · **hypridle / swayidle**.
 
 ## Supported compositors
 
@@ -51,7 +51,7 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - App launcher (Mod+P) — apps + calculator + web search + emoji
 - Emoji picker shortcut (Mod+;)
 - Wallpaper picker (folder browse + thumbnails + per-monitor)
-- Settings page — visual editor for all 31 overridable keys (colours, fonts, sizes, animations, search engine, behaviour) with live preview; opens via the gear icon in the Control Center or `qs ipc call settings open`
+- Settings page — visual editor for all 33 overridable keys (colours, fonts, sizes, animations, search engine, behaviour) with live preview; opens via the gear icon in the Control Center or `qs ipc call settings open`
 
 **Notifications & OSD**
 - Native NotificationServer (replaces external daemons)
@@ -77,6 +77,12 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Multi-monitor surfaces, persistent error state, dim-while-validating
 - Hot-reload safe (survives `qs` config reloads)
 - `LockedHint` propagation to systemd-logind
+
+**Idle** (replaces hypridle / swayidle)
+- Native `ext-idle-notifier-v1` via Quickshell's `IdleMonitor` — no second daemon
+- Two independent stages: lock, then blank the monitors. Either can be disabled
+- Honours `idle-inhibit-v1`, so video playback suppresses both stages
+- Caffeine tile / `qs ipc call idle disable` to stay awake
 
 ---
 
@@ -150,14 +156,16 @@ will catch things our test pass on niri couldn't.
 - **Sway / i3**: keyboard-layout OSD silently never triggers — i3/Sway's
   IPC has no layout-changed event. Other OSDs (volume, brightness,
   caps/num lock) work normally.
-- **Power menu's Lock button** depends on an idle daemon (`hypridle` /
-  `swayidle`) being configured to bridge logind's `Lock` signal to this
-  shell's IPC. The standard `lock_cmd = qs ipc call lock open` pattern
-  does this; without it, the button is silent. See gotcha #52 in the
-  reference doc.
-- **No DPMS handling** in the shell itself — defer to your idle
-  daemon's config (`niri msg action power-off-monitors` /
-  `hyprctl dispatch dpms off` / `swaymsg "output * dpms off"`).
+- **Locking on suspend** is the one piece of idle handling still done
+  outside the shell — catching it means listening for logind's
+  `PrepareForSleep` DBus signal, and Quickshell has no generic DBus
+  client. Ship `examples/quickshell-lock.service` if you want it.
+  Inactivity timeouts, locking and screen blanking are all native now
+  (see [Idle handling](#idle-handling)).
+- **Screen blanking needs a supported compositor.** Hyprland, niri and
+  Sway are wired up via `Compositor.dispatchDpms()`; on i3 (X11) and the
+  stub backend the blank stage is a silent no-op and only the lock stage
+  runs.
 - **Polkit agent**: not provided. Use `hyprpolkitagent` /
   `polkit-kde-authentication-agent-1` / etc.
 - **Hyprland & Sway are lightly tested.** Edge cases possible around
@@ -172,7 +180,7 @@ will catch things our test pass on niri couldn't.
 
 | Arch package           | Purpose                                         |
 |------------------------|-------------------------------------------------|
-| `quickshell` (AUR)     | The QML shell framework (≥ 0.2.1)               |
+| `quickshell` (AUR)     | The QML shell framework (≥ 0.3.0 — `IdleMonitor`) |
 | One of: `niri` / `hyprland` / `sway` | Wayland compositor                |
 | `qt6-base`             | ≥ 6.5 for `MultiEffect` (used by lock blur)     |
 | `qt6-declarative`      | QML runtime                                     |
@@ -187,8 +195,6 @@ will catch things our test pass on niri couldn't.
 
 | Arch package    | What it enables                                                        |
 |-----------------|------------------------------------------------------------------------|
-| `hypridle` *(niri / Hyprland)* | Idle daemon. Triggers our lock IPC on timeout / before-suspend. Quickshell has no built-in idle notifier yet, so this stays external. See `examples/hypridle.conf`. |
-| `swayidle` *(Sway / i3)*       | Equivalent idle daemon. See `examples/swayidle.service` for the command snippet. |
 | `libcanberra`   | KDE-style audible cue on volume change / unmute. Plays the freedesktop `audio-volume-change` sample through the just-changed sink, so its loudness mirrors the new level. Disable via `volumeFeedbackEnabled: false` in `Theme.qml`. |
 | `sound-theme-freedesktop` | Provides the actual `audio-volume-change` sample that `libcanberra` plays. Without it, canberra silently no-ops. |
 
@@ -202,7 +208,7 @@ will catch things our test pass on niri couldn't.
 git clone https://github.com/<you>/quickshell-bar ~/.config/quickshell/quickshell-bar
 ```
 
-(Or anywhere else — substitute the path in the niri / hypridle snippets below.)
+(Or anywhere else — substitute the path in the keybind snippets below.)
 
 ### 2. Install the PAM service file (root, one-time)
 
@@ -236,16 +242,59 @@ Copy `examples/hyprland-bindings.conf` into `~/.config/hypr/hyprland.conf`
 Copy `examples/sway-bindings.conf` into `~/.config/sway/config` (or i3's
 config). Reload with `swaymsg reload` / `i3-msg reload`.
 
-### 4. (Optional) Wire an idle daemon for lock + DPMS
+### 4. (Optional) Lock on suspend
 
-Pick the daemon for your compositor:
+Idle timeouts need no setup — the shell locks at 5 min and blanks the
+screens at 6 min out of the box. See [Idle handling](#idle-handling) to
+change or disable that.
 
-- **Hyprland / niri** → `hypridle`. Sample at `examples/hypridle.conf`.
-  Restart with `pkill hypridle && setsid hypridle </dev/null >/dev/null 2>&1 &`.
-- **Sway / i3** → `swayidle`. Sample command at `examples/swayidle.service`.
-  Add to your Sway autostart (`exec swayidle ...`).
+Locking *on suspend* is separate, because it hangs off logind rather
+than off inactivity. If you want it:
 
-Both samples lock at 5 min, DPMS off at 5.5 min, and lock before suspend.
+```sh
+mkdir -p ~/.config/systemd/user
+sed "s|/path/to/quickshell-bar|$PWD|" examples/quickshell-lock.service \
+    > ~/.config/systemd/user/quickshell-lock.service
+systemctl --user daemon-reload
+systemctl --user enable quickshell-lock.service
+```
+
+---
+
+## Idle handling
+
+Inactivity is watched in-shell via `ext-idle-notifier-v1`
+(`qs.system`'s `IdleService`). There is no idle daemon to install and no
+second config file to keep in sync — both stages are ordinary keys in
+`config.jsonc`, and both are also sliders on the Settings page's
+**Behaviour** tab:
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `idleLockSeconds` | `300` | Seconds of inactivity before the session locks. `0` disables. |
+| `idleDpmsSeconds` | `360` | Seconds before the monitors blank. `0` disables. |
+
+Both stages are driven by a single `IdleMonitor` armed at the earlier of
+the two timeouts; the later stage runs off a delay measured from there.
+Any activity cancels pending stages and wakes the monitors — it does
+**not** unlock, since waking a screen isn't authentication.
+
+`respectInhibitors` is on, so anything holding `idle-inhibit-v1` — mpv,
+browsers playing video, Steam — suppresses both stages automatically.
+
+Runtime control:
+
+```sh
+qs ipc call idle status     # what's armed, and are we idle right now
+qs ipc call idle disable    # stay awake (same as the Caffeine tile)
+qs ipc call idle enable
+qs ipc call idle toggle
+qs ipc call idle blank      # blank the screens now
+```
+
+The Control Center's **Caffeine** tile is the GUI for the same switch.
+It additionally holds a `systemd-inhibit` against logind's suspend timer
+and lid switch, which are systemd's business rather than the shell's.
 
 ---
 
@@ -337,7 +386,7 @@ Or write a minimal one with just your overrides:
 ```
 
 See [`docs/CUSTOMIZATION.md`](docs/CUSTOMIZATION.md) for the full
-reference of all 31 overridable keys (Theme tokens, fonts, sizes,
+reference of all 33 overridable keys (Theme tokens, fonts, sizes,
 animations, launcher search engine).
 
 ### Things that still require touching tracked files
@@ -348,7 +397,7 @@ animations, launcher search engine).
 | Web-search engine      | Override per-machine via `config.json` (`searchUrl` / `searchName`). |
 | Wallpaper folder       | Open the Control Center (sliders icon, just before Power) → click the **Wallpaper** tile → folder browser opens. Use the up-arrow / subfolder pills to navigate. Persisted to `~/.local/state/quickshell/by-shell/<id>/wallpaper.json`. |
 | Weather location       | Open the Control Center → click the weather card body → "Choose city" view opens with 25 NL cities. Persisted to `~/.local/state/quickshell/by-shell/<id>/weather.json`. |
-| Idle / dim / suspend timings | `~/.config/hypr/hypridle.conf` or `swayidle` invocation (see `examples/`) |
+| Idle lock / screen-blank timings | `idleLockSeconds` / `idleDpmsSeconds` in `config.jsonc`, or the Settings page's Behaviour tab. See [Idle handling](#idle-handling). |
 | Compositor keybinds    | `examples/<compositor>-bindings.<ext>`                            |
 | Force-pick a backend   | `QS_COMPOSITOR=niri\|hyprland\|sway\|stub` env var                |
 
@@ -401,12 +450,11 @@ animations, launcher search engine).
 ├── wallpaper/                — wallpaper renderer + picker (replaces swaybg + waypaper)
 ├── lock/                     — WlSessionLock + PAM (Mod+Shift+X)
 │
-├── examples/                 — copy-pasteable compositor + idle-daemon configs
+├── examples/                 — copy-pasteable compositor configs
 │   ├── niri-config.kdl
 │   ├── hyprland-bindings.conf
 │   ├── sway-bindings.conf
-│   ├── hypridle.conf
-│   └── swayidle.service
+│   └── quickshell-lock.service   — lock-on-suspend systemd user unit
 │
 ├── docs/AGENTS.md            — orientation for contributors and AI agents
 ├── docs/STYLE.md             — visual + structural conventions
@@ -423,7 +471,6 @@ animations, launcher search engine).
 
 | External tool       | Why it stays                                                                                     |
 |---------------------|--------------------------------------------------------------------------------------------------|
-| `hypridle`          | Quickshell lacks `ext-idle-notifier-v1` client. Future direction: replace via systemd-logind DBus. |
 | `hyprpolkitagent`   | No polkit replacement yet (~2 h follow-up if desired).                                           |
 | `udiskie`, `kwalletd6`, etc. | Out of shell scope by design (USB mount, secret store, etc.).                          |
 

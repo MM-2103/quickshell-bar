@@ -1,0 +1,38 @@
+# Lock the session before suspend.
+#
+# This is the ONLY piece of idle handling that still lives outside the
+# shell. Everything else — the inactivity timers, the lock stage, the
+# screen-blank stage — is handled natively by qs.system's IdleService and
+# configured through `idleLockSeconds` / `idleDpmsSeconds` in
+# ~/.config/quickshell-bar/config.jsonc.
+#
+# Suspend is the exception because catching it means listening for
+# logind's PrepareForSleep DBus signal, and Quickshell has no generic
+# DBus client. systemd already owns that ordering, so we let it drive.
+#
+# Install:
+#
+#   mkdir -p ~/.config/systemd/user
+#   sed 's|/path/to/quickshell-bar|'"$PWD"'|' \
+#       examples/quickshell-lock.service \
+#       > ~/.config/systemd/user/quickshell-lock.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable quickshell-lock.service
+#
+# Verify with `systemctl --user status quickshell-lock.service` after a
+# suspend/resume cycle. If you don't care about locking on suspend, skip
+# this file entirely — nothing else depends on it.
+
+[Unit]
+Description=Lock quickshell-bar session before sleep
+Before=sleep.target
+
+[Service]
+Type=oneshot
+# Blocks sleep.target until the lock surface is actually up. Without the
+# ordering above plus a synchronous call, the machine can suspend before
+# the lock renders and briefly flash the desktop on resume.
+ExecStart=/usr/bin/qs -p /path/to/quickshell-bar ipc call lock open
+
+[Install]
+WantedBy=sleep.target

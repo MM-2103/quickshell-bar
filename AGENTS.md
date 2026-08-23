@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Quickshell-bar — a QML-based Wayland desktop shell (no compile, no lint, no test suite). Built on [Quickshell](https://quickshell.org/) ≥ 0.2.1. Full contributor guide at [`docs/AGENTS.md`](docs/AGENTS.md); companion files: [`docs/STYLE.md`](docs/STYLE.md) (visual conventions + recipes) and [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) (API + gotchas).
+Quickshell-bar — a QML-based Wayland desktop shell (no compile, no lint, no test suite). Built on [Quickshell](https://quickshell.org/) ≥ 0.3.0. Full contributor guide at [`docs/AGENTS.md`](docs/AGENTS.md); companion files: [`docs/STYLE.md`](docs/STYLE.md) (visual conventions + recipes) and [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) (API + gotchas).
 
 ## Verification (smoke-test)
 
