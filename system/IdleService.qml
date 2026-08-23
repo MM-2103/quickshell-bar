@@ -114,7 +114,18 @@ Singleton {
 
     // Force the DPMS stage now, without waiting for idle. Bound to the IPC
     // handler so a compositor keybind can blank the screen on demand.
-    function blankNow() { root._dpmsOff(); }
+    //
+    // Arms wakeWatch, because otherwise this is a trap. The normal wake path
+    // is the idle->active edge, and a manual blank never went idle, so that
+    // edge never comes. Compositors don't reliably cover for us either:
+    // Hyprland's key_press_enables_dpms / mouse_move_enables_dpms both
+    // default to off, so on a stock config the screens would stay dark with
+    // no input able to revive them.
+    function blankNow() {
+        root._manualBlank = true;
+        root._wakeArmed = false;
+        root._dpmsOff();
+    }
 
     function statusText() {
         if (!root.enabled) return "idle handling disabled (caffeine)";
@@ -133,6 +144,15 @@ Singleton {
     // shell.qml's Component.onCompleted) doesn't report itself as a re-arm.
     property bool _booted: false
 
+    // True while the current blank came from blankNow() rather than from the
+    // idle cycle. Only these need wakeWatch; an idle blank is already woken
+    // by the main monitor's idle->active edge.
+    property bool _manualBlank: false
+
+    // wakeWatch has gone idle at least once, so the next active edge is real
+    // input rather than the monitor initialising.
+    property bool _wakeArmed: false
+
     function _dpmsOff() {
         if (root.monitorsBlanked) return;
         root.monitorsBlanked = true;
@@ -140,6 +160,8 @@ Singleton {
     }
 
     function _dpmsOn() {
+        root._manualBlank = false;
+        root._wakeArmed = false;
         if (!root.monitorsBlanked) return;
         root.monitorsBlanked = false;
         Compositor.dispatchDpms(true);
@@ -182,6 +204,30 @@ Singleton {
         onIsIdleChanged: {
             if (monitor.isIdle) root._onIdle();
             else root._onActive();
+        }
+    }
+
+    // Wake path for blankNow() only. Short timeout so it reaches the idle
+    // state almost immediately after a manual blank; the next input then
+    // produces the active edge that turns the monitors back on.
+    //
+    // respectInhibitors is deliberately false here, unlike the main monitor.
+    // An inhibitor-respecting monitor never goes idle while mpv is playing,
+    // which would leave _wakeArmed false and strand the screens dark — the
+    // exact failure this exists to prevent.
+    IdleMonitor {
+        id: wakeWatch
+        enabled: root.monitorsBlanked && root._manualBlank
+        timeout: 1
+        respectInhibitors: false
+        onIsIdleChanged: {
+            if (wakeWatch.isIdle) {
+                root._wakeArmed = true;
+                return;
+            }
+            // Ignore the false that comes from enabling/resetting; only a
+            // transition after we've actually seen idle means real input.
+            if (root._wakeArmed) root._dpmsOn();
         }
     }
 
