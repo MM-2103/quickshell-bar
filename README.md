@@ -191,6 +191,7 @@ will catch things our test pass on niri couldn't.
 |-----------------|------------------------------------------------------------------------|
 | `libcanberra`   | KDE-style audible cue on volume change / unmute. Plays the freedesktop `audio-volume-change` sample through the just-changed sink, so its loudness mirrors the new level. Disable via `volumeFeedbackEnabled: false` in `Theme.qml`. |
 | `sound-theme-freedesktop` | Provides the actual `audio-volume-change` sample that `libcanberra` plays. Without it, canberra silently no-ops. |
+| `python-gobject` | Powers `system/inhibit-bridge.py`, which owns the D-Bus `ScreenSaver` / `PowerManagement.Inhibit` names so apps can stop the idle timer. Without it, **windowed** browser video will not prevent locking — only Wayland `idle-inhibit-v1` holders will. The shell logs once and carries on if it's missing. Almost certainly already installed; it's a dependency of blueman, flatpak, gimp and others. |
 
 ---
 
@@ -291,8 +292,30 @@ the two timeouts; the later stage runs off a delay measured from there.
 Any activity cancels pending stages and wakes the monitors — it does
 **not** unlock, since waking a screen isn't authentication.
 
-`respectInhibitors` is on, so anything holding `idle-inhibit-v1` — mpv,
-browsers playing video, Steam — suppresses both stages automatically.
+Both stages are suppressed while an app asks to stay awake. Two separate
+channels are honoured, because apps disagree about which one to use:
+
+- **Wayland `idle-inhibit-v1`**, via `IdleMonitor.respectInhibitors`. Used
+  by mpv, Steam, and browsers when video is *fullscreen*.
+- **D-Bus** `org.freedesktop.ScreenSaver` and
+  `org.freedesktop.PowerManagement.Inhibit`, via a small helper that owns
+  those names (`system/inhibit-bridge.py`). This is what browsers use for
+  **windowed** video, usually routed through xdg-desktop-portal.
+
+The D-Bus half matters more than it sounds: without it a YouTube tab that
+isn't fullscreen will not stop the lock. hypridle and Plasma's powerdevil
+both own those names — losing hypridle is what removed them.
+
+`qs -p . ipc call idle status` names whoever is currently holding an
+inhibit, which is usually the fastest answer to "why didn't my screen
+lock":
+
+```
+inhibited by xdg-desktop-portal-gtk: Playing video | lock 300s | dpms 360s
+```
+
+Inhibits are released when the requesting app disconnects from the bus, so
+a browser that crashes can't wedge the machine awake.
 
 Runtime control:
 

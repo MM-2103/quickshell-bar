@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #70+) represents original
+> "Gotchas & quirks" section (entries #1 through #72+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2856,6 +2856,31 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
       systemd-inhibit --what=sleep --mode=delay --who=<you> --why=<reason> sleep infinity
       ```
       This is what `kwin_wayland` does — check `systemd-inhibit --list` on any KDE box. Bound the wait with a watchdog under `InhibitDelayMaxSec` (5 s default, readable via the `InhibitDelayMaxUSec` property): logind proceeds regardless once the budget expires, so failing open is the only real option — the watchdog just keeps the release deliberate.
+
+71. **Quickshell can consume D-Bus services but cannot provide one.** Every D-Bus module it ships — `Mpris`, `Notifications`, `SystemTray`, `UPower`, `Polkit`, `DBusMenu` — is a *client*, implemented C++-side. There is no generic export API, so you cannot own a bus name or answer a method call from QML. Anything that requires being a D-Bus *service* needs a helper process; see `system/inhibit-bridge.py` for the shape (own the name, publish state as JSON lines on stdout, read it back with `Process` + `SplitParser`).
+
+72. **Honouring "don't idle" requests means implementing two unrelated protocols.** `IdleMonitor.respectInhibitors` covers only Wayland `idle-inhibit-v1`. A large class of apps — browsers in particular — use the older D-Bus route instead, and will happily let your screen lock mid-video if you only implement the Wayland one.
+
+    Firefox-family browsers take the Wayland inhibitor **only when video is fullscreen**; windowed playback goes over D-Bus. That asymmetry makes the bug look intermittent and content-dependent, which is a miserable thing to debug from symptoms.
+
+    To cover the D-Bus half you must *own* these names (which is why gotcha #71 matters):
+
+    | Name | Object paths |
+    |---|---|
+    | `org.freedesktop.ScreenSaver` | `/org/freedesktop/ScreenSaver` **and** `/ScreenSaver` |
+    | `org.freedesktop.PowerManagement.Inhibit` | `/org/freedesktop/PowerManagement/Inhibit` |
+
+    `/ScreenSaver` is the legacy path and is not optional — it is the one hardcoded in Firefox's libxul. Confusingly, requests routed through **xdg-desktop-portal** arrive on the canonical path instead, so a real desktop needs both. Export one and you get a name that resolves, a service that looks healthy, and inhibits that silently never arrive.
+
+    Three further traps:
+
+    - **Release a client's inhibitors when it drops off the bus.** Subscribe to `NameOwnerChanged` and drop cookies whose sender vanished. A browser that crashes never sends `UnInhibit`, and without cleanup it wedges the machine awake until the shell restarts.
+    - **Never reuse cookies**, even after release, or a stale `UnInhibit` from a confused client cancels somebody else's inhibitor. Check the sender matches, too — cookies are small integers and trivially guessable.
+    - **Portal-routed requests carry an empty `application_name`.** Fall back to the sender's process name via `GetConnectionUnixProcessID` + `/proc/<pid>/cmdline` — `/proc/<pid>/comm` is capped at 15 bytes and truncates `xdg-desktop-portal-gtk` to `xdg-desktop-por`.
+
+    Diagnosing: `busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus NameHasOwner s org.freedesktop.ScreenSaver`. If that is `false`, every inhibit request on the system is failing silently. Note that `busctl call` is useless as a *test client* — it exits as soon as the call returns, so correct disconnect-cleanup immediately drops its cookie. Test with something that holds the connection open.
+
+
 
 
 

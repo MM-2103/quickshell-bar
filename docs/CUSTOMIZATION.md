@@ -466,8 +466,16 @@ A single `IdleMonitor` is armed at the earlier of the two timeouts and the
 later stage runs off a delay measured from there. Any activity cancels
 pending stages and wakes the monitors — it does not unlock.
 
-`respectInhibitors` is on, so anything holding `idle-inhibit-v1` (mpv,
-browsers playing video, Steam) suppresses both stages.
+Both stages are suppressed while an app asks to stay awake, over either of
+the two channels apps actually use: Wayland `idle-inhibit-v1` (mpv, Steam,
+fullscreen browser video) and D-Bus `org.freedesktop.ScreenSaver` /
+`org.freedesktop.PowerManagement.Inhibit` (windowed browser video, usually
+via xdg-desktop-portal). The D-Bus names are owned by
+`system/inhibit-bridge.py`; without `python-gobject` that half is
+unavailable and the shell logs once and continues.
+
+There are no config keys for this — `qs -p . ipc call idle status` reports
+who currently holds an inhibit.
 
 Runtime overrides, which do not touch `config.jsonc`:
 
