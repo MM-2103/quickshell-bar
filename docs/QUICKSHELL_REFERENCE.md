@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #72+) represents original
+> "Gotchas & quirks" section (entries #1 through #73+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2879,6 +2879,37 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     - **Portal-routed requests carry an empty `application_name`.** Fall back to the sender's process name via `GetConnectionUnixProcessID` + `/proc/<pid>/cmdline` — `/proc/<pid>/comm` is capped at 15 bytes and truncates `xdg-desktop-portal-gtk` to `xdg-desktop-por`.
 
     Diagnosing: `busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus NameHasOwner s org.freedesktop.ScreenSaver`. If that is `false`, every inhibit request on the system is failing silently. Note that `busctl call` is useless as a *test client* — it exits as soon as the call returns, so correct disconnect-cleanup immediately drops its cookie. Test with something that holds the connection open.
+
+73. **Quickshell does not reap child processes when the shell exits.** A `Process` still running at shutdown is reparented to init and keeps going. There is no cleanup pass, and `SIGKILL`ing the shell obviously cannot run one — but even a clean `SIGTERM` leaves them behind.
+
+    Whether that bites you depends on one thing: **does the child write to stdout continuously?** If it does, the closing pipe gives it `SIGPIPE` on its next write and it exits on its own. A 10 Hz `while true; do …; echo; done` poller is self-cleaning for exactly this reason. An event-driven watcher on a quiet system never writes, never gets signalled, and survives forever.
+
+    So the rule is conditional, which makes it easy to get wrong in both directions:
+
+    ```qml
+    // needed — only writes when the compositor emits an event
+    command: ["setpriv", "--pdeathsig", "TERM", "--", "niri", "msg", "--json", "event-stream"]
+
+    // not needed — echoes every 100ms, SIGPIPE cleans it up
+    command: ["sh", "-c", "while true; do ...; echo \"$C $N\"; sleep 0.1; done"]
+    ```
+
+    Two orphan classes are actively harmful rather than merely untidy:
+
+    - one holding a **logind delay inhibitor** (`systemd-inhibit --mode=delay`) keeps claiming a slice of the suspend budget with nothing behind it to do the work;
+    - one **owning a D-Bus name** makes the *next* shell fail to acquire it, so every request is answered by a process with no shell behind it. This is the nastiest failure mode, because the name resolves and the service looks alive.
+
+    Pair pdeathsig with an **intent-gated** death-watch. Restarting unconditionally on exit looks right and is not, because "the child exited" is also what teardown looks like — the handler then races the shell's own destruction and respawns into a half-torn-down state:
+
+    ```qml
+    onRunningChanged: {
+        if (!running && root._wantIt) { console.warn("..."); running = true; }
+    }
+    ```
+
+    Diagnose with `ps -eo pid,ppid,args | grep <command>`; orphans show `ppid=1`, or the pid of whatever subreaper adopted them.
+
+
 
 
 

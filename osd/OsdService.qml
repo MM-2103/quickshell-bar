@@ -183,6 +183,15 @@ Singleton {
     // (sysfs doesn't fire inotify events for value changes, so polling
     // is the standard approach here). The 2>/dev/null + ${VAR:-0} fallbacks
     // make this a no-op on systems missing any of the files.
+    //
+    // Deliberately NOT wrapped in `setpriv --pdeathsig TERM`, unlike the
+    // other long-running Processes in this shell. It echoes at 10 Hz, so
+    // when the shell dies the next echo hits a closed pipe, takes SIGPIPE,
+    // and the loop exits on its own. Verified: orphaned `nmcli monitor` and
+    // `gdbus monitor` processes accumulate across shell restarts, orphaned
+    // pollers never do. Adding pdeathsig here would be harmless but would
+    // also imply the rule is unconditional, and it is not — see
+    // docs/STYLE.md "Long-running processes".
     property bool _capsBaselineSet: false
     property int _lastCaps: 0
     property bool _numBaselineSet: false
