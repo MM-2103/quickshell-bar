@@ -6,7 +6,7 @@ Per-machine overrides without touching tracked files.
 
 | Method | When to use |
 |---|---|
-| **Pick a pre-made theme** — open the Settings page (gear icon in Control Center, or `qs ipc call settings open`) and click a card on the Theme tab. | Easiest. One click sets all 14 colour keys to a curated palette. Built-in themes: Default, Gruvbox Dark, Catppuccin Mocha, Tokyo Night Storm, Nord, Rosé Pine, Dracula, Everforest Dark, Kanagawa Wave, Solarized Dark. User-defined themes loaded from `~/.config/quickshell-bar/themes/*.jsonc` appear alongside. |
+| **Pick a pre-made theme** — open the Settings page (gear icon in Control Center, or `qs -p . ipc call settings open`) and click a card on the Theme tab. | Easiest. One click sets all 14 colour keys to a curated palette. Built-in themes: Default, Gruvbox Dark, Catppuccin Mocha, Tokyo Night Storm, Nord, Rosé Pine, Dracula, Everforest Dark, Kanagawa Wave, Solarized Dark. User-defined themes loaded from `~/.config/quickshell-bar/themes/*.jsonc` appear alongside. |
 | **Visual settings page (other tabs)** — same Settings popup, Colours / Typography / Layout & Motion / Behaviour tabs. | Casual tweaking on top of (or independent of) a theme. Sliders, hex-input + colour picker, dropdowns. Live preview as you change values; auto-saves to disk after 500 ms idle. |
 | **Hand-edit `~/.config/quickshell-bar/config.jsonc`** | Power users, scripting, copying configs between machines, dotfiles repos. JSONC syntax with comments allowed. |
 
@@ -472,17 +472,21 @@ browsers playing video, Steam) suppresses both stages.
 Runtime overrides, which do not touch `config.jsonc`:
 
 ```sh
-qs ipc call idle status     # what's armed, and are we idle right now
-qs ipc call idle disable    # stay awake — same switch as the Caffeine tile
-qs ipc call idle enable
-qs ipc call idle blank      # blank now, skipping the timer
+qs -p . ipc call idle status     # what's armed, and are we idle right now
+qs -p . ipc call idle disable    # stay awake — same switch as the Caffeine tile
+qs -p . ipc call idle enable
+qs -p . ipc call idle blank      # blank now, skipping the timer
 ```
+
+(`-p` selects the instance; `qs` doesn't infer it from the running
+daemon. See the README's [Talking to the running
+shell](../README.md#talking-to-the-running-shell).)
 
 Locking *on suspend* is separate — it hangs off logind's ordering rather
 than off inactivity — and is owned by `SleepService`. It has no config
 keys, so there is nothing to tune here; see the README's
 [Idle handling](../README.md#locking-on-suspend) section for how the
-delay inhibitor works, and `qs ipc call sleep status` to inspect it.
+delay inhibitor works, and `qs -p . ipc call sleep status` to inspect it.
 
 ### Launcher
 
