@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# test/run — run every test/*-test.sh
+#
+#   ./test/run              all tests
+#   ./test/run polkit       only files matching *polkit*
+#
+# Keeps going after a failing file so one broken area cannot mask the rest,
+# then exits non-zero if anything failed.
+#
+# This covers pure logic in .js modules only. It does NOT replace the
+# smoke test — QML still needs a running compositor, and the smoke test in
+# docs/AGENTS.md remains the check for anything visual or Quickshell-bound.
+
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+
+filter="${1:-}"
+files=()
+for f in test/*-test.sh; do
+    [[ -e $f ]] || continue
+    [[ -n $filter && $f != *"$filter"* ]] && continue
+    files+=("$f")
+done
+
+if [[ ${#files[@]} -eq 0 ]]; then
+    # An empty suite passes vacuously; a filter that matches nothing is a
+    # typo and should be loud.
+    if [[ -n $filter ]]; then
+        echo "no test files matched '$filter'"
+        exit 1
+    fi
+    echo "no test files"
+    exit 0
+fi
+
+failed_files=()
+for f in "${files[@]}"; do
+    echo "== $(basename "$f" -test.sh)"
+    if bash "$f"; then :; else failed_files+=("$f"); fi
+    echo
+done
+
+if [[ ${#failed_files[@]} -gt 0 ]]; then
+    echo "FAILED: ${failed_files[*]}"
+    exit 1
+fi
+
+echo "all ${#files[@]} file(s) passed"
