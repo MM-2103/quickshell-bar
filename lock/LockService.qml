@@ -2,9 +2,12 @@ pragma Singleton
 
 // LockService.qml
 // Session-lock state + PAM. Drives the WlSessionLock instance defined in
-// lock/Lock.qml. Triggered via the qs-IPC handler in shell.qml (which a
-// compositor keybind like Mod+Shift+X and hypridle's lock_cmd both call
-// into).
+// lock/Lock.qml.
+//
+// Two callers:
+//   - qs.system's IdleService, on its idle-lock stage. Calls lock() directly.
+//   - the qs-IPC handler in shell.qml, for a compositor keybind like
+//     Mod+Shift+X and for the lock-on-suspend systemd unit.
 //
 // Lifecycle:
 //   1. lock()              → locked=true; pam.active=true; surface UIs appear
@@ -62,7 +65,7 @@ Singleton {
     // ---- Public methods ----
 
     function lock() {
-        if (root.locked) return;        // idempotent — hypridle may call repeatedly
+        if (root.locked) return;        // idempotent — IdleService and IPC may both call
         root.pamError = "";
         root.pamMessage = "";
         root.locked = true;

@@ -18,6 +18,7 @@ import qs.wallpaper         // for WallpaperLayer + WallpaperPickerPopup + Wallp
 import qs.weather           // for WeatherDetailPopup + WeatherService singleton
 import qs.settings          // for SettingsPopup + SettingsService singleton
 import qs.themes            // for SystemTheme singleton (system-theme orchestration)
+import qs.system            // for IdleService singleton (idle lock + DPMS)
 
 ShellRoot {
     id: root
@@ -34,10 +35,15 @@ ShellRoot {
     // instantiate (singletons are lazy in QML — Connections inside an
     // unreferenced singleton never fire) and runs an initial gsettings
     // sync against whatever theme override is loaded from config.jsonc.
+    //
+    // IdleService.bootstrap() exists for the same reason: an unreferenced
+    // singleton never instantiates, and an IdleService that never
+    // instantiates is an IdleMonitor that never arms.
     Component.onCompleted: {
         NotificationService.currentScreen = Qt.binding(() => Compositor.focusedOutput);
         OsdService.layoutName            = Qt.binding(() => Compositor.currentLayout);
         SystemTheme.bootstrap();
+        IdleService.bootstrap();
     }
 
     // Trigger a layout OSD whenever the compositor reports a new layout
@@ -243,6 +249,22 @@ ShellRoot {
     IpcHandler {
         target: "lock"
         function open(): void  { LockService.lock(); }
+    }
+
+    // IPC for the idle service. `status` is the diagnostic to reach for when
+    // the screen locks at the wrong time — it reports the armed timeout, both
+    // stage timeouts, and whether we're currently idle.
+    //
+    //   qs ipc call idle status    -> "armed at 300s | lock 300s | dpms 360s | active"
+    //   qs ipc call idle disable   -> stay awake (same effect as Caffeine)
+    //   qs ipc call idle blank     -> blank monitors now, without waiting
+    IpcHandler {
+        target: "idle"
+        function status(): string { return IdleService.statusText(); }
+        function enable(): void   { IdleService.setEnabled(true); }
+        function disable(): void  { IdleService.setEnabled(false); }
+        function toggle(): void   { IdleService.toggle(); }
+        function blank(): void    { IdleService.blankNow(); }
     }
 
     // IPC: `qs ipc call settings open` opens the Settings page. Bind to
