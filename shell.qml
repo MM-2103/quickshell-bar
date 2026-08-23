@@ -18,7 +18,7 @@ import qs.wallpaper         // for WallpaperLayer + WallpaperPickerPopup + Wallp
 import qs.weather           // for WeatherDetailPopup + WeatherService singleton
 import qs.settings          // for SettingsPopup + SettingsService singleton
 import qs.themes            // for SystemTheme singleton (system-theme orchestration)
-import qs.system            // for IdleService singleton (idle lock + DPMS)
+import qs.system            // for IdleService + SleepService singletons
 
 ShellRoot {
     id: root
@@ -38,12 +38,15 @@ ShellRoot {
     //
     // IdleService.bootstrap() exists for the same reason: an unreferenced
     // singleton never instantiates, and an IdleService that never
-    // instantiates is an IdleMonitor that never arms.
+    // instantiates is an IdleMonitor that never arms. SleepService likewise —
+    // unbootstrapped it never takes its logind delay inhibitor, and suspend
+    // silently goes back to racing the lock.
     Component.onCompleted: {
         NotificationService.currentScreen = Qt.binding(() => Compositor.focusedOutput);
         OsdService.layoutName            = Qt.binding(() => Compositor.currentLayout);
         SystemTheme.bootstrap();
         IdleService.bootstrap();
+        SleepService.bootstrap();
     }
 
     // Trigger a layout OSD whenever the compositor reports a new layout
@@ -265,6 +268,20 @@ ShellRoot {
         function disable(): void  { IdleService.setEnabled(false); }
         function toggle(): void   { IdleService.toggle(); }
         function blank(): void    { IdleService.blankNow(); }
+    }
+
+    // Diagnostic IPC for suspend-time locking. Reach for this when the
+    // machine came back from suspend unlocked — it reports whether the
+    // logind delay inhibitor is held and whether the gdbus watcher is alive.
+    //
+    //   qs ipc call sleep status
+    //     -> "inhibitor held | watcher alive | session /org/.../session/_33"
+    //
+    // Cross-check against `systemd-inhibit --list`, where our entry should
+    // sit next to the compositor's own.
+    IpcHandler {
+        target: "sleep"
+        function status(): string { return SleepService.statusText(); }
     }
 
     // IPC: `qs ipc call settings open` opens the Settings page. Bind to
