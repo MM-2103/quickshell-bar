@@ -51,7 +51,7 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - App launcher (Mod+P) — apps + calculator + web search + emoji
 - Emoji picker shortcut (Mod+;)
 - Wallpaper picker (folder browse + thumbnails + per-monitor)
-- Settings page — visual editor for all 33 overridable keys (colours, fonts, sizes, animations, search engine, behaviour) with live preview; opens via the gear icon in the Control Center or `qs ipc call settings open`
+- Settings page — visual editor for all 33 overridable keys (colours, fonts, sizes, animations, search engine, behaviour) with live preview; opens via the gear icon in the Control Center or `qs -p . ipc call settings open`
 
 **Notifications & OSD**
 - Native NotificationServer (replaces external daemons)
@@ -82,7 +82,7 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Native `ext-idle-notifier-v1` via Quickshell's `IdleMonitor` — no second daemon
 - Two independent stages: lock, then blank the monitors. Either can be disabled
 - Honours `idle-inhibit-v1`, so video playback suppresses both stages
-- Caffeine tile / `qs ipc call idle disable` to stay awake
+- Caffeine tile / `qs -p . ipc call idle disable` to stay awake
 
 ---
 
@@ -242,6 +242,37 @@ box. See [Idle handling](#idle-handling) to change or disable that.
 
 ---
 
+## Talking to the running shell
+
+Everything scriptable goes through `qs ipc call`. One catch: **`qs` needs
+to know which shell to talk to**, and it does not infer that from the
+running daemon. A bare `qs ipc call …` looks for a config named
+`default`, so against a `-p`-launched daemon it fails with:
+
+```
+Could not find "default" config directory or shell.qml in any valid config path.
+```
+
+Pass the same `-p` you launched with:
+
+```sh
+qs -p ~/path/to/quickshell-bar ipc call idle status
+```
+
+From inside the clone, `qs -p .` is the short version. If you use IPC
+often, an alias is worth it:
+
+```sh
+alias qsb='qs -p ~/path/to/quickshell-bar'
+qsb ipc call idle status
+```
+
+The snippets below spell out `-p` so they are copy-pasteable. So do the
+keybind samples in [`examples/`](examples/) — substitute your clone path
+there too.
+
+---
+
 ## Idle handling
 
 Inactivity is watched in-shell via `ext-idle-notifier-v1`
@@ -266,11 +297,11 @@ browsers playing video, Steam — suppresses both stages automatically.
 Runtime control:
 
 ```sh
-qs ipc call idle status     # what's armed, and are we idle right now
-qs ipc call idle disable    # stay awake (same as the Caffeine tile)
-qs ipc call idle enable
-qs ipc call idle toggle
-qs ipc call idle blank      # blank the screens now
+qs -p . ipc call idle status     # what's armed, and are we idle right now
+qs -p . ipc call idle disable    # stay awake (same as the Caffeine tile)
+qs -p . ipc call idle enable
+qs -p . ipc call idle toggle
+qs -p . ipc call idle blank      # blank the screens now
 ```
 
 The Control Center's **Caffeine** tile is the GUI for the same switch.
@@ -299,8 +330,8 @@ shell. `Unlock` is deliberately ignored: acting on it would dismiss the
 lock screen without PAM ever running.
 
 ```sh
-qs ipc call sleep status    # inhibitor held? watcher alive? session path?
-systemd-inhibit --list      # our entry sits next to the compositor's
+qs -p . ipc call sleep status   # inhibitor held? watcher alive? session path?
+systemd-inhibit --list          # our entry sits next to the compositor's
 ```
 
 ---
@@ -357,7 +388,7 @@ Rehearse this once before you ever need it for real.
 Two ways to edit, both writing to the same `~/.config/quickshell-bar/config.jsonc`:
 
 **Visual editor** — open the Control Center, click the gear icon in the
-header (or run `qs ipc call settings open` for a keybind). Tabs for
+header (or run `qs -p . ipc call settings open` for a keybind). Tabs for
 Colours / Typography / Layout & Motion / Behaviour with sliders,
 hex-input + colour picker, dropdowns. Live preview; auto-saves after
 500 ms of idle. First save per session creates `config.jsonc.bak`.

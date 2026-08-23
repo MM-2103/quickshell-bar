@@ -2284,6 +2284,14 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
 
 47. **`qs ipc call` connects to the *oldest* matching instance unless you pass `-n`/`--newest`.** During development you'll often have stale sockets/by-pid symlinks left over from killed processes; `/run/user/$UID/quickshell/by-pid/<pid>` symlinks aren't auto-cleaned. The `qs ipc -vv ...` log shows which instance it picked.
 
+    **First, though, `qs` has to know *which config* you mean — it does not infer that from whatever daemon happens to be running.** A bare `qs ipc call …` looks for a config literally named `default`, so against a daemon started as `qs -p /path/to/shell -d` it fails before it ever reaches instance selection:
+
+    ```
+    Could not find "default" config directory or shell.qml in any valid config path.
+    ```
+
+    Selection flags have to match how the daemon was launched: `-p <path>` for a path-launched shell, `-c <name>` for one under `$XDG_CONFIG_HOME/quickshell/<name>/`. `qs -p .` works from inside the clone. The same applies to `qs list` and `qs log`, which is what makes the error confusing — it reads like "no shell is running" when the shell is running fine and simply wasn't named.
+
     Diagnose: `ls /run/user/$UID/quickshell/by-pid/` — any pids that aren't running are stale. Clean with:
 
     ```bash

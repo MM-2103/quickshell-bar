@@ -276,7 +276,12 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 
 ## 4. IPC handler reference
 
-Every `qs ipc call` command currently registered in `shell.qml`:
+Every `qs ipc call` command currently registered in `shell.qml`.
+
+**All of these need `-p <clone-path>`** (or `-c <name>`) to select the
+instance — `qs` does not infer it from the running daemon, and a bare
+call fails with `Could not find "default" config directory`. Omitted
+below for readability; from inside the clone, `qs -p . ipc call …`.
 
 ```
 qs ipc call lock open                   # lock the session (idempotent)
