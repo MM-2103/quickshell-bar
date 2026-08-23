@@ -1041,6 +1041,52 @@ To add a new compositor (river, Wayfire, Cosmic, …):
 
 ---
 
+## Long-running processes
+
+**Quickshell does not reap child processes when the shell exits.** They
+reparent to init and keep running, one orphan per shell restart — which
+during active QML editing is a restart every few minutes.
+
+A long-running `Process` whose command **does not write to stdout
+continuously** must be wrapped:
+
+```qml
+command: ["setpriv", "--pdeathsig", "TERM", "--", "<the real command>"]
+```
+
+Chatty children clean themselves up: when the shell dies the pipe closes,
+the next write takes `SIGPIPE`, and the process exits. That is why
+`osd/OsdService.qml`'s sysfs poller needs nothing — it echoes at 10 Hz.
+Quiet children have no such rescue.
+
+| Process | Writes | Needs pdeathsig |
+|---|---|---|
+| `osd/OsdService.qml` sysfs poller | every 100 ms | no — SIGPIPE handles it |
+| `compositor/BackendNiri.qml` `niri msg event-stream` | on compositor events | **yes** |
+| `network/NetworkService.qml` `nmcli monitor` | on network events | **yes** *(pending the `Quickshell.Networking` rewrite, which deletes the process outright)* |
+| `system/SleepService.qml` `gdbus monitor` | on D-Bus signals | **yes** |
+| `system/SleepService.qml` `systemd-inhibit … sleep infinity` | never | **yes** |
+| `system/IdleService.qml` `inhibit-bridge.py` | on inhibit changes | **yes** |
+
+Two orphan classes are worse than untidy: one holding a **logind delay
+inhibitor** keeps claiming suspend budget with nothing behind it to lock,
+and one owning a **D-Bus name** makes the next shell fail to acquire it,
+so every request is answered by a corpse.
+
+Pair this with an intent-gated death-watch rather than an unconditional
+restart — "the child exited" is also what shell teardown looks like:
+
+```qml
+onRunningChanged: {
+    if (!running && root._wantIt) { /* warn + running = true */ }
+}
+```
+
+Diagnose orphans with `ps -eo pid,ppid,args | grep <command>` — anything
+showing `ppid=1` (or a subreaper) outlived its shell.
+
+---
+
 ## Comment style
 
 - **Files**: top comment explains purpose + integration in 1-3 lines (see above).
