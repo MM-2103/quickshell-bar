@@ -1,6 +1,7 @@
 // BehaviorSection.qml
 // Settings tab content for assorted non-visual overrides:
 //   - `volumeFeedbackEnabled` (audible cue on volume change)
+//   - `idleLockSeconds` / `idleDpmsSeconds` (IdleService stage timeouts)
 //   - `searchUrl` / `searchName` (launcher web-search engine)
 //
 // `searchUrl` uses a `PresetDropdown` for one-click engine swaps; the
@@ -23,6 +24,31 @@ Column {
         settingKey: "volumeFeedbackEnabled"
         label: "Volume feedback"
         defaultValue: true
+    }
+
+    // Idle timeouts. Both stages are independent and either can be turned
+    // off by dragging to 0. Stepped at 30 s because a 30-minute range makes
+    // per-second precision meaningless.
+    SectionHeader { label: "IDLE" }
+    NumberSlider {
+        settingKey: "idleLockSeconds"
+        label: "Lock after"
+        defaultValue: 300
+        minValue: 0
+        maxValue: 1800
+        stepValue: 30
+        unitSuffix: "s"
+        zeroLabel: "Off"
+    }
+    NumberSlider {
+        settingKey: "idleDpmsSeconds"
+        label: "Screens off"
+        defaultValue: 360
+        minValue: 0
+        maxValue: 1800
+        stepValue: 30
+        unitSuffix: "s"
+        zeroLabel: "Off"
     }
 
     SectionHeader { label: "LAUNCHER · WEB SEARCH" }

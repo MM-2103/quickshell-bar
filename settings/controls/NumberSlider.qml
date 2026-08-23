@@ -20,6 +20,16 @@ SettingRow {
     // Optional unit suffix shown after the number ("px", "ms", or empty).
     property string unitSuffix: ""
 
+    // Snap increment. Default 1 keeps every existing caller unchanged.
+    // Ranges wide enough that per-unit precision is meaningless (idle
+    // timeouts spanning half an hour) set this so drags land on round
+    // values instead of 437 s.
+    property int stepValue: 1
+
+    // Readout text substituted when the value is 0. Lets a slider whose
+    // bottom end means "disabled" say so, instead of showing "0 s".
+    property string zeroLabel: ""
+
     // Default value for this key — reflected back into the slider when
     // no override is present, and used by `Local.get(...)`.
     property int defaultValue: 0
@@ -45,9 +55,16 @@ SettingRow {
         value: row._ratio
         wheelStep: 0.05
         onUserChanged: v => {
-            const next = Math.round(row.minValue + v * (row.maxValue - row.minValue));
+            const raw = row.minValue + v * (row.maxValue - row.minValue);
+            const step = Math.max(1, row.stepValue);
+            // Snap to the step grid, measured from minValue so a non-zero
+            // min still lands on round offsets, then clamp — rounding up
+            // near the top of the range can otherwise overshoot maxValue.
+            let next = row.minValue
+                + Math.round((raw - row.minValue) / step) * step;
+            next = Math.max(row.minValue, Math.min(row.maxValue, next));
             // Avoid redundant writes when the user drags within the
-            // same integer cell (slider is 0..1, but we round to int).
+            // same cell (slider is 0..1, but we round to the step grid).
             if (next !== row.currentValue) {
                 Local.set(row.settingKey, next);
             }
@@ -60,7 +77,9 @@ SettingRow {
         anchors.verticalCenter: parent.verticalCenter
         width: 60
         horizontalAlignment: Text.AlignRight
-        text: row.currentValue + (row.unitSuffix ? " " + row.unitSuffix : "")
+        text: (row.currentValue === 0 && row.zeroLabel !== "")
+            ? row.zeroLabel
+            : row.currentValue + (row.unitSuffix ? " " + row.unitSuffix : "")
         color: Theme.text
         font.family: Theme.fontMono
         font.pixelSize: Theme.fontSizeSmall
