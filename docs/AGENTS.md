@@ -10,7 +10,7 @@ Orientation for new contributors — human or AI — picking up this repo.
 > Companion docs:
 > - [`AGENTS.md`](../AGENTS.md) — **compact root-level version** for AI agents; read this first
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 69+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 70+ gotchas
 > - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
 > - [`README.md`](../README.md) — install + user-facing overview
 
@@ -106,7 +106,7 @@ shell.qml (entry point)
 │
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
-└── IpcHandler × 6                  ← clipboard, launcher, lock, settings, popups, idle
+└── IpcHandler × 7                  ← clipboard, launcher, lock, settings, popups, idle, sleep
 ```
 
 The **ControlCenter** bar widget owns its anchored `ControlCenterPopup`,
@@ -147,6 +147,8 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `WeatherService` | location, current/hourly/daily forecast (KNMI via Open-Meteo), city catalogue, detail-popup open state |
 | `ControlCenterService` | view-stack (`currentView`), Caffeine toggle (no bar widget owns it now; drives `IdleService.enabled` + a logind `systemd-inhibit`) |
 | `IdleService` | `ext-idle-notifier-v1` monitor, staged idle lock + DPMS blank, master `enabled` switch |
+| `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal |
+| `SleepService` | logind delay inhibitor + gdbus signal watcher: locks before suspend, honours inbound `Lock` |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
@@ -244,7 +246,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #69) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #70) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
@@ -260,7 +262,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `osd/` | `OsdService.qml` + `Osd.qml` panel (`Overlay` layer — visible over fullscreen) |
 | `volume/`, `media/`, `tray/` | bar widgets + popups + services that stayed in the bar after the CC declutter |
 | `network/`, `bluetooth/` | services + `*View.qml` files (no bar widgets — accessed via the Control Center) |
-| `system/` | bar widgets that stayed (`Battery`, `Brightness`, `Power`, `PowerMenuPopup`, `BrightnessPopup`) + `PowerProfileView` (used by CC; no bar widget) + `IdleService` singleton (idle lock + DPMS blank; replaces hypridle/swayidle) |
+| `system/` | bar widgets that stayed (`Battery`, `Brightness`, `Power`, `PowerMenuPopup`, `BrightnessPopup`) + `PowerProfileView` (used by CC; no bar widget) + `IdleService` and `SleepService` singletons (idle lock + DPMS blank, and lock-before-suspend; together these replace hypridle/swayidle) |
 | `controlcenter/` | `ControlCenter` bar widget, `ControlCenterPopup`, `ControlCenterService` singleton, `Tile`, `TilesView`, `SlidersBlock` |
 | `wallpaper/` | `WallpaperService` singleton, `WallpaperLayer` (Background-layer surface, replaces swaybg), `WallpaperPickerPopup` (replaces waypaper) |
 | `weather/` | `WeatherService` singleton (KNMI via Open-Meteo), `WeatherCard` (in CC), `WeatherDetailPopup` (centered, hourly + 7-day), `CitiesView` (CC detail view) |
@@ -296,6 +298,7 @@ qs ipc call idle enable                 # re-arm idle handling
 qs ipc call idle disable                # stay awake (same switch as the Caffeine tile)
 qs ipc call idle toggle
 qs ipc call idle blank                  # blank monitors now, skipping the timer
+qs ipc call sleep status                # diagnostic: delay inhibitor + watcher state
 ```
 
 **To add a new IPC handler**: add an `IpcHandler { target: "<name>"; ... }`

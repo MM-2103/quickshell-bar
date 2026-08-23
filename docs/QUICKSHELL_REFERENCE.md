@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #69+) represents original
+> "Gotchas & quirks" section (entries #1 through #70+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2328,12 +2328,11 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
 
 52. **`WlSessionLock` automatically updates systemd-logind's `LockedHint` property when `locked` toggles**, but does NOT subscribe to logind's `Lock` D-Bus signal — it's outbound-only. Verify the outbound side with `loginctl show-session $XDG_SESSION_ID -p LockedHint`.
 
-    **Inbound: an external `loginctl lock-session` call does NOT directly lock your shell.** It only flips logind's `LockedHint` to `yes`, which `WlSessionLock` doesn't listen for. Honouring it requires subscribing to logind's `Lock` D-Bus signal, and Quickshell ships no generic D-Bus client — so there is no in-shell bridge available.
+    **Inbound: an external `loginctl lock-session` call does NOT directly lock your shell.** It only flips logind's `LockedHint` to `yes`, which `WlSessionLock` doesn't listen for. Historically an idle daemon supplied the missing bridge as a side effect (`hypridle`'s `lock_cmd`, `swayidle ... lock`); once idle handling went native (gotcha #69) that daemon left and took the accidental bridge with it.
 
-    Historically an idle daemon supplied one as a side effect (`hypridle`'s `lock_cmd`, `swayidle ... lock`). Now that idle handling is native (`qs.system`'s `IdleService`, gotcha #69) that daemon is gone, and with it the accidental bridge. Two consequences:
+    So **power-menu "Lock" buttons must call `LockService.lock()` directly** rather than shelling out to `loginctl lock-session`. Nothing is lost: `WlSessionLock` sets `LockedHint` itself, so logind still learns the session is locked.
 
-    - Power-menu "Lock" buttons must call `LockService.lock()` **directly**, not `loginctl lock-session`. The latter is silent.
-    - Lock-on-suspend needs a `Before=sleep.target` systemd user unit invoking `qs ipc call lock open` (see `examples/quickshell-lock.service`), because that path is logind-ordered rather than inactivity-driven.
+    To honour the signal for *external* callers, see gotcha #70 — Quickshell has no generic D-Bus client, so it has to come from a subprocess.
 
 53. **`waypaper` writes the active wallpaper as a single line in `~/.config/waypaper/config.ini`** under the `[Settings]` section: `wallpaper = /absolute/path/to/image.ext` (`~`-relative paths are NOT expanded by waypaper itself but appear as-typed if you set them via the GUI). Useful for any shell component that needs to know the desktop wallpaper (lock screen blur background, color sampler, MPRIS art fallback, etc.). Re-read on demand via `FileView` with `watchChanges: true`. If waypaper isn't installed, fall back to parsing `pgrep -af 'swaybg|swww|hyprpaper'` arguments — fragile but works.
 
@@ -2821,6 +2820,35 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     - **`enabled: false` drops the subscription entirely**, which is the correct implementation of a "keep awake" toggle when your shell is the only idle consumer. You do not need to publish an `IdleInhibitor` of your own to inhibit yourself.
 
     `IdleInhibitor` (same module) is the *producer* side and requires a `window` to attach to — only reach for it if something outside your shell is also watching idle.
+
+70. **Watching D-Bus without a D-Bus client: use `gdbus monitor`, not `dbus-monitor`.** `dbus-monitor --system` needs privileges a user session doesn't have — it logs `unable to enable new-style monitoring: org.freedesktop.DBus.Error.AccessDenied` and falls back to eavesdropping, which modern dbus policy also denies. `gdbus monitor` uses ordinary match rules and works unprivileged:
+
+    ```
+    gdbus monitor --system --dest org.freedesktop.login1
+    ```
+
+    One line per signal, covering **every object owned by that name** (manager *and* per-session objects), which is what makes a single watcher enough:
+
+    ```
+    /org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (true,)
+    /org/freedesktop/login1/session/_33: org.freedesktop.login1.Session.Lock ()
+    ```
+
+    Three things that bite:
+
+    - **logind escapes session ids into object paths** — `XDG_SESSION_ID=3` becomes `/session/_33`, because `_3` escapes the leading digit. Don't string-build it; ask, and parse JSON rather than busctl's native output:
+      ```
+      busctl --system --json=short call org.freedesktop.login1 /org/freedesktop/login1 \
+        org.freedesktop.login1.Manager GetSession s "$XDG_SESSION_ID"
+      -> {"type":"o","data":["/org/freedesktop/login1/session/_33"]}
+      ```
+    - **Never act on `Session.Unlock`.** It's emitted by `loginctl unlock-session`, and honouring it dismisses the lock screen without PAM ever running — a straight authentication bypass. Accepting `Lock` from anyone is fine; accepting `Unlock` is not.
+    - **Locking on `PrepareForSleep` alone is too late.** The signal fires and logind suspends; your lock surface maps asynchronously and may not be up in time. Hold a **delay** inhibitor continuously and release it only once the lock is confirmed on screen (`WlSessionLock.secure`):
+      ```
+      systemd-inhibit --what=sleep --mode=delay --who=<you> --why=<reason> sleep infinity
+      ```
+      This is what `kwin_wayland` does — check `systemd-inhibit --list` on any KDE box. Bound the wait with a watchdog under `InhibitDelayMaxSec` (5 s default, readable via the `InhibitDelayMaxUSec` property): logind proceeds regardless once the budget expires, so failing open is the only real option — the watchdog just keeps the release deliberate.
+
 
 
 ### Style & best practices
