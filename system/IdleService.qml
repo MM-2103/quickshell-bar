@@ -55,6 +55,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import qs
 import qs.compositor
@@ -85,6 +86,18 @@ Singleton {
     // dispatch so activity doesn't spam `dpms enable` at a compositor that
     // was never blanked by us.
     property bool monitorsBlanked: false
+
+    // Apps currently asking us not to idle, over D-Bus. Strings of the form
+    // "app: reason", published by system/inhibit-bridge.py.
+    //
+    // This is a separate channel from IdleMonitor's respectInhibitors, which
+    // only covers the Wayland idle-inhibit-v1 protocol. Most browsers use the
+    // older D-Bus route for windowed video — Firefox-family ones only take a
+    // Wayland inhibitor when the video is fullscreen — so without this a
+    // YouTube tab does not stop the lock. hypridle and Plasma both own these
+    // D-Bus names; losing hypridle is what regressed the behaviour.
+    property var inhibitHolders: []
+    readonly property bool externalInhibited: root.inhibitHolders.length > 0
 
     // ---- Derived scheduling ----
 
@@ -130,6 +143,14 @@ Singleton {
     function statusText() {
         if (!root.enabled) return "idle handling disabled (caffeine)";
         if (!root.anyStageEnabled) return "no idle stages configured";
+        if (root.externalInhibited) {
+            // Lead with this: "why didn't my screen lock" is the question
+            // this command exists to answer, and an app holding an inhibit
+            // is the answer far more often than a misread timeout.
+            return "inhibited by " + root.inhibitHolders.join(", ")
+                + " | lock " + (root.lockSeconds > 0 ? root.lockSeconds + "s" : "off")
+                + " | dpms " + (root.dpmsSeconds > 0 ? root.dpmsSeconds + "s" : "off");
+        }
         return "armed at " + root.firstStageSeconds + "s"
             + " | lock " + (root.lockSeconds > 0 ? root.lockSeconds + "s" : "off")
             + " | dpms " + (root.dpmsSeconds > 0 ? root.dpmsSeconds + "s" : "off")
@@ -193,12 +214,13 @@ Singleton {
         // IdleMonitor with enabled=false holds no ext-idle-notifier
         // subscription at all, which is exactly the semantics we want for
         // caffeine — there is nothing left to inhibit.
-        enabled: root.enabled && root.anyStageEnabled
+        enabled: root.enabled && root.anyStageEnabled && !root.externalInhibited
 
         timeout: root.firstStageSeconds
 
         // Honour idle-inhibit-v1 holders: video players, presentation mode,
-        // games. Free, and better than what the old hypridle config did.
+        // games. Covers the Wayland protocol only; the D-Bus half arrives via
+        // externalInhibited above.
         respectInhibitors: true
 
         onIsIdleChanged: {
@@ -270,6 +292,67 @@ Singleton {
         }
     }
 
+    // ---- D-Bus inhibit bridge ----
+    //
+    // Quickshell can consume D-Bus services but cannot provide one, so the
+    // ScreenSaver / PowerManagement.Inhibit names are owned by a helper
+    // process that reports holder changes as JSON lines. See the file header
+    // in system/inhibit-bridge.py for why both names and three object paths
+    // are needed.
+
+    property bool _wantBridge: false
+
+    // Set when the helper exits 3 (PyGObject missing). Stops the death-watch
+    // from spinning on a dependency that will not appear at runtime.
+    property bool _bridgeUnavailable: false
+
+    Process {
+        id: inhibitBridge
+
+        // pdeathsig for the same reason SleepService needs it: Quickshell
+        // does not reap children on exit, and this one holds bus names. An
+        // orphan would keep owning org.freedesktop.ScreenSaver after the
+        // shell died, so the next shell silently fails to acquire it and
+        // every inhibit request is answered by a corpse.
+        command: ["setpriv", "--pdeathsig", "TERM", "--", "python3",
+                  Qt.resolvedUrl("inhibit-bridge.py").toString().replace("file://", "")]
+
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: line => {
+                if (!line || line.length === 0) return;
+                try {
+                    const payload = JSON.parse(line);
+                    root.inhibitHolders = payload.holders || [];
+                } catch (e) {
+                    console.warn("[IdleService] inhibit bridge parse error:", e, "line:", line);
+                }
+            }
+        }
+        stderr: SplitParser {
+            splitMarker: "\n"
+            onRead: line => console.warn("[IdleService inhibit-bridge]", line)
+        }
+
+        onExited: code => {
+            if (code === 3) {
+                root._bridgeUnavailable = true;
+                console.warn("[IdleService] D-Bus idle inhibits unavailable "
+                    + "(python-gobject missing); Wayland inhibits still honoured");
+            }
+        }
+        onRunningChanged: {
+            if (running) return;
+            // Anything we were told about died with the helper; holding stale
+            // holders would inhibit idle forever.
+            root.inhibitHolders = [];
+            if (root._wantBridge && !root._bridgeUnavailable) {
+                console.warn("[IdleService] inhibit bridge exited, restarting...");
+                running = true;
+            }
+        }
+    }
+
     // Forces instantiation from shell.qml. Singletons are lazy, and a lazy
     // idle service is one that never arms — same reason SystemTheme has one.
     //
@@ -277,6 +360,8 @@ Singleton {
     // yet at this point; see onFirstStageSecondsChanged.
     function bootstrap() {
         root._booted = true;
+        root._wantBridge = true;
+        inhibitBridge.running = true;
         console.log("[IdleService] initial:", root.statusText());
     }
 }
