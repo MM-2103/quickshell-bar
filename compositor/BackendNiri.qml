@@ -78,7 +78,17 @@ QtObject {
 
     property Process _events: Process {
         id: niriEvents
-        command: ["niri", "msg", "--json", "event-stream"]
+        // setpriv --pdeathsig TERM: Quickshell does not reap child processes
+        // when the shell exits — they reparent to init and keep running. This
+        // one only writes on compositor events, so on a quiet system there is
+        // nothing to SIGPIPE it when the reader goes away, and it survives
+        // indefinitely. That leaks one `niri msg` per shell restart, which
+        // during active QML editing is a restart every few minutes.
+        //
+        // See docs/STYLE.md "Long-running processes" for when this is needed
+        // — the OSD sysfs poller deliberately does not use it.
+        command: ["setpriv", "--pdeathsig", "TERM", "--",
+                  "niri", "msg", "--json", "event-stream"]
         running: true
         stdout: SplitParser {
             splitMarker: "\n"
