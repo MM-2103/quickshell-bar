@@ -452,6 +452,37 @@ Save the file and your running shell picks the changes up immediately.
 | `volumeFeedbackEnabled` | bool | `true` | KDE-style audible cue on volume change. Set `false` for a silent shell. Requires `libcanberra` + `sound-theme-freedesktop`. |
 | `logoutCommand` | string | `""` | Shell command run by the power menu's Logout button. Empty means "ask the compositor to end the session". Set this when a session manager owns the lifecycle — on uwsm use `"uwsm stop"`, because terminating the compositor directly skips uwsm's ordered shutdown. |
 
+### Idle
+
+Handled in-shell by `qs.system`'s `IdleService` — there is no idle daemon
+to install. Both stages are independent; `0` disables either one.
+
+| Key | Type | Default | What it controls |
+|---|---|---|---|
+| `idleLockSeconds` | int (s) | `300` | Seconds of inactivity before the session locks. `0` disables the lock stage. |
+| `idleDpmsSeconds` | int (s) | `360` | Seconds of inactivity before the monitors blank. `0` disables the blank stage. Needs a compositor with a DPMS dispatch (Hyprland / niri / Sway); a silent no-op elsewhere. |
+
+A single `IdleMonitor` is armed at the earlier of the two timeouts and the
+later stage runs off a delay measured from there. Any activity cancels
+pending stages and wakes the monitors — it does not unlock.
+
+`respectInhibitors` is on, so anything holding `idle-inhibit-v1` (mpv,
+browsers playing video, Steam) suppresses both stages.
+
+Runtime overrides, which do not touch `config.jsonc`:
+
+```sh
+qs ipc call idle status     # what's armed, and are we idle right now
+qs ipc call idle disable    # stay awake — same switch as the Caffeine tile
+qs ipc call idle enable
+qs ipc call idle blank      # blank now, skipping the timer
+```
+
+Locking *on suspend* is separate and stays a systemd user unit — see
+`examples/quickshell-lock.service`. It hangs off logind's ordering rather
+than off inactivity, and Quickshell has no generic DBus client to listen
+for `PrepareForSleep` itself.
+
 ### Launcher
 
 | Key | Type | Default | What it controls |

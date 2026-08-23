@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #68+) represents original
+> "Gotchas & quirks" section (entries #1 through #69+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -1682,7 +1682,7 @@ WlSessionLock {
 1. **Service singleton** (`LockService.qml`) — owns lock state, PAM, error/checking flags. Survives hot-reload and is shared across all surfaces.
 2. **Lock root** (`Lock.qml`) — `WlSessionLock { surface: Component { LockSurface { } } }`. One instance, fans out per-screen via Component (gotcha #48).
 3. **LockSurface** (`LockSurface.qml`) — per-screen UI: background + clock + password input. Disables itself while `LockService.pamChecking` is true.
-4. **IPC trigger** — `IpcHandler { target: "lock"; function open(): void { LockService.lock() } }` so niri keybinds and idle daemons (`hypridle`/`swayidle`) trigger lock via `qs ipc call lock open`.
+4. **IPC trigger** — `IpcHandler { target: "lock"; function open(): void { LockService.lock() } }` so compositor keybinds and systemd units trigger lock via `qs ipc call lock open`. (This shell's *idle* lock no longer goes through IPC — `qs.system`'s `IdleService` calls `LockService.lock()` directly off `IdleMonitor`. See gotcha #52.)
 
 ```qml
 // LockService.qml — singleton
@@ -1700,7 +1700,7 @@ Singleton {
     property string _pendingResponse: ""  // queue for early submits (lock-open race)
 
     function lock() {
-        if (root.locked) return                  // idempotent — hypridle may call repeatedly
+        if (root.locked) return                  // idempotent — idle + IPC may both call
         root.pamError = ""
         root.locked = true
         if (!pam.active) pam.active = true
@@ -2328,13 +2328,12 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
 
 52. **`WlSessionLock` automatically updates systemd-logind's `LockedHint` property when `locked` toggles**, but does NOT subscribe to logind's `Lock` D-Bus signal — it's outbound-only. Verify the outbound side with `loginctl show-session $XDG_SESSION_ID -p LockedHint`.
 
-    **Inbound: an external `loginctl lock-session` call does NOT directly lock your shell.** It only flips logind's `LockedHint` to `yes`, which `WlSessionLock` doesn't listen for. To make external lock requests actually lock the screen, you need a bridge — and in practice every realistic install already has one because of an idle daemon:
+    **Inbound: an external `loginctl lock-session` call does NOT directly lock your shell.** It only flips logind's `LockedHint` to `yes`, which `WlSessionLock` doesn't listen for. Honouring it requires subscribing to logind's `Lock` D-Bus signal, and Quickshell ships no generic D-Bus client — so there is no in-shell bridge available.
 
-    - `hypridle.conf` configured with `lock_cmd = qs ipc call lock open` reacts to `LockedHint = yes` by spawning your shell's lock IPC. So `loginctl lock-session` works *transitively* through hypridle.
-    - `swayidle ... lock 'qs ipc call lock open'` does the same on Sway / i3.
-    - DE-style polkit lockers usually call `loginctl lock-session` AND emit logind's `Lock` signal directly; if you need to honor those without an idle daemon, subscribe to the signal yourself via `DBusInterface` and call your `LockService.lock()`.
+    Historically an idle daemon supplied one as a side effect (`hypridle`'s `lock_cmd`, `swayidle ... lock`). Now that idle handling is native (`qs.system`'s `IdleService`, gotcha #69) that daemon is gone, and with it the accidental bridge. Two consequences:
 
-    Power-menu "Lock" buttons that call `loginctl lock-session` therefore work as long as an idle daemon bridge is configured. Without it, the button silently does nothing.
+    - Power-menu "Lock" buttons must call `LockService.lock()` **directly**, not `loginctl lock-session`. The latter is silent.
+    - Lock-on-suspend needs a `Before=sleep.target` systemd user unit invoking `qs ipc call lock open` (see `examples/quickshell-lock.service`), because that path is logind-ordered rather than inactivity-driven.
 
 53. **`waypaper` writes the active wallpaper as a single line in `~/.config/waypaper/config.ini`** under the `[Settings]` section: `wallpaper = /absolute/path/to/image.ext` (`~`-relative paths are NOT expanded by waypaper itself but appear as-typed if you set them via the GUI). Useful for any shell component that needs to know the desktop wallpaper (lock screen blur background, color sampler, MPRIS art fallback, etc.). Re-read on demand via `FileView` with `watchChanges: true`. If waypaper isn't installed, fall back to parsing `pgrep -af 'swaybg|swww|hyprpaper'` arguments — fragile but works.
 
@@ -2812,6 +2811,17 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     **General rule**: if a property is part of a component's external API and the parent binds it, **the component must treat that property as read-only**. Internal state that needs to be mutable should be stored in *separate* properties; the bound property mirrors the public contract via binding only.
 
     Bit us in `settings/controls/ColorPicker.qml`: the Done button's `function close() { root.open = false }` worked once, then the colour picker stopped reopening until shell reload. The fix was the signal-based pattern above.
+
+69. **`IdleMonitor` (Quickshell ≥ 0.3.0, `Quickshell.Wayland`) is an `ext-idle-notifier-v1` client** — it makes an external idle daemon unnecessary. Properties: `enabled` (bool), `timeout` (double, **seconds** — not ms, unlike every `Timer` next to it), `respectInhibitors` (bool), `isIdle` (readonly bool).
+
+    Three things worth knowing:
+
+    - **`timeout` is a single value**, so N idle stages does *not* mean N monitors. Arm one monitor at the earliest stage and express later stages as delays measured from that point — N monitors all race the same activity stream and fire in nondeterministic order.
+    - **`respectInhibitors: true` honours `idle-inhibit-v1`** from other clients (mpv, browsers playing video, Steam) for free. Default it on; users expect video playback to suppress the lock.
+    - **`enabled: false` drops the subscription entirely**, which is the correct implementation of a "keep awake" toggle when your shell is the only idle consumer. You do not need to publish an `IdleInhibitor` of your own to inhibit yourself.
+
+    `IdleInhibitor` (same module) is the *producer* side and requires a `window` to attach to — only reach for it if something outside your shell is also watching idle.
+
 
 ### Style & best practices
 

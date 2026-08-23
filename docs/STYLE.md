@@ -903,7 +903,7 @@ referenced (kept in sync with the shell's actual usage):
 | Glyph | Codepoint | Used in |
 |---|---|---|
 | Bell / bell-slash | `\uf0f3` / `\uf1f6` | `notifications/Notifications.qml` |
-| Mug-saucer / mug-hot | `\uf0f4` / `\uf7b6` | `system/IdleInhibit.qml` |
+| Mug-saucer / mug-hot | `\uf0f4` / `\uf7b6` | `controlcenter/TilesView.qml` (Caffeine tile) |
 | Music | `\uf001` | `media/Media.qml` |
 | Power-off | `\uf011` | `system/Power.qml` |
 | Sun (brightness) | `\uf185` | `system/Brightness.qml` |
