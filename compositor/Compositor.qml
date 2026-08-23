@@ -21,6 +21,11 @@ pragma Singleton
 //                        consumers use it to dismiss popups
 //   dispatchFocusWorkspace(idx)  - click-to-focus a chip
 //   dispatchLogout()             - power menu's Logout action
+//   dispatchDpms(on)             - power monitors on/off, driven by
+//                                  IdleService's DPMS stage. No-op on the
+//                                  stub backend, so idle-blank simply does
+//                                  nothing on unsupported compositors
+//                                  rather than erroring.
 //
 // Detection priority, first match wins:
 //   1. QS_COMPOSITOR override          niri / hyprland / sway / i3 / stub
@@ -114,5 +119,17 @@ Singleton {
 
     function dispatchLogout() {
         if (backend) backend.dispatchLogout();
+    }
+
+    // on === true  -> wake all monitors
+    // on === false -> blank all monitors
+    //
+    // All four shipped backends implement this (the stub as a no-op). The
+    // existence probe is for out-of-tree backends and for hot-reload windows
+    // where the Loader has swapped but the new item hasn't settled — calling
+    // through to an undefined function would throw into IdleService's timer
+    // handler, where nothing is positioned to catch it.
+    function dispatchDpms(on) {
+        if (backend && backend.dispatchDpms) backend.dispatchDpms(on);
     }
 }

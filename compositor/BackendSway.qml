@@ -84,4 +84,10 @@ QtObject {
         // `exit` ends the Sway / i3 session.
         I3.dispatch("exit");
     }
+
+    // Sway only. i3 is X11 and has no `output dpms` command — the dispatch
+    // is simply rejected there, which is the same no-op we'd write anyway.
+    function dispatchDpms(on) {
+        I3.dispatch("output * dpms " + (on ? "on" : "off"));
+    }
 }
