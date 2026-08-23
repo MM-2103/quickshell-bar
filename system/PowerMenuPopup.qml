@@ -9,6 +9,7 @@ import QtQuick.Effects
 import Quickshell
 import qs
 import qs.compositor
+import qs.lock
 
 PopupWindow {
     id: popup
@@ -186,7 +187,18 @@ PopupWindow {
             PowerButton {
                 label: "Lock"
                 glyph: "\uf023"
-                onActivate: () => popup._run(["loginctl", "lock-session"])
+                // Calls the service directly rather than shelling out to
+                // `loginctl lock-session`. That command only flips logind's
+                // LockedHint; WlSessionLock doesn't subscribe to the Lock
+                // signal, so it never locked us on its own — it worked only
+                // because hypridle happened to bridge the signal back into
+                // our lock IPC. With hypridle gone that bridge went with it.
+                //
+                // Nothing is lost by going direct: WlSessionLock sets
+                // LockedHint itself when `locked` flips, so logind still
+                // learns the session is locked. SleepService separately
+                // honours the inbound Lock signal for external callers.
+                onActivate: () => { LockService.lock(); popup.close(); }
             }
             PowerButton {
                 label: "Suspend"
