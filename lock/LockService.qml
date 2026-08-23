@@ -51,6 +51,16 @@ Singleton {
     // True while PAM is mid-conversation (used to gate respond() calls).
     property bool pamActive: false
 
+    // Mirrors WlSessionLock.secure — true once the compositor confirms every
+    // output is covered by a lock surface. Written imperatively from
+    // lock/Lock.qml, which owns the WlSessionLock instance; nothing binds it,
+    // so the assignment is safe (gotcha #68).
+    //
+    // SleepService gates on this: it holds a logind delay inhibitor open
+    // until the lock is genuinely on screen, so the machine can't suspend
+    // with the desktop still visible.
+    property bool secure: false
+
     // True between respond() and the PAM completion signal — i.e. while
     // pam_unix is performing its ~2 s validation. Drives the disabled +
     // dimmed state of the password field, so the user can see their input
