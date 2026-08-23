@@ -478,10 +478,11 @@ qs ipc call idle enable
 qs ipc call idle blank      # blank now, skipping the timer
 ```
 
-Locking *on suspend* is separate and stays a systemd user unit — see
-`examples/quickshell-lock.service`. It hangs off logind's ordering rather
-than off inactivity, and Quickshell has no generic DBus client to listen
-for `PrepareForSleep` itself.
+Locking *on suspend* is separate — it hangs off logind's ordering rather
+than off inactivity — and is owned by `SleepService`. It has no config
+keys, so there is nothing to tune here; see the README's
+[Idle handling](../README.md#locking-on-suspend) section for how the
+delay inhibitor works, and `qs ipc call sleep status` to inspect it.
 
 ### Launcher
 

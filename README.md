@@ -156,12 +156,6 @@ will catch things our test pass on niri couldn't.
 - **Sway / i3**: keyboard-layout OSD silently never triggers — i3/Sway's
   IPC has no layout-changed event. Other OSDs (volume, brightness,
   caps/num lock) work normally.
-- **Locking on suspend** is the one piece of idle handling still done
-  outside the shell — catching it means listening for logind's
-  `PrepareForSleep` DBus signal, and Quickshell has no generic DBus
-  client. Ship `examples/quickshell-lock.service` if you want it.
-  Inactivity timeouts, locking and screen blanking are all native now
-  (see [Idle handling](#idle-handling)).
 - **Screen blanking needs a supported compositor.** Hyprland, niri and
   Sway are wired up via `Compositor.dispatchDpms()`; on i3 (X11) and the
   stub backend the blank stage is a silent no-op and only the lock stage
@@ -242,22 +236,9 @@ Copy `examples/hyprland-bindings.conf` into `~/.config/hypr/hyprland.conf`
 Copy `examples/sway-bindings.conf` into `~/.config/sway/config` (or i3's
 config). Reload with `swaymsg reload` / `i3-msg reload`.
 
-### 4. (Optional) Lock on suspend
-
-Idle timeouts need no setup — the shell locks at 5 min and blanks the
-screens at 6 min out of the box. See [Idle handling](#idle-handling) to
-change or disable that.
-
-Locking *on suspend* is separate, because it hangs off logind rather
-than off inactivity. If you want it:
-
-```sh
-mkdir -p ~/.config/systemd/user
-sed "s|/path/to/quickshell-bar|$PWD|" examples/quickshell-lock.service \
-    > ~/.config/systemd/user/quickshell-lock.service
-systemctl --user daemon-reload
-systemctl --user enable quickshell-lock.service
-```
+That's it. Idle handling needs no setup — the shell locks at 5 min,
+blanks the screens at 6 min, and locks before suspend, all out of the
+box. See [Idle handling](#idle-handling) to change or disable that.
 
 ---
 
@@ -295,6 +276,32 @@ qs ipc call idle blank      # blank the screens now
 The Control Center's **Caffeine** tile is the GUI for the same switch.
 It additionally holds a `systemd-inhibit` against logind's suspend timer
 and lid switch, which are systemd's business rather than the shell's.
+
+### Locking on suspend
+
+Handled by `qs.system`'s `SleepService`, also with no setup.
+
+The shell holds a logind **delay** inhibitor continuously — the same one
+`kwin_wayland` holds, for the same reason. It doesn't prevent suspend; it
+asks logind to wait after `PrepareForSleep` until the shell releases it.
+On that signal the shell locks, waits for the compositor to confirm every
+output is covered (`WlSessionLock.secure`), and only then releases. So
+the machine cannot go down with the desktop still on screen.
+
+If the lock doesn't confirm within 2.5 s the inhibitor is released
+anyway. That isn't a preference — logind proceeds once its
+`InhibitDelayMaxSec` budget (5 s) expires regardless, so the watchdog
+just keeps the release deliberate and inside budget.
+
+The same watcher honours logind's inbound `Lock` signal, so
+`loginctl lock-session` — or anything else that calls it — locks the
+shell. `Unlock` is deliberately ignored: acting on it would dismiss the
+lock screen without PAM ever running.
+
+```sh
+qs ipc call sleep status    # inhibitor held? watcher alive? session path?
+systemd-inhibit --list      # our entry sits next to the compositor's
+```
 
 ---
 
@@ -453,8 +460,7 @@ animations, launcher search engine).
 ├── examples/                 — copy-pasteable compositor configs
 │   ├── niri-config.kdl
 │   ├── hyprland-bindings.conf
-│   ├── sway-bindings.conf
-│   └── quickshell-lock.service   — lock-on-suspend systemd user unit
+│   └── sway-bindings.conf
 │
 ├── docs/AGENTS.md            — orientation for contributors and AI agents
 ├── docs/STYLE.md             — visual + structural conventions
