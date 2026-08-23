@@ -16,4 +16,7 @@ QtObject {
 
     function dispatchFocusWorkspace(idx) { /* no-op */ }
     function dispatchLogout()            { /* no-op */ }
+    // Idle-blank is skipped entirely here. Idle-lock still works, since that
+    // needs no compositor support beyond ext-session-lock-v1.
+    function dispatchDpms(on)            { /* no-op */ }
 }

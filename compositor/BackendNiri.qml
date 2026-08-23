@@ -29,6 +29,13 @@ QtObject {
         Quickshell.execDetached(["niri", "msg", "action", "quit"]);
     }
 
+    function dispatchDpms(on) {
+        Quickshell.execDetached([
+            "niri", "msg", "action",
+            on ? "power-on-monitors" : "power-off-monitors"
+        ]);
+    }
+
     function _handleEvent(event) {
         if (event.WorkspacesChanged) {
             const list = event.WorkspacesChanged.workspaces;

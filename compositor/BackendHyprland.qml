@@ -137,4 +137,18 @@ QtObject {
         // set `logoutCommand` in config.jsonc to override the button.
         Hyprland.dispatch("hl.dsp.exit()");
     }
+
+    // Hyprland's dpms dispatcher takes `action = "enable" | "disable"` in the
+    // Lua form — NOT `state = "on" | "off"`, which is the shape the old
+    // hyprlang `dispatch dpms on` syntax suggests. A wrong key here fails
+    // silently (dispatch() discards the reply), so it's worth stating.
+    //
+    // Hyprland also wakes monitors by itself on key press / mouse move when
+    // `input:key_press_enables_dpms` / `mouse_move_enables_dpms` are set. We
+    // still dispatch enable explicitly so waking doesn't depend on config we
+    // don't own.
+    function dispatchDpms(on) {
+        Hyprland.dispatch('hl.dsp.dpms({ action = "'
+            + (on ? "enable" : "disable") + '" })');
+    }
 }
