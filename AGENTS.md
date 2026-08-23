@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Quickshell-bar — a QML-based Wayland desktop shell (no compile, no lint, no test suite). Built on [Quickshell](https://quickshell.org/) ≥ 0.3.0. Full contributor guide at [`docs/AGENTS.md`](docs/AGENTS.md); companion files: [`docs/STYLE.md`](docs/STYLE.md) (visual conventions + recipes) and [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) (API + gotchas).
+Quickshell-bar — a QML-based Wayland desktop shell (no compile, no lint; `./test/run` covers pure `.js` logic only, everything else is smoke-tested). Built on [Quickshell](https://quickshell.org/) ≥ 0.3.0. Full contributor guide at [`docs/AGENTS.md`](docs/AGENTS.md); companion files: [`docs/STYLE.md`](docs/STYLE.md) (visual conventions + recipes) and [`docs/QUICKSHELL_REFERENCE.md`](docs/QUICKSHELL_REFERENCE.md) (API + gotchas).
 
 ## Verification (smoke-test)
 
@@ -12,6 +12,9 @@ grep -iE "warn|error|TypeError|caused by|ReferenceError" /tmp/qs-smoke.log | \
 ```
 
 Empty = clean. Filtered noise is expected Quickshell/Qt startup chatter.
+
+Plus `./test/run` for pure logic extracted into `.js` modules. It needs no
+compositor and no display; QML itself is still only smoke-tested.
 
 ## Architecture rules agents commonly break
 

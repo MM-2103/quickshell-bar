@@ -1110,7 +1110,45 @@ showing `ppid=1` (or a subreaper) outlived its shell.
 
 ## Testing & smoke checks
 
-After any change, run a smoke test before committing:
+### Pure logic → `.js` module → `./test/run`
+
+QML needs a compositor to run at all and has no test runner here, so logic
+living in a `.qml` file is effectively untestable. Logic living in a plain
+`.js` module next to it is not:
+
+```js
+// polkit/polkitModel.js
+function authorizationLabel(message) { /* ... */ }
+
+if (typeof module !== "undefined") {
+    module.exports = { authorizationLabel: authorizationLabel };
+}
+```
+
+QML imports it with `import "polkitModel.js" as PolkitModel` and ignores
+the trailing guard; Node loads the same file as CommonJS. That dual
+citizenship is the whole trick — the model layer becomes testable with no
+compositor, no display, and no Quickshell.
+
+Extract when the logic is **pure**: parsers, formatters, sorters, state
+derivation. Anything touching a Qt type, a `Process`, or a `FileView`
+stays in the QML.
+
+Tests live in `test/<area>-test.sh`, source `test/lib.sh`, and are picked
+up by filename — no registration:
+
+```bash
+./test/run            # everything
+./test/run polkit     # just test/polkit-test.sh
+```
+
+**Filenames are lowercase.** Quickshell auto-generates a `qmldir` per
+subdirectory and registers UpperCase files there as QML types.
+
+### Smoke test
+
+`./test/run` covers none of the QML. After any change, still run a smoke
+test before committing:
 
 ```bash
 qs -p /path/to/quickshell-bar > /tmp/qs-smoke.log 2>&1 &
