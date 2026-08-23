@@ -78,6 +78,24 @@
   // silent shell. Requires libcanberra + sound-theme-freedesktop.
   "volumeFeedbackEnabled": true,
 
+  // ─── Idle ──────────────────────────────────────────────────────
+  // Seconds of inactivity before each stage. Set either to 0 to turn
+  // that stage off; set both to 0 to disable idle handling entirely.
+  //
+  // Handled in-shell — this replaces hypridle / swayidle. Apps holding
+  // idle-inhibit-v1 (mpv, browsers playing video, Steam) suppress both
+  // stages automatically, so you won't get locked out mid-film.
+  //
+  // Toggle at runtime with the Control Center's Caffeine tile, or
+  // `qs ipc call idle disable`. `qs ipc call idle status` reports what
+  // is currently armed.
+  //
+  // Screen blanking needs compositor support: Hyprland, niri and Sway
+  // are wired up; on anything else the DPMS stage is a silent no-op and
+  // only the lock stage runs.
+  "idleLockSeconds": 300,
+  "idleDpmsSeconds": 360,
+
   // ─── Launcher: web-search engine (?-prefix mode) ───────────────
   // %s is replaced with the URL-encoded query.
   // Common alternatives:
