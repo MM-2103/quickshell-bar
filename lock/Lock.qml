@@ -27,9 +27,14 @@ WlSessionLock {
         LockSurface { }
     }
 
-    // Surface a confirmation log when the compositor reports all outputs
-    // covered (useful when debugging missed-screen scenarios).
+    // Publish `secure` onto the service so consumers outside this file can
+    // wait for the lock to be genuinely on screen. SleepService needs it to
+    // decide when releasing its logind delay inhibitor is safe.
+    //
+    // Also surface a confirmation log when the compositor reports all
+    // outputs covered (useful when debugging missed-screen scenarios).
     onSecureChanged: {
+        LockService.secure = sessionLock.secure;
         if (sessionLock.locked && sessionLock.secure) {
             console.log("[Lock] all screens covered — secure=true");
         }
