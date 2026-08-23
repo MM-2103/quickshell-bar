@@ -180,7 +180,12 @@ Item {
         }
 
         // ---- Caffeine (Idle Inhibit) ----
-        // Body: toggle. No detail view — there's nothing more to configure.
+        // Body: toggle. No detail view — the two timeouts it suppresses live
+        // on the Settings page's Behaviour tab, not here.
+        //
+        // Suppresses both IdleService stages (lock + screen blank) AND holds
+        // a logind inhibitor for the suspend timer / lid switch. See
+        // ControlCenterService.
         Tile {
             width: root._tileWidth
             height: root._tileHeight

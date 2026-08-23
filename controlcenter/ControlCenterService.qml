@@ -25,6 +25,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs
+import qs.system
 
 Singleton {
     id: root
@@ -48,11 +49,23 @@ Singleton {
     // navigated to.
     function resetView() { root.currentView = "tiles"; }
 
-    // ---- Idle-inhibit state ----
+    // ---- Idle-inhibit state (Caffeine) ----
     //
     // Used to live in the deleted IdleInhibit bar widget. Ownership
-    // moved here so the Caffeine tile can read and toggle it; the
-    // long-running systemd-inhibit Process is below.
+    // moved here so the Caffeine tile can read and toggle it.
+    //
+    // Two halves, because the two concerns have different owners:
+    //
+    //   1. Shell-side idle  — IdleService owns lock + DPMS now that
+    //      Quickshell exposes ext-idle-notifier-v1. Suppressing it is just
+    //      `enabled = false`; there is no other idle consumer left to
+    //      inhibit, so no Wayland inhibitor of our own is required.
+    //
+    //   2. logind-side idle — suspend timers and lid-close are answered by
+    //      systemd, not by us, so the inhibitor below still has a job. Note
+    //      `idle:` has been dropped from --what: logind's idle notion drove
+    //      nothing here once hypridle went away, and claiming it made the
+    //      inhibitor look responsible for screen blanking when it never was.
 
     property bool idleInhibitActive: false
 
@@ -60,14 +73,16 @@ Singleton {
         root.idleInhibitActive = !root.idleInhibitActive;
     }
 
-    // Identical command to the old IdleInhibit.qml — covers logind sleep
-    // and lid-close handling. Does NOT suppress compositor DPMS / blanking
-    // (that's idle-inhibit-v1, which Quickshell doesn't expose).
+    // Caffeine on -> shell idle handling off. One-way binding on purpose:
+    // IdleService.enabled is also settable over IPC, and we don't want a
+    // scripted `qs ipc call idle enable` to silently un-press the tile.
+    onIdleInhibitActiveChanged: IdleService.setEnabled(!root.idleInhibitActive)
+
     Process {
         running: root.idleInhibitActive
         command: [
             "systemd-inhibit",
-            "--what=idle:sleep:handle-lid-switch",
+            "--what=sleep:handle-lid-switch",
             "--who=quickshell-bar",
             "--why=user requested always-on",
             "--mode=block",
