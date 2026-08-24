@@ -565,7 +565,7 @@ animations, launcher search engine).
 ├── clock/                    — clock widget + calendar popup
 ├── notifications/            — NotificationServer + cards + center popup
 ├── osd/                      — volume / brightness / layout overlay
-├── network/                  — NM service + NetworkView (embedded in CC)
+├── network/                  — NetworkManager via Quickshell.Networking + NetworkView (in CC)
 ├── bluetooth/                — BT helpers + BluetoothView (embedded in CC)
 ├── volume/                   — volume widget + mixer popup (incl. per-app)
 ├── media/                    — MPRIS widget + media popup

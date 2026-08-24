@@ -358,7 +358,7 @@ Tile {
     active: NetworkService.wifiEnabled  // accent fill when true
     showChevron: true                   // shows ">" + enables chevron click zone
     iconColor: Theme.text               // optional override
-    onClicked:        NetworkService.toggleWifi()
+    onClicked:        NetworkService.setWifiEnabled(!NetworkService.wifiEnabled)
     onChevronClicked: ControlCenterService.setView("network")
 }
 ```
@@ -1063,7 +1063,6 @@ Quiet children have no such rescue.
 |---|---|---|
 | `osd/OsdService.qml` sysfs poller | every 100 ms | no — SIGPIPE handles it |
 | `compositor/BackendNiri.qml` `niri msg event-stream` | on compositor events | **yes** |
-| `network/NetworkService.qml` `nmcli monitor` | on network events | **yes** *(pending the `Quickshell.Networking` rewrite, which deletes the process outright)* |
 | `system/SleepService.qml` `gdbus monitor` | on D-Bus signals | **yes** |
 | `system/SleepService.qml` `systemd-inhibit … sleep infinity` | never | **yes** |
 | `system/IdleService.qml` `inhibit-bridge.py` | on inhibit changes | **yes** |
