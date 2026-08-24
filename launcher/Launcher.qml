@@ -190,7 +190,16 @@ PanelWindow {
                 // Only build delegates when the popup is actually visible —
                 // avoids spawning ~hundreds of IconImages (and the noisy
                 // "buffer too big" SVG warnings) at shell-load time.
-                model: panel.visible ? panel.filtered : []
+                // ScriptModel: `filtered` is rebuilt on every keystroke, and
+                // each delegate resolves an icon (Quickshell.iconPath +
+                // IconImage). Diffing on the record `key` means narrowing a
+                // query ("fir" -> "fire") reuses the rows that survive rather
+                // than re-creating all of them. Collapsing to [] while hidden
+                // is deliberate: it frees the delegates when the panel closes.
+                model: ScriptModel {
+                    values: panel.visible ? panel.filtered : []
+                    objectProp: "key"
+                }
                 interactive: true
                 boundsBehavior: Flickable.StopAtBounds
 
