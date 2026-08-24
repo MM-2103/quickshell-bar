@@ -39,7 +39,44 @@ PanelWindow {
         } else {
             hideHold.restart();
             passField.text = "";
+            panel.clearCancelConfirm();
         }
+    }
+
+    // ---- Two-step cancel ----
+    //
+    // Abandoning a polkit prompt is not free: polkit-agent-helper-1 has
+    // already started the PAM conversation, so cancelling makes pam_unix
+    // fail and pam_faillock counts it. At the default deny=3 that means
+    // three stray Escapes lock you out of the machine, TTYs included, for
+    // unlock_time. Nothing in the polkit API lets us avoid the strike, so
+    // the least we can do is not spend one on a mistaken keypress.
+    //
+    // Same 3-second confirm idiom as the power menu's Reboot / Shutdown.
+    property bool confirmingCancel: false
+    Timer {
+        id: cancelConfirm
+        interval: 3000
+        repeat: false
+        onTriggered: panel.confirmingCancel = false
+    }
+
+    function handleEscape() {
+        if (panel.confirmingCancel) {
+            cancelConfirm.stop();
+            panel.confirmingCancel = false;
+            PolkitService.cancel();
+            return;
+        }
+        panel.confirmingCancel = true;
+        cancelConfirm.restart();
+    }
+
+    // Typing means they did not mean to cancel after all.
+    function clearCancelConfirm() {
+        if (!panel.confirmingCancel) return;
+        cancelConfirm.stop();
+        panel.confirmingCancel = false;
     }
 
     // Re-focus whenever PAM asks for input again (second stage, or a retry
@@ -52,6 +89,7 @@ PanelWindow {
         }
         function onFailed() {
             passField.text = "";
+            panel.clearCancelConfirm();
             shake.restart();
             Qt.callLater(() => passField.forceActiveFocus());
         }
@@ -202,8 +240,10 @@ PanelWindow {
                         } else if (event.key === Qt.Key_Escape) {
                             // Duplicated from the key catcher below: while the
                             // field has focus that catcher never sees keys.
-                            PolkitService.cancel();
+                            panel.handleEscape();
                             event.accepted = true;
+                        } else {
+                            panel.clearCancelConfirm();
                         }
                     }
                 }
@@ -219,13 +259,20 @@ PanelWindow {
                 }
             }
 
+            // Hint line. Turns into the cancel confirmation, and says why
+            // rather than just asking again — "press it twice" reads as
+            // pointless friction unless you know a stray Escape costs a
+            // failed-login strike.
             Text {
                 width: parent.width
                 horizontalAlignment: Text.AlignRight
-                text: "Enter to confirm · Esc to cancel"
-                color: Theme.textMuted
+                text: panel.confirmingCancel
+                    ? "Esc again to cancel — counts as a failed attempt"
+                    : "Enter to confirm · Esc to cancel"
+                color: panel.confirmingCancel ? Theme.errorBright : Theme.textMuted
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeSmall
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
             }
         }
 
@@ -238,7 +285,7 @@ PanelWindow {
             Keys.priority: Keys.BeforeItem
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
-                    PolkitService.cancel();
+                    panel.handleEscape();
                     event.accepted = true;
                 }
             }
