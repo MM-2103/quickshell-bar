@@ -1041,6 +1041,43 @@ To add a new compositor (river, Wayfire, Cosmic, …):
 
 ---
 
+## Models: wrap JS arrays in `ScriptModel`
+
+If a `model:` is a **JavaScript expression** rather than a native model
+object, wrap it:
+
+```qml
+Repeater {
+    model: ScriptModel {
+        values: someList.filter(x => x.visible)
+        objectProp: "id"        // key for plain JS objects; omit for QObjects
+    }
+}
+```
+
+`Repeater` and `ListView` cannot diff a JS array, so every reassignment
+destroys and recreates **all** delegates — and `ListView` additionally loses
+its add/remove transitions. `ScriptModel` diffs and emits incremental
+insert/remove instead.
+
+This has caused three separate user-visible bugs here: notification cards
+re-animating whenever any other card appeared or vanished, a one-second
+stall opening the Wi-Fi view, and clipboard rows re-forking `cliphist
+decode` on every keystroke because delegate-local state was lost.
+
+Caveats: `ScriptModel` is undefined behaviour on lists with **duplicates**,
+and Quickshell's lists are read-only so sorting needs a copy —
+`[...model.values].sort(...)`.
+
+Native models (`SystemTray.items`, `QsMenuOpener.children`, any
+`ObjectModel`) already diff incrementally; pass them through untouched.
+
+**You do not need watchers to make a derived list reactive.** QML tracks
+binding dependencies per property *read*, so `values[i].someProp` inside a
+binding follows that object's property. See gotchas #75 and #76.
+
+---
+
 ## Long-running processes
 
 **Quickshell does not reap child processes when the shell exits.** They
