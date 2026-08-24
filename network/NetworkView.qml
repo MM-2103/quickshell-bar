@@ -583,7 +583,12 @@ Item {
                 }
 
                 Repeater {
-                    model: NetworkService.ethernetDevices
+                    // ScriptModel so a state change rebuilds only the row
+                    // that changed, not every row.
+                    model: ScriptModel {
+                        values: NetworkService.ethernetDevices
+                        objectProp: "device"
+                    }
                     delegate: EthernetRow {
                         required property var modelData
                         dev: modelData
@@ -617,7 +622,13 @@ Item {
                 }
 
                 Repeater {
-                    model: NetworkService.wirelessNetworks
+                    // ScriptModel: without it, a signal-strength update
+                    // reassigns the array and every WifiRow -- each with an
+                    // IconImage -- is destroyed and rebuilt.
+                    model: ScriptModel {
+                        values: NetworkService.wirelessNetworks
+                        objectProp: "ssid"
+                    }
                     delegate: WifiRow {
                         required property var modelData
                         net: modelData
