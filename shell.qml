@@ -127,23 +127,37 @@ ShellRoot {
                 spacing: 8
 
                 Repeater {
-                    // Show only notifications that:
-                    //   1) are currently in the popup stack (popupIds), AND
-                    //   2) were spawned on THIS panel's screen.
-                    model: {
-                        const all = NotificationService.trackedNotifications.values;
-                        const ids = NotificationService.popupIds;
-                        const screens = NotificationService.notificationScreens;
-                        const myScreen = notifPanel.modelData
-                            ? notifPanel.modelData.name : "";
-                        const out = [];
-                        for (let i = 0; i < all.length; i++) {
-                            const n = all[i];
-                            if (ids.indexOf(n.id) >= 0 && screens[n.id] === myScreen) {
-                                out.push(n);
+                    // ScriptModel, not the bare array. A JS array handed
+                    // straight to a Repeater makes it destroy and recreate
+                    // EVERY delegate on each reassignment — and this array is
+                    // rebuilt on every arrival, expiry and dismissal. Because
+                    // NotificationCard restarts its slide-in animation in
+                    // Component.onCompleted, the visible symptom was every
+                    // card on screen re-animating whenever any other one
+                    // appeared or disappeared.
+                    //
+                    // ScriptModel diffs instead, so only genuinely new cards
+                    // are built. No objectProp: the values are Notification
+                    // QObjects, already unique.
+                    model: ScriptModel {
+                        // Show only notifications that:
+                        //   1) are currently in the popup stack (popupIds), AND
+                        //   2) were spawned on THIS panel's screen.
+                        values: {
+                            const all = NotificationService.trackedNotifications.values;
+                            const ids = NotificationService.popupIds;
+                            const screens = NotificationService.notificationScreens;
+                            const myScreen = notifPanel.modelData
+                                ? notifPanel.modelData.name : "";
+                            const out = [];
+                            for (let i = 0; i < all.length; i++) {
+                                const n = all[i];
+                                if (ids.indexOf(n.id) >= 0 && screens[n.id] === myScreen) {
+                                    out.push(n);
+                                }
                             }
+                            return out;
                         }
-                        return out;
                     }
 
                     delegate: NotificationCard {
