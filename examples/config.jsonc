@@ -91,6 +91,9 @@
   // "Night light" tile writes nightLightEnabled; unlike Caffeine and
   // DND it persists, so the filter survives a shell restart.
   //
+  // The hyprsunset daemon only runs while the filter is on, so leaving
+  // this off costs nothing at login or on a shell reload.
+  //
   // Needs the `hyprsunset` package and a compositor backend that
   // implements a night-light dispatch (currently Hyprland only). Where
   // either is missing the tile hides itself and these keys do nothing.

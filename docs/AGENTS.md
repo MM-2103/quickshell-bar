@@ -151,7 +151,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal |
 | `SleepService` | logind delay inhibitor + gdbus signal watcher: locks before suspend, honours inbound `Lock` |
 | `PolkitService` | polkit auth agent: `PolkitAgent` registration, per-request flow snapshot, submit/cancel |
-| `NightLightService` | blue-light filter: hyprsunset daemon lifecycle (adopt-or-spawn, pdeathsig, death-watch) + persisted on/off and temperature. The actual set-temperature call goes through `Compositor.dispatchNightLight` so no hyprctl leaks outside `compositor/` |
+| `NightLightService` | blue-light filter: hyprsunset daemon lifecycle (started only while the filter is on, adopt-or-spawn, pdeathsig, death-watch) + persisted on/off and temperature. The actual set-temperature call goes through `Compositor.dispatchNightLight` so no hyprctl leaks outside `compositor/` |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
