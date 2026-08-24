@@ -22,9 +22,10 @@ pragma Singleton
 //     entry instead of the visible APs. It is not a one-shot rescan; it is
 //     a continuous mode.
 //   - NetworkDevice.address is the MAC, not the IP.
-//   - Property changes on individual Network objects do NOT invalidate a
-//     binding that reads the model's `values` list, because the list
-//     identity is unchanged. Hence the watcher Instantiators below.
+//   - Reading n.signalStrength inside a binding DOES track that Network's
+//     property -- QML registers dependencies per property read, not per
+//     model. So the derived lists below are plain bindings and need no
+//     watchers. Delegate churn is handled by ScriptModel in NetworkView.
 //
 // Known limitation: a saved HIDDEN network reports known=false and
 // nmSettings=0 even though NetworkManager has the profile -- the AP that
@@ -65,70 +66,25 @@ Singleton {
     property string lastError: ""
     signal actionFinished(bool ok, string message)
 
-    // These four are PLAIN properties assigned by _recompute(), not bindings.
-    //
-    // As bindings they were reassigned ~114 times in the first second: every
-    // dependency change recomputed them, and every reassignment makes the
-    // view's Repeaters destroy and rebuild all ~20 delegates, each doing an
-    // icon lookup. That is ~2300 delegate creations on open, and it showed up
-    // as a visible stall when entering the Wi-Fi view. Recomputing explicitly
-    // on a coalescing tick makes it one rebuild per burst instead.
+    // Plain bindings. QML tracks per-property *reads*, so reading
+    // n.signalStrength here registers a dependency on that Network's
+    // property and the binding re-evaluates when it changes -- no watchers
+    // needed. The delegate churn this used to cause is handled where it
+    // belongs, by ScriptModel in NetworkView.
 
-    property var wirelessNetworks: []   // { ssid, security, signal, inUse, bssid }
-    property var devices: []            // { device, type, state, connection }
-    property var activeConnections: []  // { name, type, device, state }
-    property var savedConnections: []   // { name, uuid, type }
-
-    function _recompute() {
-        const devs = root._deviceList;
-
-        const devOut = [];
-        const activeOut = [];
-        const savedOut = [];
-        for (let i = 0; i < devs.length; i++) {
-            const d = devs[i];
-            if (!d) continue;
-            const net = root._activeNetworkOf(d);
-            const connType = root._connectionTypeString(d);
-
-            devOut.push({
-                device: d.name,
-                type: root._deviceTypeString(d),
-                state: root._deviceStateString(d),
-                connection: net ? net.name : ""
-            });
-
-            if (d.connected) {
-                activeOut.push({
-                    name: net ? net.name : d.name,
-                    type: connType,
-                    device: d.name,
-                    state: "activated"
-                });
-            }
-
-            // savedConnections is synthesised from networks reporting
-            // known=true. uuid is always "" -- not exposed natively, and
-            // nothing reads it. The view uses this only to decide whether a
-            // row renders as "saved".
-            const nets = d.networks ? d.networks.values : [];
-            for (let j = 0; j < nets.length; j++) {
-                const n = nets[j];
-                if (!n || !n.known || !n.name || n.name.length === 0) continue;
-                savedOut.push({ name: n.name, uuid: "", type: connType });
-            }
-        }
-
-        const wifiOut = [];
+    // { ssid, security, signal, inUse, bssid }
+    readonly property var wirelessNetworks: {
         const dev = root._wifiDevice;
-        const wnets = (dev && dev.networks) ? dev.networks.values : [];
-        for (let i = 0; i < wnets.length; i++) {
-            const n = wnets[i];
+        if (!dev || !dev.networks) return [];
+        const src = dev.networks.values;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const n = src[i];
             // Unnamed rows are hidden APs beaconing without an SSID. The
             // nmcli version skipped them too; there is nothing to show and
             // nothing to connect to.
             if (!n || !n.name || n.name.length === 0) continue;
-            wifiOut.push({
+            out.push({
                 inUse: n.connected,
                 bssid: "",                           // not exposed natively; unused by the view
                 ssid: n.name,
@@ -138,14 +94,66 @@ Singleton {
         }
         // The native model already dedupes by SSID, so unlike the nmcli
         // version there is no strongest-wins pass -- only the ordering.
-        wifiOut.sort((a, b) => a.inUse !== b.inUse ? (a.inUse ? -1 : 1) : b.signal - a.signal);
+        out.sort((a, b) => a.inUse !== b.inUse ? (a.inUse ? -1 : 1) : b.signal - a.signal);
+        return out;
+    }
 
-        // Assign only on real change. Repeaters rebuild every delegate on
-        // reassignment, so an identical array is not a free no-op.
-        if (JSON.stringify(devOut)    !== JSON.stringify(root.devices))            root.devices = devOut;
-        if (JSON.stringify(activeOut) !== JSON.stringify(root.activeConnections))  root.activeConnections = activeOut;
-        if (JSON.stringify(savedOut)  !== JSON.stringify(root.savedConnections))   root.savedConnections = savedOut;
-        if (JSON.stringify(wifiOut)   !== JSON.stringify(root.wirelessNetworks))   root.wirelessNetworks = wifiOut;
+    // { device, type, state, connection }
+    readonly property var devices: {
+        const src = root._deviceList;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const d = src[i];
+            if (!d) continue;
+            const net = root._activeNetworkOf(d);
+            out.push({
+                device: d.name,
+                type: root._deviceTypeString(d),
+                state: root._deviceStateString(d),
+                connection: net ? net.name : ""
+            });
+        }
+        return out;
+    }
+
+    // { name, type, device, state }
+    readonly property var activeConnections: {
+        const src = root._deviceList;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const d = src[i];
+            if (!d || !d.connected) continue;
+            const net = root._activeNetworkOf(d);
+            out.push({
+                name: net ? net.name : d.name,
+                type: root._connectionTypeString(d),
+                device: d.name,
+                state: "activated"
+            });
+        }
+        return out;
+    }
+
+    // { name, uuid, type }
+    //
+    // Synthesised from networks reporting known=true. uuid is always "" --
+    // not exposed natively, and nothing reads it. The view uses this only to
+    // decide whether a row renders as "saved".
+    readonly property var savedConnections: {
+        const src = root._deviceList;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const d = src[i];
+            if (!d || !d.networks) continue;
+            const connType = root._connectionTypeString(d);
+            const nets = d.networks.values;
+            for (let j = 0; j < nets.length; j++) {
+                const n = nets[j];
+                if (!n || !n.known || !n.name || n.name.length === 0) continue;
+                out.push({ name: n.name, uuid: "", type: connType });
+            }
+        }
+        return out;
     }
 
     readonly property var primaryActive: {
@@ -286,36 +294,6 @@ Singleton {
         return null;
     }
 
-    // Recompute counter, exposed for diagnostics.
-    property int _rev: 0
-
-    // Watchers call _bump() on every observed property change. A scan update
-    // produces one per changed network, so they arrive in bursts of 10-15;
-    // this collapses a burst into a single recompute.
-    //
-    // Leading-edge window rather than Timer.restart(): the first bump opens a
-    // 120 ms window and everything inside it is absorbed. restart() would push
-    // the deadline forward on each bump, so a steady stream of changes could
-    // starve the update indefinitely.
-    Timer {
-        id: coalesce
-        interval: 120
-        repeat: false
-        onTriggered: {
-            root._rev++;
-            root._recompute();
-        }
-    }
-    function _bump() { if (!coalesce.running) coalesce.start(); }
-
-    // Structural changes (a device appearing, the wifi radio coming up) must
-    // recompute too, not just per-network property changes.
-    on_DeviceListChanged: root._bump()
-    on_WifiDeviceChanged: {
-        root._syncScanner();
-        root._bump();
-    }
-
     function _deviceTypeString(d) {
         if (d.type === DeviceType.Wifi) return "wifi";
         if (d.type === DeviceType.Wired) return "ethernet";
@@ -393,63 +371,6 @@ Singleton {
         }
     }
 
-    // ---- Watchers ----
-    //
-    // One delegate per device and per network, existing purely to observe
-    // property changes and bump _rev. Without these the derived arrays never
-    // recompute: `values` only notifies on structural change.
-
-    Instantiator {
-        model: Networking.devices
-        delegate: QtObject {
-            required property var modelData
-            readonly property bool connected: modelData ? modelData.connected : false
-            readonly property int  devState:  modelData ? modelData.state : 0
-            readonly property bool managed:   modelData ? modelData.nmManaged : false
-            onConnectedChanged: root._bump()
-            onDevStateChanged:  root._bump()
-            onManagedChanged:   root._bump()
-        }
-    }
-
-    Instantiator {
-        model: root._wifiDevice ? root._wifiDevice.networks : null
-        delegate: QtObject {
-            id: netWatch
-            required property var modelData
-            readonly property real strength: modelData ? modelData.signalStrength : 0
-            readonly property bool connected: modelData ? modelData.connected : false
-            readonly property bool known:     modelData ? modelData.known : false
-            readonly property int  netState:  modelData ? modelData.state : 0
-            onStrengthChanged:  root._bump()
-            onConnectedChanged: root._bump()
-            onKnownChanged:     root._bump()
-            onNetStateChanged:  root._bump()
-
-            property Connections _fail: Connections {
-                target: netWatch.modelData
-                function onConnectionFailed(reason) {
-                    const msg = root._failureMessage(reason);
-                    console.warn("[NetworkService] connection failed:", msg);
-                    root.lastError = msg;
-                    root.actionFinished(false, msg);
-                }
-            }
-        }
-    }
-
-    // Wired devices carry a single Network rather than a scanned list; watch
-    // it separately so an ethernet cable event updates the derived arrays.
-    Instantiator {
-        model: Networking.devices
-        delegate: QtObject {
-            required property var modelData
-            readonly property bool link: (modelData && modelData.type === DeviceType.Wired)
-                ? modelData.hasLink : false
-            onLinkChanged: root._bump()
-        }
-    }
-
     // Only used for a hidden SSID with no saved profile; see connectWifi().
     Process {
         id: hiddenConnectProc
@@ -470,17 +391,12 @@ Singleton {
 
     // The scanner is off by default, and without it `networks` holds a
     // single entry instead of the visible APs.
-    onWifiEnabledChanged: {
-        root._syncScanner();
-        root._bump();
-    }
+    onWifiEnabledChanged: root._syncScanner()
+    on_WifiDeviceChanged: root._syncScanner()
+
     function _syncScanner() {
         const dev = root._wifiDevice;
         if (dev && Networking.wifiEnabled && !dev.scannerEnabled) dev.scannerEnabled = true;
     }
-
-    Component.onCompleted: {
-        root._syncScanner();
-        root._recompute();
-    }
+    Component.onCompleted: root._syncScanner()
 }
