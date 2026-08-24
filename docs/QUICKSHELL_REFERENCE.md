@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #73+) represents original
+> "Gotchas & quirks" section (entries #1 through #74+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2908,6 +2908,22 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     ```
 
     Diagnose with `ps -eo pid,ppid,args | grep <command>`; orphans show `ppid=1`, or the pid of whatever subreaper adopted them.
+
+74. **`Quickshell.Services.Polkit` registers declaratively, and its `AuthFlow` has three traps that all fail silently.** Instantiating `PolkitAgent { path: "/org/yourshell/PolkitAgent" }` *is* the registration — there is no `register()` call. Only one agent per session holds the seat, so if another is running yours never activates; watch `isRegistered` and say so, because otherwise the shell looks fine and simply never prompts.
+
+    - **Never cache `flow` in a property.** Every request creates a *new* `AuthFlow`. A cached reference goes stale and submits into a dead object. Bind `Connections { target: agent.flow }` so it re-targets.
+    - **`flow.message` is a constant property** — no change signal — so it is only safe to read when a request starts, not from an arbitrary handler.
+    - **Guard the reset on deactivation.** If you want a close animation, `isActive` drops while you are still rendering; resetting unconditionally in `onIsActiveChanged` blanks the dialog mid-fade. Keep a `closing` flag and reset only when it is false.
+
+    One more, from the PAM side: `isResponseRequired` going true again means your last answer was consumed. Clearing your "checking…" state there is what un-sticks a multi-stage PAM conversation that re-prompts without ever emitting a failure.
+
+    **Testing it is the awkward part.** `pkexec true` will usually *not* prompt — most actions are `auth_admin_keep` and polkit caches the authorization for the session, so it silently succeeds. Use `pkcheck` against a plain `auth_admin` action instead, which asks the question without performing anything:
+
+    ```
+    pkcheck --action-id org.freedesktop.ModemManager1.Control --process $$ --allow-user-interaction
+    ```
+
+    It blocks on your prompt (exit 124 under `timeout`), and cancelling has no side effects. Find candidates with `grep -l '<allow_active>auth_admin<' /usr/share/polkit-1/actions/*.policy`.
 
 
 

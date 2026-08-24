@@ -8,7 +8,8 @@ Replaces (in one configurable QML codebase):
 **waybar** · **swaync / mako / dunst** · **swayosd** ·
 **nm-applet** · **blueman-applet** · **KDE media controls** ·
 **wlogout** · **fuzzel** · **hyprlock** ·
-**swaybg / waypaper** · **hypridle / swayidle**.
+**swaybg / waypaper** · **hypridle / swayidle** ·
+**hyprpolkitagent**.
 
 ## Supported compositors
 
@@ -77,6 +78,12 @@ keeps working. Override detection with `QS_COMPOSITOR=niri|hyprland|sway`.
 - Multi-monitor surfaces, persistent error state, dim-while-validating
 - Hot-reload safe (survives `qs` config reloads)
 - `LockedHint` propagation to systemd-logind
+
+**Polkit agent** (replaces hyprpolkitagent)
+- Native `Quickshell.Services.Polkit` — the shell is the agent
+- Prompt on the focused monitor, overlay layer, exclusive keyboard
+- Shake + red tint on a failed attempt; field inert while PAM checks
+- Clicking outside refocuses rather than dismissing
 
 **Idle** (replaces hypridle / swayidle)
 - Native `ext-idle-notifier-v1` via Quickshell's `IdleMonitor` — no second daemon
@@ -160,8 +167,10 @@ will catch things our test pass on niri couldn't.
   Sway are wired up via `Compositor.dispatchDpms()`; on i3 (X11) and the
   stub backend the blank stage is a silent no-op and only the lock stage
   runs.
-- **Polkit agent**: not provided. Use `hyprpolkitagent` /
-  `polkit-kde-authentication-agent-1` / etc.
+- **Polkit agent**: only one agent per session can hold the seat, so any
+  existing one (`hyprpolkitagent`, `polkit-kde-authentication-agent-1`, …)
+  must be removed from autostart or ours stays silent. See
+  [Polkit agent](#polkit-agent).
 - **Hyprland & Sway are lightly tested.** Edge cases possible around
   named workspaces (Hyprland), multi-monitor focus tracking, and
   per-window event payloads. Bug reports very welcome.
@@ -271,6 +280,46 @@ qsb ipc call idle status
 The snippets below spell out `-p` so they are copy-pasteable. So do the
 keybind samples in [`examples/`](examples/) — substitute your clone path
 there too.
+
+---
+
+## Polkit agent
+
+The shell is its own polkit authentication agent
+(`Quickshell.Services.Polkit`), so privileged actions — `pkexec`,
+`systemctl`, GParted, a package manager GUI — prompt inside the shell
+instead of needing `hyprpolkitagent` or a KDE/GNOME agent.
+
+**Remove any existing agent from autostart first.** Only one agent per
+session can hold the seat, and whichever registers first wins. If another
+is running, ours stays silent and logs:
+
+```
+[PolkitService] not registered — another polkit agent probably holds the
+session (hyprpolkitagent, polkit-kde-authentication-agent-1, ...)
+```
+
+On Hyprland that usually means deleting a line like this from your config:
+
+```lua
+hl.exec_cmd("/usr/lib/hyprpolkitagent/hyprpolkitagent")
+```
+
+Verify with `qs -p . log -t 50 | grep PolkitService` — you want
+`registered at /org/quickshell_bar/PolkitAgent`. Each request is logged
+with its action id, which is the quickest way to answer "why did a
+password prompt just appear".
+
+Behaviour worth knowing:
+
+- **Clicking outside refocuses instead of dismissing.** Losing a
+  half-typed password to a stray click is worse than pressing Escape.
+- **Escape cancels**, including while PAM is checking.
+- The field goes inert while a submission is in flight and during the
+  1.2 s error flash, so you can't type into a request that's already gone.
+
+Fingerprint unlock is not implemented — the lock screen doesn't do it
+either, and there's no reader on the development machine.
 
 ---
 
@@ -531,7 +580,6 @@ animations, launcher search engine).
 
 | External tool       | Why it stays                                                                                     |
 |---------------------|--------------------------------------------------------------------------------------------------|
-| `hyprpolkitagent`   | No polkit replacement yet (~2 h follow-up if desired).                                           |
 | `udiskie`, `kwalletd6`, etc. | Out of shell scope by design (USB mount, secret store, etc.).                          |
 
 ---
