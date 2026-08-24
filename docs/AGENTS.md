@@ -344,6 +344,41 @@ conversation gets truncated or sluggish.
 4. For visual confirmation: generate a separate 640×wide thumbnail to `/tmp/`, `mcp_Read` THAT, then discard
 5. Never `mcp_Read` the raw `/tmp/raw.png` or any file > 500 KB
 
+### Never kill the shell while the session is locked
+
+`ext-session-lock` requires the compositor to **keep the screen locked if
+the client dies** — that is the whole security property of the protocol.
+Hyprland shows "your lockscreen app died" and there is no password field
+left to type into. Recovery is a TTY.
+
+A `pkill` that looks harmless becomes a lockout if the session happened to
+lock while you were working. Check first:
+
+```bash
+loginctl show-session "$XDG_SESSION_ID" -p LockedHint   # LockedHint=no is safe
+```
+
+This has already happened once: a test script killed the daemon during an
+idle-lock, stranding the session.
+
+### Restarting the shell drops every active D-Bus idle inhibit
+
+Clients hold inhibit cookies against the bridge process. Restarting the
+shell kills it, and the cookies die with it — but the *clients* don't know
+that and won't re-request until their own state changes. A playing video
+therefore stops protecting the session, and the lock fires minutes later
+looking completely unrelated to whatever you just restarted.
+
+Check with `qs -p . ipc call idle status`, which names current holders.
+
+### Interactive polkit prompts cost a failed-login strike
+
+Abandoning or cancelling a polkit prompt makes `pam_unix` fail and
+`pam_faillock` count it. Three of them lock the account — TTYs included —
+for `unlock_time`. See gotcha #74 for the mechanism and the safe recipe;
+in short, raise at most one interactive prompt and then
+`sudo faillock --user $USER --reset`.
+
 ### `SIGHUP` kills the qs daemon
 
 `kill -HUP <pid>` does NOT trigger reload — it terminates. The daemon

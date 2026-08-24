@@ -2923,7 +2923,27 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     pkcheck --action-id org.freedesktop.ModemManager1.Control --process $$ --allow-user-interaction
     ```
 
-    It blocks on your prompt (exit 124 under `timeout`), and cancelling has no side effects. Find candidates with `grep -l '<allow_active>auth_admin<' /usr/share/polkit-1/actions/*.policy`.
+    It blocks on your prompt (exit 124 under `timeout`). Find candidates with `grep -l '<allow_active>auth_admin<' /usr/share/polkit-1/actions/*.policy`.
+
+    ⚠️ **An abandoned or cancelled prompt counts as a failed login.** This is not obvious anywhere in the polkit API, and it locked this repo's author out of his own machine while testing this exact feature. `polkit-agent-helper-1` starts the PAM conversation as soon as the agent begins, so walking away from the prompt makes `pam_unix` fail:
+
+    ```
+    polkit-agent-helper-1: pam_unix(polkit-1:auth): auth could not identify password for [user]
+    pam_faillock: Consecutive login failures for user ... account temporarily locked
+    ```
+
+    With `pam_faillock`'s default `deny=3`, **three abandoned test prompts lock the account** — TTYs included — for `unlock_time` (600 s default). The polkit side reports nothing; you find out at a login prompt.
+
+    So when testing an agent:
+
+    - Raise **at most one** interactive prompt per session, and clear the counter straight after:
+      ```
+      faillock --user $USER               # inspect
+      sudo faillock --user $USER --reset  # clear
+      ```
+    - Prefer the non-interactive check. `pkcheck` **without** `--allow-user-interaction` returns immediately, never starts a PAM conversation, and is free to run in a loop. It proves the agent is registered; only the interactive form proves the dialog renders.
+
+    This also has a UI consequence worth designing for: pressing Escape on a polkit prompt costs a strike, whichever agent is running. `polkit/PolkitDialog.qml` therefore requires **two** Escapes, with the second one labelled — a stray keypress should not spend one of the user's three.
 
 
 
