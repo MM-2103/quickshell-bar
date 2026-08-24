@@ -244,10 +244,17 @@ PopupWindow {
                 boundsBehavior: Flickable.StopAtBounds
 
                 // Reverse the model so newest notifications are at the top.
-                model: {
-                    const list = popup.notifs.slice();
-                    list.reverse();
-                    return list;
+                //
+                // Wrapped in ScriptModel: a bare JS array makes ListView drop
+                // and rebuild every visible delegate on reassignment, which
+                // also disables its add/remove transitions entirely. Values
+                // are Notification QObjects, so no objectProp is needed.
+                model: ScriptModel {
+                    values: {
+                        const list = popup.notifs.slice();
+                        list.reverse();
+                        return list;
+                    }
                 }
 
                 delegate: NotificationCard {
