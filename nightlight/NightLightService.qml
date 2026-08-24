@@ -17,6 +17,14 @@ pragma Singleton
 // Caffeine and DND which deliberately reset each session. A blue-light
 // filter is a standing preference -- having it silently switch off
 // because the shell reloaded would be a bug, not a feature.
+//
+// Known: the gamma change lags the toggle slightly. That is not this code.
+// Measured end to end, toggle() to hyprctl returning is ~3 ms, and the
+// same lag happens running `hyprctl hyprsunset temperature` straight from
+// a shell with no Quickshell involved. It sits in hyprsunset writing the
+// LUT or the compositor committing it to the CRTC. Don't go looking for
+// it in here -- and note that no screenshot can show it either, because
+// wlr-gamma-control applies after compositing. See gotcha #77.
 
 import QtQuick
 import Quickshell
