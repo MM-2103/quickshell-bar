@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #74+) represents original
+> "Gotchas & quirks" section (entries #1 through #75+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2944,6 +2944,35 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     - Prefer the non-interactive check. `pkcheck` **without** `--allow-user-interaction` returns immediately, never starts a PAM conversation, and is free to run in a loop. It proves the agent is registered; only the interactive form proves the dialog renders.
 
     This also has a UI consequence worth designing for: pressing Escape on a polkit prompt costs a strike, whichever agent is running. `polkit/PolkitDialog.qml` therefore requires **two** Escapes, with the second one labelled — a stray keypress should not spend one of the user's three.
+
+75. **`Quickshell.Networking` has four traps that make it look broken when it isn't.** All four cost time on this repo's migration off `nmcli`.
+
+    - **The wifi scanner is off by default.** `WifiDevice.networks` holds a *single* entry until you set `scannerEnabled = true` — 1 versus 21 on the test machine. It reads like the module failing to enumerate APs. It is also a continuous mode, not a one-shot: there is no `rescan()`, so the closest equivalent is cycling the property off and on.
+    - **`signalStrength` is 0.0–1.0**, not 0–100. Nothing warns you; you just get every network rendering as 0%.
+    - **`NetworkDevice.address` is the MAC address**, not the IP — `50:EB:F6:40:E2:06`, not `192.168.1.4`.
+    - **Per-object property changes do not invalidate a binding on the model.** Reading `model.values` gives you a list whose *identity* never changes when a `Network`'s `signalStrength` moves, so a derived array bound to `values` alone silently goes stale. Attach watchers and bump a revision the derived bindings also read:
+
+      ```qml
+      Instantiator {
+          model: device.networks
+          delegate: QtObject {
+              required property var modelData
+              readonly property real strength: modelData ? modelData.signalStrength : 0
+              onStrengthChanged: root.rev++      // derived bindings read root.rev
+          }
+      }
+      ```
+
+    Two capability limits worth knowing before planning around this module:
+
+    - **`NMSettings` is not constructible from QML.** It appears only as a parameter and list type, so `connectWithSettings()` can only re-use a profile that already exists. Consequences: you cannot create a **hidden**-network profile, and you cannot set up **WPA-Enterprise** (you can connect to an already-configured one, and `WifiSecurityType` reports `Wpa2Eap`/`WpaEap` correctly).
+    - **There is no VPN.** `DeviceType` is `None | Wifi | Wired`, full stop. A `tun` device such as Tailscale's simply does not appear.
+
+    A saved **hidden** network is a special case: it *does* appear in the list once in range, because NetworkManager probes for SSIDs it knows — but it reports `known = false` and `nmSettings = 0`, since the AP carrying the resolved SSID is not linked to the hidden profile. It still connects, because `connect()` lets NM use its own stored secrets. Only the "saved" label and a forget button are affected.
+
+    Finally, prefer `connect()` **before** prompting for a password. The backend may already hold the secret, and `connectionFailed(NoSecrets)` is how you learn it does not — which also gives you a real "wrong password" signal instead of parsing stderr.
+
+
 
 
 

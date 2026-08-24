@@ -10,7 +10,7 @@ Orientation for new contributors — human or AI — picking up this repo.
 > Companion docs:
 > - [`AGENTS.md`](../AGENTS.md) — **compact root-level version** for AI agents; read this first
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 74+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 75+ gotchas
 > - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
 > - [`README.md`](../README.md) — install + user-facing overview
 
@@ -33,7 +33,7 @@ loads, workspaces module is empty).
 - Quickshell ≥ 0.3.0 (AUR `quickshell`) — `IdleMonitor` needs 0.3.0
 - Qt 6.5+ (`qt6-base`, `qt6-declarative`, `qt6-effects` for `MultiEffect`)
 - PAM (`/etc/pam.d/qslock` for the lock screen)
-- Pipewire (audio), NetworkManager (`nmcli`), BlueZ (`bluetoothctl` via DBus)
+- Pipewire (audio), NetworkManager (`Quickshell.Networking`), BlueZ (`Quickshell.Bluetooth`)
 - MPRIS (media), UPower (battery + power profiles), SystemNotifierItem (tray)
 - `cliphist` (clipboard history backend), `wl-copy` (clipboard write)
 - `brightnessctl` (backlight, laptops only)
@@ -143,7 +143,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `LockService` | locked state, PAM context (wallpaper now read from WallpaperService) |
 | `LauncherService` | popupOpen, query, filtered, frecency |
 | `ClipboardService` | popupOpen, entries (cliphist-backed) |
-| `NetworkService` | wired/wifi state, networks list, connect/forget actions |
+| `NetworkService` | wired/wifi state, networks list, connect/forget actions. Native `Quickshell.Networking`; translates the native types back to the nmcli-shaped contract the view expects |
 | `WallpaperService` | per-monitor wallpaper map, fillMode, picker open state, scan/persistence |
 | `WeatherService` | location, current/hourly/daily forecast (KNMI via Open-Meteo), city catalogue, detail-popup open state |
 | `ControlCenterService` | view-stack (`currentView`), Caffeine toggle (no bar widget owns it now; drives `IdleService.enabled` + a logind `systemd-inhibit`) |
@@ -245,10 +245,10 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Add a built-in theme preset | `themes/ThemePresets.qml` (the `builtIn` array) | append a record `{ id, label, kind, siblingId, palette: { 14 colour keys } }`; `id` must be unique; `kind` is `"dark"` or `"light"`; `siblingId` cross-references the paired variant by id (or `null` if no sibling); `palette` must populate every key in `paletteKeys` (otherwise that key falls back to Theme.qml's default and applying the theme leaves a half-applied look); when adding a sibling pair, add BOTH entries together so neither has a dangling siblingId; update `docs/CUSTOMIZATION.md`'s catalogue tables (dark + light) with a one-line entry each |
 | Add a system-theme target (icon-theme, cursor-theme, kdeglobals, etc.) | `themes/SystemTheme.qml` (the `_apply` function) | extend the gsettings `sh -c` command with the additional `gsettings set` calls (or branch into a different tool — `kwriteconfig` for kdeglobals, `dconf write` for finer control); add a corresponding `Local.get(key, default)` for the new value alongside `gtkThemeDark`/`gtkThemeLight`; update the `_lastFoo` cache fields so duplicate calls are skipped; document the new key in `docs/CUSTOMIZATION.md`'s "System theme sync" + `examples/config.jsonc` |
 | Add an in-popup floating overlay (picker / dropdown / similar) | settings/controls/`ColorPicker.qml` + `PresetDropdownList.qml` for production examples | [STYLE.md "Hoisted overlay recipe"](STYLE.md#hoisted-overlay-recipe) — must hoist to the popup root and pass through a service singleton; gotchas #66 (Repeater parent chain) and #68 (assignment severs bindings) both apply |
-| Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
+| Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; the same shape the old nmcli-based NetworkService used before it went native |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #74) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #75) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
