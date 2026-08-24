@@ -10,7 +10,7 @@ Orientation for new contributors — human or AI — picking up this repo.
 > Companion docs:
 > - [`AGENTS.md`](../AGENTS.md) — **compact root-level version** for AI agents; read this first
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 73+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 74+ gotchas
 > - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
 > - [`README.md`](../README.md) — install + user-facing overview
 
@@ -106,6 +106,7 @@ shell.qml (entry point)
 │
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
+├── PolkitDialog                 ← per-screen auth prompt (no IPC; driven by PolkitService)
 └── IpcHandler × 7                  ← clipboard, launcher, lock, settings, popups, idle, sleep
 ```
 
@@ -149,6 +150,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `IdleService` | `ext-idle-notifier-v1` monitor, staged idle lock + DPMS blank, master `enabled` switch, and the D-Bus inhibit bridge (`system/inhibit-bridge.py`) that owns `org.freedesktop.ScreenSaver` / `PowerManagement.Inhibit` |
 | `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal |
 | `SleepService` | logind delay inhibitor + gdbus signal watcher: locks before suspend, honours inbound `Lock` |
+| `PolkitService` | polkit auth agent: `PolkitAgent` registration, per-request flow snapshot, submit/cancel |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
@@ -246,7 +248,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; matches NetworkService's `nmcli` shape exactly |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #73) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #74) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
@@ -269,6 +271,8 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `settings/` | `SettingsService` singleton + `SettingsPopup` (centered visual config editor for the 33 overridable keys). Sub-trees: `sections/` (Theme/Colours/Typography/LayoutMotion/Behavior + SectionHeader) and `controls/` (SettingRow base + ColorRow + ColorPicker + NumberSlider + TextRow + ToggleRow + PresetDropdown + PresetDropdownList + ThemeCard) |
 | `themes/` | `ThemePresets` singleton (palette catalogue + apply/current/sibling logic) + `SystemTheme` singleton (orchestration that propagates the shell's dark/light preference to GTK / Qt6 / Electron / Firefox / Chromium via the XDG portal AND to KDE/Qt apps via `plasma-apply-colorscheme` writing kdeglobals + emitting a DBus signal). The Theme tab in the Settings page surfaces ThemePresets; the CC Theme tile drives toggleLightDark. SystemTheme is bootstrapped from `shell.qml`'s `Component.onCompleted` and reactively syncs on every theme change. Disable via `systemThemeSync: false` in `config.jsonc`. |
 | `clipboard/`, `launcher/`, `lock/` | popup-only features |
+| `polkit/` | `PolkitService` singleton (auth agent) + `PolkitDialog` (per-screen prompt) + `polkitModel.js` (pure message/prompt formatting, unit-tested) |
+| `test/` | `run` + `lib.sh` + `*-test.sh`. Pure `.js` logic only; QML is smoke-tested |
 | `docs/` | `QUICKSHELL_REFERENCE.md`, `STYLE.md`, this file (`AGENTS.md`), `screenshots/` |
 | `examples/` | copy-pasteable compositor keybind configs + the lock-on-suspend systemd unit |
 
