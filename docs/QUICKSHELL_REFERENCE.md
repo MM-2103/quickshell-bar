@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #75+) represents original
+> "Gotchas & quirks" section (entries #1 through #76+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2950,18 +2950,7 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     - **The wifi scanner is off by default.** `WifiDevice.networks` holds a *single* entry until you set `scannerEnabled = true` — 1 versus 21 on the test machine. It reads like the module failing to enumerate APs. It is also a continuous mode, not a one-shot: there is no `rescan()`, so the closest equivalent is cycling the property off and on.
     - **`signalStrength` is 0.0–1.0**, not 0–100. Nothing warns you; you just get every network rendering as 0%.
     - **`NetworkDevice.address` is the MAC address**, not the IP — `50:EB:F6:40:E2:06`, not `192.168.1.4`.
-    - **Per-object property changes do not invalidate a binding on the model.** Reading `model.values` gives you a list whose *identity* never changes when a `Network`'s `signalStrength` moves, so a derived array bound to `values` alone silently goes stale. Attach watchers and bump a revision the derived bindings also read:
-
-      ```qml
-      Instantiator {
-          model: device.networks
-          delegate: QtObject {
-              required property var modelData
-              readonly property real strength: modelData ? modelData.signalStrength : 0
-              onStrengthChanged: root.rev++      // derived bindings read root.rev
-          }
-      }
-      ```
+    - ~~Per-object property changes do not invalidate a binding on the model.~~ **This was written here and it is wrong.** QML registers binding dependencies per property *read*, not per model, so `values[i].signalStrength` inside a binding tracks that object's property and re-evaluates correctly. Verified twice: a binding on `Hyprland.workspaces.values[i].focused` stayed correct across 14 workspace switches with zero stale samples, and a binding on `Networking` per-item `signalStrength` updated with no watchers at all. If a derived list looks stale, the cause is elsewhere — most often that it was assigned imperatively rather than bound. See gotcha #76 for the problem that *does* exist here.
 
     Two capability limits worth knowing before planning around this module:
 
@@ -2971,6 +2960,35 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     A saved **hidden** network is a special case: it *does* appear in the list once in range, because NetworkManager probes for SSIDs it knows — but it reports `known = false` and `nmSettings = 0`, since the AP carrying the resolved SSID is not linked to the hidden profile. It still connects, because `connect()` lets NM use its own stored secrets. Only the "saved" label and a forget button are affected.
 
     Finally, prefer `connect()` **before** prompting for a password. The backend may already hold the secret, and `connectionFailed(NoSecrets)` is how you learn it does not — which also gives you a real "wrong password" signal instead of parsing stderr.
+
+76. **A JavaScript array used directly as a `model` is a delegate-rebuild multiplier. Wrap it in `ScriptModel`.** This is the single most expensive mistake in this codebase's history — it has bitten at least six sites.
+
+    `Repeater` and `ListView` cannot diff a JS array. On *every* reassignment they destroy and recreate **all** delegates, even if one element changed or none did. `Repeater` rebuilds all N; `ListView` rebuilds the viewport and additionally **loses its add/remove transitions entirely**.
+
+    ```qml
+    // rebuilds every delegate whenever the expression re-evaluates
+    Repeater { model: list.filter(x => x.visible) }
+
+    // creates and destroys only what actually changed
+    Repeater {
+        model: ScriptModel {
+            values: list.filter(x => x.visible)
+            objectProp: "id"      // key for plain JS objects; omit for QObjects
+        }
+    }
+    ```
+
+    Symptoms are rarely reported as "too many delegates". They show up as:
+
+    - **animations replaying on unrelated items** — a new notification arriving made every card already on screen re-run its entry animation, because `Component.onCompleted` fired again on all of them;
+    - **a visible stall on open** — measured at 114 array reassignments in the first second, ~2300 delegate creations, each doing an icon lookup;
+    - **delegate-local state silently resetting** — a clipboard row's cached thumbnail path was lost on every rebuild, re-forking `cliphist decode` per visible image row per keystroke.
+
+    Two caveats: `ScriptModel` is documented as undefined behaviour on lists containing **duplicates**, and Quickshell's exposed lists are read-only, so `sort()` needs a copy — `[...model.values].sort(...)`.
+
+    Rule of thumb: if a `model:` is an expression rather than a native model object, it wants `ScriptModel`. Native models (`SystemTray.items`, `QsMenuOpener.children`, an `ObjectModel`) already diff incrementally and must be passed through untouched.
+
+
 
 
 
