@@ -19,6 +19,7 @@ import qs.weather           // for WeatherDetailPopup + WeatherService singleton
 import qs.settings          // for SettingsPopup + SettingsService singleton
 import qs.themes            // for SystemTheme singleton (system-theme orchestration)
 import qs.system            // for IdleService + SleepService singletons
+import qs.polkit           // for PolkitDialog + PolkitService singleton (auth agent)
 
 ShellRoot {
     id: root
@@ -47,6 +48,7 @@ ShellRoot {
         SystemTheme.bootstrap();
         IdleService.bootstrap();
         SleepService.bootstrap();
+        PolkitService.bootstrap();
     }
 
     // Trigger a layout OSD whenever the compositor reports a new layout
@@ -216,6 +218,17 @@ ShellRoot {
         model: Quickshell.screens
 
         SettingsPopup {
+            focusedOutput: Compositor.focusedOutput
+        }
+    }
+
+    // Polkit authentication prompt. Appears whenever anything on the system
+    // asks polkit for authorization (pkexec, systemctl, GParted, ...).
+    // Driven entirely by PolkitService — no IPC, no keybind.
+    Variants {
+        model: Quickshell.screens
+
+        PolkitDialog {
             focusedOutput: Compositor.focusedOutput
         }
     }
