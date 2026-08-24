@@ -212,7 +212,7 @@ Singleton {
             if (sa !== sb) return sb - sa;
             return (a.name || "").localeCompare(b.name || "");
         });
-        return matched.map(e => ({ kind: "app", entry: e }));
+        return matched.map(e => ({ kind: "app", entry: e, key: "app:" + e.id }));
     }
 
     // ---- Calculator ----
@@ -295,6 +295,7 @@ Singleton {
         const top = matched.length > cap ? matched.slice(0, cap) : matched;
         return top.map(e => ({
             kind: "emoji",
+            key: "emoji:" + e.emoji,
             char: e.emoji,
             name: e.description || "",
             category: e.category || ""
@@ -302,6 +303,13 @@ Singleton {
     }
 
     // ---- Mode router ----
+    //
+    // Every record carries a `key` that is unique within a single result
+    // list, so the view can wrap `filtered` in a ScriptModel and diff it
+    // (objectProp: "key") instead of rebuilding every delegate on each
+    // keystroke. The modes are mutually exclusive, so keys only need to be
+    // unique per kind: app ids and emoji chars are already unique, and the
+    // web/calc modes return at most one row each.
 
     readonly property var filtered: {
         const q = root.query || "";
@@ -309,7 +317,7 @@ Singleton {
         if (q.length > 0 && q.charAt(0) === "?") {
             const rest = q.slice(1);
             if (rest.length === 0) return [];
-            return [{ kind: "web", text: rest }];
+            return [{ kind: "web", text: rest, key: "web" }];
         }
 
         if (q.length > 0 && q.charAt(0) === ";") {
@@ -319,7 +327,7 @@ Singleton {
         if (q.length > 0 && q.charAt(0) === "=") {
             const result = _evalCalc(q.slice(1));
             return result !== null
-                ? [{ kind: "calc", text: result, query: q }]
+                ? [{ kind: "calc", text: result, query: q, key: "calc" }]
                 : [];
         }
 
