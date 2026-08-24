@@ -320,7 +320,11 @@ PanelWindow {
                 visible: WallpaperService.subdirs.length > 0
 
                 Repeater {
-                    model: WallpaperService.subdirs
+                    // ScriptModel: subdirs is reassigned wholesale by every
+                    // scan, so a plain array would rebuild every pill even
+                    // when the folder listing is unchanged. Paths are unique
+                    // strings, so no objectProp is needed.
+                    model: ScriptModel { values: WallpaperService.subdirs }
                     delegate: Rectangle {
                         id: subPill
                         required property var modelData
@@ -387,7 +391,13 @@ PanelWindow {
 
                     cellWidth:  Math.floor(width / 4)
                     cellHeight: Math.round(cellWidth * 9 / 16) + 8
-                    model: WallpaperService.images
+
+                    // ScriptModel: _scan() runs on every openPicker() and
+                    // assigns root.images unconditionally, so a plain array
+                    // would reset the view and re-decode every visible
+                    // 320x180 thumbnail even when the folder has not changed.
+                    // Absolute paths are unique, so no objectProp is needed.
+                    model: ScriptModel { values: WallpaperService.images }
 
                     boundsBehavior: Flickable.StopAtBounds
 
