@@ -1,52 +1,177 @@
-// NetworkService.qml
-// Singleton wrapping `nmcli` for state queries + actions.
-// Refreshes are triggered by `nmcli monitor` events plus an initial scan.
-
 pragma Singleton
+
+// NetworkService.qml
+// NetworkManager state + actions, via Quickshell.Networking.
+//
+// Previously this shelled out to nmcli: a long-running `nmcli monitor` plus
+// five terse queries re-run on every event, and a hand-rolled parser for
+// nmcli's escaped-colon output. All of that is gone -- the native module is
+// reactive, so there is no process, no polling, and no parsing.
+//
+// The public surface below is deliberately UNCHANGED from the nmcli version:
+// same property names, same object shapes, same function signatures. The
+// native types are richer, but translating at this boundary keeps
+// NetworkView.qml and controlcenter/TilesView.qml working untouched. The
+// translation is the point of this file, not an accident of it.
+//
+// Native quirks this file absorbs, all verified against real hardware:
+//
+//   - signalStrength is 0.0-1.0, not 0-100. The view's tier thresholds
+//     and percent suffix assume 0-100, so it is scaled here.
+//   - WifiDevice.scannerEnabled must be true or `networks` holds a single
+//     entry instead of the visible APs. It is not a one-shot rescan; it is
+//     a continuous mode.
+//   - NetworkDevice.address is the MAC, not the IP.
+//   - Property changes on individual Network objects do NOT invalidate a
+//     binding that reads the model's `values` list, because the list
+//     identity is unchanged. Hence the watcher Instantiators below.
+//
+// Known limitation: a saved HIDDEN network reports known=false and
+// nmSettings=0 even though NetworkManager has the profile -- the AP that
+// carries the resolved SSID is not linked to the hidden profile. It still
+// appears in the list and still connects, because connect() lets NM use its
+// own stored secrets; only the "saved" label and the forget button are
+// affected. Creating a hidden profile is impossible natively (NMSettings is
+// not constructible from QML), so connectWifi() keeps an nmcli path for
+// that one case.
+//
+// IMPORTANT: pragma Singleton must be line 1 (gotcha #45). Header comments
+// must NOT contain curly braces -- the qmlscanner doesn't strip them and the
+// brace tracker gets confused, silently registering this file as a regular
+// type instead of a singleton.
 
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs
+import Quickshell.Networking
 
 Singleton {
     id: root
 
-    // ---- Reactive state ----
-    property bool wifiEnabled: false
-    property string globalState: "unknown"     // connected/disconnected/...
-    property var activeConnections: []          // { name, type, device, state }
-    property var wirelessNetworks: []           // { ssid, security, signal, inUse, bssid }
-    property var savedConnections: []           // { name, uuid, type } — type=802-11-wireless or 802-3-ethernet
-    property var devices: []                    // { device, type, state, connection }
-    property string lastError: ""
+    // ================= Public contract =================
+    // Consumed by network/NetworkView.qml and controlcenter/TilesView.qml.
 
-    // Last action result so the UI can react / clear forms.
+    readonly property bool wifiEnabled: Networking.wifiEnabled
+    readonly property string globalState: {
+        switch (Networking.connectivity) {
+        case NetworkConnectivity.Full:    return "connected";
+        case NetworkConnectivity.Limited: return "connected (local only)";
+        case NetworkConnectivity.Portal:  return "connected (captive portal)";
+        case NetworkConnectivity.None:    return "disconnected";
+        default:                          return "unknown";
+        }
+    }
+
+    property string lastError: ""
     signal actionFinished(bool ok, string message)
 
-    // ---- Convenience getters ----
+    // { ssid, security, signal, inUse, bssid }
+    readonly property var wirelessNetworks: {
+        root._rev;                                   // dependency, see _bump()
+        const dev = root._wifiDevice;
+        if (!dev || !dev.networks) return [];
+        const src = dev.networks.values;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const n = src[i];
+            // Unnamed rows are hidden APs beaconing without an SSID. The
+            // nmcli version skipped them too; there is nothing to show and
+            // nothing to connect to.
+            if (!n || !n.name || n.name.length === 0) continue;
+            out.push({
+                inUse: n.connected,
+                bssid: "",                           // not exposed natively; unused by the view
+                ssid: n.name,
+                security: root._securityLabel(n.security),
+                signal: Math.round(n.signalStrength * 100)
+            });
+        }
+        // The native model already dedupes by SSID, so unlike the nmcli
+        // version there is no strongest-wins pass -- only the ordering.
+        out.sort((a, b) => a.inUse !== b.inUse ? (a.inUse ? -1 : 1) : b.signal - a.signal);
+        return out;
+    }
+
+    // { device, type, state, connection }
+    readonly property var devices: {
+        root._rev;
+        const src = root._deviceList;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const d = src[i];
+            if (!d) continue;
+            const net = root._activeNetworkOf(d);
+            out.push({
+                device: d.name,
+                type: root._deviceTypeString(d),
+                state: root._deviceStateString(d),
+                connection: net ? net.name : ""
+            });
+        }
+        return out;
+    }
+
+    // { name, type, device, state }
+    readonly property var activeConnections: {
+        root._rev;
+        const src = root._deviceList;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const d = src[i];
+            if (!d || !d.connected) continue;
+            const net = root._activeNetworkOf(d);
+            out.push({
+                name: net ? net.name : d.name,
+                type: root._connectionTypeString(d),
+                device: d.name,
+                state: "activated"
+            });
+        }
+        return out;
+    }
+
+    // { name, uuid, type }
+    //
+    // Synthesised from networks reporting known=true. uuid is always "" --
+    // it is not exposed natively and nothing reads it. The view uses this
+    // only to decide whether a row renders as "saved".
+    readonly property var savedConnections: {
+        root._rev;
+        const src = root._deviceList;
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const d = src[i];
+            if (!d || !d.networks) continue;
+            const nets = d.networks.values;
+            for (let j = 0; j < nets.length; j++) {
+                const n = nets[j];
+                if (!n || !n.known || !n.name || n.name.length === 0) continue;
+                out.push({ name: n.name, uuid: "", type: root._connectionTypeString(d) });
+            }
+        }
+        return out;
+    }
+
     readonly property var primaryActive: {
-        // pick the most "interesting" active connection (wifi > ethernet > vpn)
         const a = activeConnections;
-        let wifi = null, eth = null, vpn = null, other = null;
+        let wifi = null, eth = null, other = null;
         for (let i = 0; i < a.length; i++) {
             const c = a[i];
             if (c.type === "802-11-wireless") wifi = c;
             else if (c.type === "802-3-ethernet") eth = c;
-            else if (c.type === "vpn") vpn = c;
             else if (c.device !== "lo" && !other) other = c;
         }
-        return wifi || eth || vpn || other || null;
+        return wifi || eth || other || null;
     }
 
     readonly property string currentSsid: {
         for (let i = 0; i < activeConnections.length; i++) {
-            if (activeConnections[i].type === "802-11-wireless") {
-                return activeConnections[i].name;
-            }
+            if (activeConnections[i].type === "802-11-wireless") return activeConnections[i].name;
         }
         return "";
     }
+
+    readonly property bool wifiConnected: currentSsid !== ""
 
     readonly property bool wiredConnected: {
         for (let i = 0; i < activeConnections.length; i++) {
@@ -56,13 +181,6 @@ Singleton {
         return false;
     }
 
-    readonly property bool wifiConnected: currentSsid !== ""
-
-    // Ethernet helpers ----------------------------------------------------
-    // Devices of type ethernet, with cable state derived from device state:
-    //   "connected"      => cable plugged + connection active
-    //   "disconnected"   => cable plugged, no active connection
-    //   "unavailable"    => cable unplugged
     readonly property var ethernetDevices: {
         const out = [];
         for (let i = 0; i < devices.length; i++) {
@@ -71,25 +189,18 @@ Singleton {
         return out;
     }
 
-    // Saved ethernet profiles, joined with whether they're currently active
-    // and which device they're on.
     readonly property var ethernetConnections: {
         const out = [];
-        const saved = savedConnections;
-        for (let i = 0; i < saved.length; i++) {
-            if (saved[i].type !== "802-3-ethernet") continue;
-            // Find active state
+        for (let i = 0; i < savedConnections.length; i++) {
+            const s = savedConnections[i];
+            if (s.type !== "802-3-ethernet") continue;
             let active = null;
             for (let j = 0; j < activeConnections.length; j++) {
-                if (activeConnections[j].name === saved[i].name
-                    && activeConnections[j].type === "802-3-ethernet") {
-                    active = activeConnections[j];
-                    break;
-                }
+                if (activeConnections[j].name === s.name
+                    && activeConnections[j].type === "802-3-ethernet") { active = activeConnections[j]; break; }
             }
             out.push({
-                name: saved[i].name,
-                uuid: saved[i].uuid,
+                name: s.name, uuid: s.uuid,
                 active: active !== null,
                 device: active ? active.device : "",
                 state: active ? active.state : "deactivated"
@@ -100,262 +211,234 @@ Singleton {
 
     readonly property bool hasEthernetHardware: ethernetDevices.length > 0
 
-    // ---- Parsing helpers ----
-    function _parseTerse(line) {
-        // nmcli -t escapes ":" and "\\" with backslash. Split by unescaped ":".
-        const out = [];
-        let cur = "";
-        let esc = false;
-        for (let i = 0; i < line.length; i++) {
-            const c = line[i];
-            if (esc) { cur += c; esc = false; continue; }
-            if (c === "\\") { esc = true; continue; }
-            if (c === ":") { out.push(cur); cur = ""; continue; }
-            cur += c;
-        }
-        out.push(cur);
-        return out;
-    }
-
     // ---- Actions ----
-    function refreshAll() {
-        generalProc.running = true;
-        activeProc.running = true;
-        savedProc.running = true;
-        wifiListProc.running = true;
-        deviceProc.running = true;
-    }
 
+    function setWifiEnabled(on) { Networking.wifiEnabled = !!on; }
+
+    // Kept for API compatibility: five call sites still invoke these, and
+    // the native module is reactive so there is nothing to refresh.
+    function refreshAll() { /* reactive; no-op */ }
+
+    // scannerEnabled is a continuous mode, not a one-shot. Cycling it is the
+    // closest equivalent to `nmcli device wifi rescan`.
     function rescan() {
-        rescanProc.running = true;
+        const dev = root._wifiDevice;
+        if (!dev) return;
+        dev.scannerEnabled = false;
+        dev.scannerEnabled = true;
     }
 
-    function setWifiEnabled(on) {
-        wifiToggleProc.command = ["nmcli", "radio", "wifi", on ? "on" : "off"];
-        wifiToggleProc.running = true;
-    }
-
-    // Connect to a saved/known network (no password prompt).
     function connectByName(name) {
-        actionProc.command = ["nmcli", "connection", "up", name];
-        actionProc.running = true;
+        const n = root._findNetwork(name);
+        if (n) n.connect();
     }
 
-    // Connect to a wifi network by SSID with optional password / hidden flag.
-    function connectWifi(ssid, password, hidden) {
-        const cmd = ["nmcli", "device", "wifi", "connect", ssid];
-        if (password && password.length > 0) {
-            cmd.push("password", password);
-        }
-        if (hidden) cmd.push("hidden", "yes");
-        actionProc.command = cmd;
-        actionProc.running = true;
-    }
-
-    // Disconnect an active connection.
     function disconnectByName(name) {
-        actionProc.command = ["nmcli", "connection", "down", name];
-        actionProc.running = true;
+        const n = root._findNetwork(name);
+        if (n) n.disconnect();
     }
 
-    // Forget / delete a saved connection profile.
     function forgetByName(name) {
-        actionProc.command = ["nmcli", "connection", "delete", name];
-        actionProc.running = true;
+        const n = root._findNetwork(name);
+        if (n) n.forget();
     }
 
-    // Device-level activate. Better than `connection up` for ethernet because
-    // it auto-creates an ad-hoc profile if none exists, and doesn't depend on
-    // a stable profile name. Used for ethernet rows.
+    function connectWifi(ssid, password, hidden) {
+        const n = root._findNetwork(ssid);
+
+        // A hidden SSID that is not already saved never appears in a scan,
+        // so there is no Network object to act on -- and NMSettings cannot be
+        // constructed from QML to make one. nmcli is the only route.
+        if (!n) {
+            hiddenConnectProc.command = ["nmcli", "device", "wifi", "connect", ssid]
+                .concat(password && password.length > 0 ? ["password", password] : [])
+                .concat(hidden ? ["hidden", "yes"] : []);
+            hiddenConnectProc.running = true;
+            return;
+        }
+
+        // Try without secrets first even when a password was supplied: the
+        // backend may already hold one, and connect() failing with NoSecrets
+        // is how we learn it does not. Recommended by the Quickshell docs.
+        if (password && password.length > 0) n.connectWithPsk(password);
+        else n.connect();
+    }
+
     function connectDevice(device) {
-        actionProc.command = ["nmcli", "device", "connect", device];
-        actionProc.running = true;
+        const d = root._findDevice(device);
+        if (!d) return;
+        // Wired devices expose their single profile directly.
+        if (d.network) { d.network.connect(); return; }
+        const nets = d.networks ? d.networks.values : [];
+        for (let i = 0; i < nets.length; i++) {
+            if (nets[i] && nets[i].known) { nets[i].connect(); return; }
+        }
     }
 
-    // Device-level deactivate. Doesn't auto-delete the underlying profile,
-    // unlike `connection down` for ad-hoc Wired-connection-N profiles.
     function disconnectDevice(device) {
-        actionProc.command = ["nmcli", "device", "disconnect", device];
-        actionProc.running = true;
+        const d = root._findDevice(device);
+        if (d) d.disconnect();
     }
 
-    // ---- Background processes ----
+    // ================= Internals =================
 
-    // Long-running event monitor — triggers refresh on any state change.
-    Process {
-        id: monitorProc
-        command: ["nmcli", "monitor"]
-        running: true
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: line => {
-                if (!line) return;
-                root.refreshAll();
-            }
-        }
-        onRunningChanged: {
-            if (!running) {
-                console.warn("[NetworkService] nmcli monitor exited, restarting");
-                running = true;
-            }
+    readonly property var _deviceList: Networking.devices ? Networking.devices.values : []
+
+    readonly property var _wifiDevice: {
+        const d = root._deviceList;
+        for (let i = 0; i < d.length; i++) if (d[i] && d[i].type === DeviceType.Wifi) return d[i];
+        return null;
+    }
+
+    // Bumped by the watchers below. Reading it inside the derived-array
+    // bindings is what makes them recompute when a Network's properties
+    // change -- the model's `values` list identity does not change when a
+    // signal strength moves, so a binding on `values` alone would go stale.
+    property int _rev: 0
+    function _bump() { root._rev++; }
+
+    function _deviceTypeString(d) {
+        if (d.type === DeviceType.Wifi) return "wifi";
+        if (d.type === DeviceType.Wired) return "ethernet";
+        return "";
+    }
+
+    function _connectionTypeString(d) {
+        // NM's *connection* vocabulary, which differs from its device
+        // vocabulary. The view matches on both, in different places.
+        if (d.type === DeviceType.Wifi) return "802-11-wireless";
+        if (d.type === DeviceType.Wired) return "802-3-ethernet";
+        return "";
+    }
+
+    function _deviceStateString(d) {
+        // Reconstructs the nmcli device-state strings the view branches on.
+        // hasLink is a genuine improvement: the nmcli version inferred cable
+        // state from a device string that did not really mean that.
+        if (!d.nmManaged) return "unmanaged";
+        if (d.type === DeviceType.Wired && !d.hasLink) return "unavailable";
+        if (d.connected) return "connected";
+        if (d.state === ConnectionState.Connecting) return "connecting";
+        if (d.state === ConnectionState.Disconnecting) return "deactivating";
+        return "disconnected";
+    }
+
+    function _securityLabel(sec) {
+        switch (sec) {
+        case WifiSecurityType.Open:          return "";
+        case WifiSecurityType.Owe:           return "OWE";
+        case WifiSecurityType.WpaPsk:        return "WPA1";
+        case WifiSecurityType.Wpa2Psk:       return "WPA2";
+        case WifiSecurityType.Sae:           return "WPA3";
+        case WifiSecurityType.Wpa3SuiteB192: return "WPA3";
+        case WifiSecurityType.WpaEap:        return "WPA1 802.1X";
+        case WifiSecurityType.Wpa2Eap:       return "WPA2 802.1X";
+        case WifiSecurityType.StaticWep:
+        case WifiSecurityType.DynamicWep:    return "WEP";
+        case WifiSecurityType.Leap:          return "LEAP";
+        default:                             return "";
         }
     }
 
-    // General state: STATE:WIFI:WIFI-HW
-    Process {
-        id: generalProc
-        command: ["nmcli", "-t", "-f", "STATE,WIFI,WIFI-HW", "general"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const line = text.trim().split("\n")[0] || "";
-                const f = root._parseTerse(line);
-                root.globalState = f[0] || "unknown";
-                root.wifiEnabled = (f[1] || "") === "enabled";
-            }
+    function _activeNetworkOf(d) {
+        if (!d) return null;
+        if (d.network) return d.network;             // WiredDevice
+        const nets = d.networks ? d.networks.values : [];
+        for (let i = 0; i < nets.length; i++) if (nets[i] && nets[i].connected) return nets[i];
+        return null;
+    }
+
+    function _findDevice(name) {
+        const d = root._deviceList;
+        for (let i = 0; i < d.length; i++) if (d[i] && d[i].name === name) return d[i];
+        return null;
+    }
+
+    function _findNetwork(name) {
+        const d = root._deviceList;
+        for (let i = 0; i < d.length; i++) {
+            const nets = d[i] && d[i].networks ? d[i].networks.values : [];
+            for (let j = 0; j < nets.length; j++) if (nets[j] && nets[j].name === name) return nets[j];
+        }
+        return null;
+    }
+
+    function _failureMessage(reason) {
+        switch (reason) {
+        case ConnectionFailReason.NoSecrets:              return "Wrong password";
+        case ConnectionFailReason.WifiAuthTimeout:        return "Authentication timed out";
+        case ConnectionFailReason.WifiNetworkLost:        return "Network out of range";
+        case ConnectionFailReason.WifiClientDisconnected: return "Disconnected by the network";
+        case ConnectionFailReason.WifiClientFailed:       return "Connection failed";
+        default:                                          return "Connection failed";
         }
     }
 
-    // Active connections: NAME:TYPE:DEVICE:STATE
-    Process {
-        id: activeProc
-        command: ["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,STATE", "connection", "show", "--active"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = [];
-                const lines = text.trim().split("\n");
-                for (let i = 0; i < lines.length; i++) {
-                    if (!lines[i]) continue;
-                    const f = root._parseTerse(lines[i]);
-                    list.push({
-                        name:   f[0] || "",
-                        type:   f[1] || "",
-                        device: f[2] || "",
-                        state:  f[3] || ""
-                    });
+    // ---- Watchers ----
+    //
+    // One delegate per device and per network, existing purely to observe
+    // property changes and bump _rev. Without these the derived arrays never
+    // recompute: `values` only notifies on structural change.
+
+    Instantiator {
+        model: Networking.devices
+        delegate: QtObject {
+            required property var modelData
+            readonly property bool connected: modelData ? modelData.connected : false
+            readonly property int  devState:  modelData ? modelData.state : 0
+            readonly property bool managed:   modelData ? modelData.nmManaged : false
+            onConnectedChanged: root._bump()
+            onDevStateChanged:  root._bump()
+            onManagedChanged:   root._bump()
+        }
+    }
+
+    Instantiator {
+        model: root._wifiDevice ? root._wifiDevice.networks : null
+        delegate: QtObject {
+            id: netWatch
+            required property var modelData
+            readonly property real strength: modelData ? modelData.signalStrength : 0
+            readonly property bool connected: modelData ? modelData.connected : false
+            readonly property bool known:     modelData ? modelData.known : false
+            readonly property int  netState:  modelData ? modelData.state : 0
+            onStrengthChanged:  root._bump()
+            onConnectedChanged: root._bump()
+            onKnownChanged:     root._bump()
+            onNetStateChanged:  root._bump()
+
+            property Connections _fail: Connections {
+                target: netWatch.modelData
+                function onConnectionFailed(reason) {
+                    const msg = root._failureMessage(reason);
+                    console.warn("[NetworkService] connection failed:", msg);
+                    root.lastError = msg;
+                    root.actionFinished(false, msg);
                 }
-                root.activeConnections = list;
             }
         }
     }
 
-    // Saved connections: NAME:UUID:TYPE
-    Process {
-        id: savedProc
-        command: ["nmcli", "-t", "-f", "NAME,UUID,TYPE", "connection", "show"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = [];
-                const lines = text.trim().split("\n");
-                for (let i = 0; i < lines.length; i++) {
-                    if (!lines[i]) continue;
-                    const f = root._parseTerse(lines[i]);
-                    list.push({
-                        name: f[0] || "",
-                        uuid: f[1] || "",
-                        type: f[2] || ""
-                    });
-                }
-                root.savedConnections = list;
-            }
+    // Wired devices carry a single Network rather than a scanned list; watch
+    // it separately so an ethernet cable event updates the derived arrays.
+    Instantiator {
+        model: Networking.devices
+        delegate: QtObject {
+            required property var modelData
+            readonly property bool link: (modelData && modelData.type === DeviceType.Wired)
+                ? modelData.hasLink : false
+            onLinkChanged: root._bump()
         }
     }
 
-    // Devices: DEVICE:TYPE:STATE:CONNECTION
+    // Only used for a hidden SSID with no saved profile; see connectWifi().
     Process {
-        id: deviceProc
-        command: ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = [];
-                const lines = text.trim().split("\n");
-                for (let i = 0; i < lines.length; i++) {
-                    if (!lines[i]) continue;
-                    const f = root._parseTerse(lines[i]);
-                    list.push({
-                        device:     f[0] || "",
-                        type:       f[1] || "",
-                        state:      f[2] || "",
-                        connection: f[3] || ""
-                    });
-                }
-                root.devices = list;
-            }
-        }
-    }
-
-    // Wifi list: IN-USE:BSSID:SSID:SECURITY:SIGNAL
-    Process {
-        id: wifiListProc
-        command: ["nmcli", "-t", "-f", "IN-USE,BSSID,SSID,SECURITY,SIGNAL", "device", "wifi", "list"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const list = [];
-                const lines = text.trim().split("\n");
-                const seen = {};
-                for (let i = 0; i < lines.length; i++) {
-                    if (!lines[i]) continue;
-                    const f = root._parseTerse(lines[i]);
-                    const ssid = f[2] || "";
-                    if (!ssid) continue;            // skip hidden APs without SSID
-                    // Deduplicate by SSID, keeping the strongest signal.
-                    const sig = parseInt(f[4] || "0");
-                    if (seen[ssid] !== undefined) {
-                        if (list[seen[ssid]].signal >= sig) continue;
-                        // replace
-                    }
-                    const entry = {
-                        inUse:    (f[0] || "") === "*",
-                        bssid:    f[1] || "",
-                        ssid:     ssid,
-                        security: f[3] || "",
-                        signal:   sig
-                    };
-                    if (seen[ssid] !== undefined) {
-                        list[seen[ssid]] = entry;
-                    } else {
-                        seen[ssid] = list.length;
-                        list.push(entry);
-                    }
-                }
-                // Sort: in-use first, then by signal desc.
-                list.sort((a, b) => {
-                    if (a.inUse !== b.inUse) return a.inUse ? -1 : 1;
-                    return b.signal - a.signal;
-                });
-                root.wirelessNetworks = list;
-            }
-        }
-    }
-
-    // Force a fresh scan (asynchronous).
-    Process {
-        id: rescanProc
-        command: ["nmcli", "device", "wifi", "rescan"]
+        id: hiddenConnectProc
         stderr: StdioCollector {
             onStreamFinished: {
-                if (text && text.length > 0) {
-                    console.warn("[NetworkService] rescan:", text.trim());
-                }
-            }
-        }
-    }
-
-    // Wifi enable/disable. Command set dynamically by setWifiEnabled().
-    Process {
-        id: wifiToggleProc
-        command: ["nmcli", "radio", "wifi", "on"]
-        onRunningChanged: { if (!running) root.refreshAll(); }
-    }
-
-    // Generic action runner (connect/disconnect/forget). Captures stderr for errors.
-    Process {
-        id: actionProc
-        command: ["nmcli", "general"]    // placeholder, overwritten before each call
-        stderr: StdioCollector {
-            onStreamFinished: {
-                const msg = text.trim();
+                const msg = this.text.trim();
                 if (msg.length > 0) {
-                    console.warn("[NetworkService] action error:", msg);
+                    console.warn("[NetworkService] hidden connect:", msg);
                     root.lastError = msg;
                     root.actionFinished(false, msg);
                 } else {
@@ -364,16 +447,15 @@ Singleton {
                 }
             }
         }
-        onRunningChanged: {
-            if (!running) {
-                Qt.callLater(() => root.refreshAll());
-            }
-        }
     }
 
-    Component.onCompleted: {
-        // Initial population.
-        refreshAll();
-        rescan();
+    // The scanner is off by default, and without it `networks` holds a
+    // single entry instead of the visible APs.
+    onWifiEnabledChanged: root._syncScanner()
+    on_WifiDeviceChanged: root._syncScanner()
+    function _syncScanner() {
+        const dev = root._wifiDevice;
+        if (dev && Networking.wifiEnabled && !dev.scannerEnabled) dev.scannerEnabled = true;
     }
+    Component.onCompleted: root._syncScanner()
 }
