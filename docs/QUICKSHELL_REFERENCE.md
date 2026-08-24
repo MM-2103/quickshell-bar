@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #76+) represents original
+> "Gotchas & quirks" section (entries #1 through #77+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -2987,6 +2987,20 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     Two caveats: `ScriptModel` is documented as undefined behaviour on lists containing **duplicates**, and Quickshell's exposed lists are read-only, so `sort()` needs a copy — `[...model.values].sort(...)`.
 
     Rule of thumb: if a `model:` is an expression rather than a native model object, it wants `ScriptModel`. Native models (`SystemTray.items`, `QsMenuOpener.children`, an `ObjectModel`) already diff incrementally and must be passed through untouched.
+
+77. **`Hyprland.dispatch()` only runs *dispatchers*, and it discards the reply — so it cannot drive ecosystem tools like hyprsunset.** Hyprland's IPC has two distinct surfaces: dispatchers (`hyprctl dispatch …`, what `Hyprland.dispatch()` wraps) and plain hyprctl commands (`hyprctl hyprsunset …`, `hyprctl setprop`, `hyprctl keyword`). Only the first is reachable through `Quickshell.Hyprland`.
+
+    Because gotcha #71 already established that Hyprland 0.56's Lua parser evaluates the payload and that `dispatch()` throws the reply away, a wrong payload here fails **completely silently** — no error, no log line, no visual change. That makes it an easy hour to lose.
+
+    ```qml
+    // silently does nothing: hyprsunset is not a dispatcher
+    Hyprland.dispatch('hl.dsp.hyprsunset({ temperature = 4000 })');
+
+    // works: shell out to hyprctl, like BackendNiri does for `niri msg`
+    Quickshell.execDetached(["hyprctl", "hyprsunset", "temperature", "4000"]);
+    ```
+
+    A related trap when verifying gamma tools: **`grim` cannot see their effect.** `wlr-gamma-control` applies a LUT at the CRTC, after compositing, while a screenshot copies the composited buffer. Sampling a capture's colour balance before and after therefore shows only noise, and reads as "the feature is broken" when it is working. Verify via the tool's own reply (`hyprctl hyprsunset temperature 4000` prints `ok`) and with your eyes.
 
 
 

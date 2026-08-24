@@ -86,6 +86,20 @@
   "activeWindowEnabled": true,
   "activeWindowMaxWidth": 400,
 
+  // ─── Night light ───────────────────────────────────────────────
+  // Blue-light filter, driven by hyprsunset. The Control Center's
+  // "Night light" tile writes nightLightEnabled; unlike Caffeine and
+  // DND it persists, so the filter survives a shell restart.
+  //
+  // Needs the `hyprsunset` package and a compositor backend that
+  // implements a night-light dispatch (currently Hyprland only). Where
+  // either is missing the tile hides itself and these keys do nothing.
+  //
+  // Lower temperature = warmer. 6000K is roughly neutral; 4000K is a
+  // mild evening filter; 2500K is heavily orange.
+  "nightLightEnabled": false,
+  "nightLightTemperature": 4000,
+
   // ─── Idle ──────────────────────────────────────────────────────
   // Seconds of inactivity before each stage. Set either to 0 to turn
   // that stage off; set both to 0 to disable idle handling entirely.

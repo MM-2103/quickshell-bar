@@ -3,6 +3,8 @@
 //   - `volumeFeedbackEnabled` (audible cue on volume change)
 //   - `idleLockSeconds` / `idleDpmsSeconds` (IdleService stage timeouts)
 //   - `activeWindowEnabled` / `activeWindowMaxWidth` (focused-title widget)
+//   - `nightLightTemperature` (blue-light filter warmth; the on/off state
+//     lives on the Control Center tile, not here)
 //   - `searchUrl` / `searchName` (launcher web-search engine)
 //
 // `searchUrl` uses a `PresetDropdown` for one-click engine swaps; the
@@ -69,6 +71,20 @@ Column {
         maxValue: 800
         stepValue: 20
         unitSuffix: "px"
+    }
+
+    // Only the temperature is exposed here. The on/off switch is the
+    // Control Center's Night light tile -- duplicating it as a row would
+    // give the same state two homes.
+    SectionHeader { label: "NIGHT LIGHT" }
+    NumberSlider {
+        settingKey: "nightLightTemperature"
+        label: "Temperature"
+        defaultValue: 4000
+        minValue: 2500
+        maxValue: 6000
+        stepValue: 100
+        unitSuffix: "K"
     }
 
     SectionHeader { label: "LAUNCHER · WEB SEARCH" }
