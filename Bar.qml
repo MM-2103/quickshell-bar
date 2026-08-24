@@ -11,6 +11,7 @@ import qs.system
 import qs.notifications
 import qs.media
 import qs.controlcenter
+import qs.window
 
 PanelWindow {
     id: bar
@@ -53,7 +54,21 @@ PanelWindow {
 
     // Center section
     Clock {
+        id: centerSection
         anchors.centerIn: parent
+    }
+
+    // Focused window title, filling whatever is left between the workspaces
+    // and the centred clock. Anchored on both sides rather than given a
+    // width: that gap is what bounds the elide, and it differs per monitor.
+    ActiveWindow {
+        anchors {
+            left: leftSection.right
+            right: centerSection.left
+            verticalCenter: parent.verticalCenter
+            leftMargin: 14
+            rightMargin: 14
+        }
     }
 
     // Right section. Flat layout: every widget has the same gap to its

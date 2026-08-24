@@ -2,6 +2,7 @@
 // Settings tab content for assorted non-visual overrides:
 //   - `volumeFeedbackEnabled` (audible cue on volume change)
 //   - `idleLockSeconds` / `idleDpmsSeconds` (IdleService stage timeouts)
+//   - `activeWindowEnabled` / `activeWindowMaxWidth` (focused-title widget)
 //   - `searchUrl` / `searchName` (launcher web-search engine)
 //
 // `searchUrl` uses a `PresetDropdown` for one-click engine swaps; the
@@ -49,6 +50,25 @@ Column {
         stepValue: 30
         unitSuffix: "s"
         zeroLabel: "Off"
+    }
+
+    // The width cap is a taste setting, not a layout constraint: the bar
+    // already bounds the title by the gap to the clock. Some people want a
+    // short label rather than one that grows to fill the whole gap.
+    SectionHeader { label: "ACTIVE WINDOW" }
+    ToggleRow {
+        settingKey: "activeWindowEnabled"
+        label: "Show window title"
+        defaultValue: true
+    }
+    NumberSlider {
+        settingKey: "activeWindowMaxWidth"
+        label: "Max width"
+        defaultValue: 400
+        minValue: 100
+        maxValue: 800
+        stepValue: 20
+        unitSuffix: "px"
     }
 
     SectionHeader { label: "LAUNCHER · WEB SEARCH" }
