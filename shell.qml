@@ -20,6 +20,7 @@ import qs.settings          // for SettingsPopup + SettingsService singleton
 import qs.themes            // for SystemTheme singleton (system-theme orchestration)
 import qs.system            // for IdleService + SleepService singletons
 import qs.polkit           // for PolkitDialog + PolkitService singleton (auth agent)
+import qs.nightlight       // for NightLightService singleton (hyprsunset blue-light filter)
 
 ShellRoot {
     id: root
@@ -42,6 +43,11 @@ ShellRoot {
     // instantiates is an IdleMonitor that never arms. SleepService likewise —
     // unbootstrapped it never takes its logind delay inhibitor, and suspend
     // silently goes back to racing the lock.
+    //
+    // NightLightService.bootstrap() likewise: it probes for hyprsunset,
+    // adopts or starts the daemon, and re-applies the persisted filter
+    // state. Without it a shell restart would leave the filter off despite
+    // the config saying otherwise.
     Component.onCompleted: {
         NotificationService.currentScreen = Qt.binding(() => Compositor.focusedOutput);
         OsdService.layoutName            = Qt.binding(() => Compositor.currentLayout);
@@ -49,6 +55,7 @@ ShellRoot {
         IdleService.bootstrap();
         SleepService.bootstrap();
         PolkitService.bootstrap();
+        NightLightService.bootstrap();
     }
 
     // Trigger a layout OSD whenever the compositor reports a new layout
@@ -309,6 +316,18 @@ ShellRoot {
     IpcHandler {
         target: "sleep"
         function status(): string { return SleepService.statusText(); }
+    }
+
+    // IPC: `qs ipc call nightlight toggle` flips the blue-light filter, so
+    // it can sit on a compositor keybind next to the Control Center tile.
+    // `status` reports why the feature is unavailable when it is, which is
+    // otherwise invisible — the tile simply doesn't render.
+    IpcHandler {
+        target: "nightlight"
+        function status(): string { return NightLightService.statusText(); }
+        function on(): void       { NightLightService.setEnabled(true); }
+        function off(): void      { NightLightService.setEnabled(false); }
+        function toggle(): void   { NightLightService.toggle(); }
     }
 
     // IPC: `qs ipc call settings open` opens the Settings page. Bind to
