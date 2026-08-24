@@ -78,6 +78,14 @@
   // silent shell. Requires libcanberra + sound-theme-freedesktop.
   "volumeFeedbackEnabled": true,
 
+  // Focused-window title, shown between the workspaces and the clock.
+  // It elides to whatever room is left before the clock, so on a narrow
+  // monitor it simply gets shorter. maxWidth caps it below that for
+  // people who don't want a long title dominating the bar; hover shows
+  // the full title when it's cut off.
+  "activeWindowEnabled": true,
+  "activeWindowMaxWidth": 400,
+
   // ─── Idle ──────────────────────────────────────────────────────
   // Seconds of inactivity before each stage. Set either to 0 to turn
   // that stage off; set both to 0 to disable idle handling entirely.
