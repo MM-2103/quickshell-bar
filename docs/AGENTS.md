@@ -10,7 +10,7 @@ Orientation for new contributors — human or AI — picking up this repo.
 > Companion docs:
 > - [`AGENTS.md`](../AGENTS.md) — **compact root-level version** for AI agents; read this first
 > - [`STYLE.md`](STYLE.md) — visual + structural conventions, recipes
-> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 76+ gotchas
+> - [`QUICKSHELL_REFERENCE.md`](QUICKSHELL_REFERENCE.md) — Quickshell API + 77+ gotchas
 > - [`GIT_WORKFLOW.md`](GIT_WORKFLOW.md) — branching, PRs, rebase rules; **read this before your first commit**
 > - [`README.md`](../README.md) — install + user-facing overview
 
@@ -107,7 +107,7 @@ shell.qml (entry point)
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
 ├── PolkitDialog                 ← per-screen auth prompt (no IPC; driven by PolkitService)
-└── IpcHandler × 7                  ← clipboard, launcher, lock, settings, popups, idle, sleep
+└── IpcHandler × 8                  ← clipboard, launcher, lock, settings, popups, idle, sleep, nightlight
 ```
 
 The **ControlCenter** bar widget owns its anchored `ControlCenterPopup`,
@@ -151,6 +151,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal |
 | `SleepService` | logind delay inhibitor + gdbus signal watcher: locks before suspend, honours inbound `Lock` |
 | `PolkitService` | polkit auth agent: `PolkitAgent` registration, per-request flow snapshot, submit/cancel |
+| `NightLightService` | blue-light filter: hyprsunset daemon lifecycle (adopt-or-spawn, pdeathsig, death-watch) + persisted on/off and temperature. The actual set-temperature call goes through `Compositor.dispatchNightLight` so no hyprctl leaks outside `compositor/` |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
@@ -172,6 +173,8 @@ Compositor.currentLayout                 // string ("" on Sway/i3)
 Compositor.windowFocused(id) signal      // for popup auto-dismiss
 Compositor.dispatchFocusWorkspace(idx)   // click-to-focus a chip
 Compositor.dispatchLogout()              // power-menu Logout button
+Compositor.supportsNightLight            // bool — backend implements the call below
+Compositor.dispatchNightLight(kelvin)    // 0 = filter off; optional, probed not assumed
 ```
 
 `label` is **optional**: the text a chip renders when it differs from `idx`.
@@ -248,7 +251,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; the same shape the old nmcli-based NetworkService used before it went native |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #76) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #77) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
@@ -272,6 +275,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `themes/` | `ThemePresets` singleton (palette catalogue + apply/current/sibling logic) + `SystemTheme` singleton (orchestration that propagates the shell's dark/light preference to GTK / Qt6 / Electron / Firefox / Chromium via the XDG portal AND to KDE/Qt apps via `plasma-apply-colorscheme` writing kdeglobals + emitting a DBus signal). The Theme tab in the Settings page surfaces ThemePresets; the CC Theme tile drives toggleLightDark. SystemTheme is bootstrapped from `shell.qml`'s `Component.onCompleted` and reactively syncs on every theme change. Disable via `systemThemeSync: false` in `config.jsonc`. |
 | `clipboard/`, `launcher/`, `lock/` | popup-only features |
 | `polkit/` | `PolkitService` singleton (auth agent) + `PolkitDialog` (per-screen prompt) + `polkitModel.js` (pure message/prompt formatting, unit-tested) |
+| `nightlight/` | `NightLightService` singleton (hyprsunset-backed blue-light filter). No visual component of its own — the Control Center tile in cell 8 is its only surface |
 | `test/` | `run` + `lib.sh` + `*-test.sh`. Pure `.js` logic only; QML is smoke-tested |
 | `docs/` | `QUICKSHELL_REFERENCE.md`, `STYLE.md`, this file (`AGENTS.md`), `screenshots/` |
 | `examples/` | copy-pasteable compositor keybind configs + the lock-on-suspend systemd unit |
@@ -308,6 +312,10 @@ qs ipc call idle disable                # stay awake (same switch as the Caffein
 qs ipc call idle toggle
 qs ipc call idle blank                  # blank monitors now, skipping the timer
 qs ipc call sleep status                # diagnostic: delay inhibitor + watcher state
+qs ipc call nightlight status           # diagnostic: on/off + temperature, or why unavailable
+qs ipc call nightlight on               # blue-light filter on
+qs ipc call nightlight off
+qs ipc call nightlight toggle
 ```
 
 **To add a new IPC handler**: add an `IpcHandler { target: "<name>"; ... }`
