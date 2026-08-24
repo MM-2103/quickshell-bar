@@ -16,6 +16,14 @@ Empty = clean. Filtered noise is expected Quickshell/Qt startup chatter.
 Plus `./test/run` for pure logic extracted into `.js` modules. It needs no
 compositor and no display; QML itself is still only smoke-tested.
 
+## Don't break the user's session
+
+These have each cost a real lockout. Details in [`docs/AGENTS.md`](docs/AGENTS.md) § AI-specific traps.
+
+- **Never `pkill` the shell while the session is locked.** `ext-session-lock` keeps the screen locked when its client dies — by design. Recovery is a TTY. Check `loginctl show-session "$XDG_SESSION_ID" -p LockedHint` first.
+- **Interactive polkit prompts cost a failed-login strike.** Three abandoned prompts lock the account, TTYs included. Raise at most one, then `sudo faillock --user $USER --reset`. Gotcha #74.
+- **Restarting the shell drops active D-Bus idle inhibits**, so a playing video stops preventing the lock until its state next changes.
+
 ## Architecture rules agents commonly break
 
 - **Subdir = QML module.** Every subdirectory under root is automatically a `qs.<subdir>` module.

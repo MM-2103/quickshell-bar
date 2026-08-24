@@ -314,7 +314,22 @@ Behaviour worth knowing:
 
 - **Clicking outside refocuses instead of dismissing.** Losing a
   half-typed password to a stray click is worse than pressing Escape.
-- **Escape cancels**, including while PAM is checking.
+- **Escape twice cancels.** The first press asks for confirmation, and the
+  hint line says why:
+
+  > Esc again to cancel — counts as a failed attempt
+
+  Abandoning a polkit prompt makes `pam_unix` fail and `pam_faillock`
+  count it, on *any* agent — polkit starts the PAM conversation the moment
+  the prompt appears. At the default `deny=3`, three stray Escapes lock
+  the account for 10 minutes, TTYs included. Nothing in polkit warns you,
+  so the second press exists to stop a mistaken keypress spending one of
+  your three. Inspect or clear the counter with:
+
+  ```sh
+  faillock --user $USER
+  sudo faillock --user $USER --reset
+  ```
 - The field goes inert while a submission is in flight and during the
   1.2 s error flash, so you can't type into a request that's already gone.
 
@@ -365,6 +380,11 @@ inhibited by xdg-desktop-portal-gtk: Playing video | lock 300s | dpms 360s
 
 Inhibits are released when the requesting app disconnects from the bus, so
 a browser that crashes can't wedge the machine awake.
+
+**Restarting the shell clears active inhibits.** Clients hold their cookie
+against the bridge process, so when it goes they're gone — and apps only
+re-request when their own state changes. After a restart, a video that was
+already playing stops protecting the session until the next play/pause.
 
 Runtime control:
 
