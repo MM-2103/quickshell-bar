@@ -196,7 +196,13 @@ PanelWindow {
                 height: parent.height - searchInput.parent.height - footer.height - parent.spacing * 2
                 clip: true
                 spacing: 2
-                model: panel.filtered
+                // ScriptModel: a rebuild loses each row's delegate-local
+                // thumbPath, re-forking `cliphist decode` for every visible
+                // image row on every keystroke.
+                model: ScriptModel {
+                    values: panel.filtered
+                    objectProp: "id"
+                }
                 interactive: true
                 boundsBehavior: Flickable.StopAtBounds
 

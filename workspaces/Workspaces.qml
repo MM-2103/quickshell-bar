@@ -25,19 +25,27 @@ Row {
 
     Repeater {
         // Read Compositor.workspaces directly so the binding tracks it.
-        model: {
-            if (!root.output) return [];
-            // workspaces with a numeric idx sort numerically; named-only
-            // workspaces (idx is a string, e.g. Hyprland special) keep
-            // their incoming order via stable sort.
-            return Compositor.workspaces
-                .filter(w => w.output === root.output)
-                .slice()
-                .sort((a, b) => {
-                    const an = (typeof a.idx === "number") ? a.idx : 0;
-                    const bn = (typeof b.idx === "number") ? b.idx : 0;
-                    return an - bn;
-                });
+        //
+        // ScriptModel keyed on id: a bare array would rebuild every chip on
+        // each workspace event, and each chip owns a BarTooltip -- which is a
+        // PopupWindow, i.e. a Wayland surface. This is the hottest event in
+        // the shell, on a per-monitor widget.
+        model: ScriptModel {
+            objectProp: "id"
+            values: {
+                if (!root.output) return [];
+                // workspaces with a numeric idx sort numerically; named-only
+                // workspaces (idx is a string, e.g. Hyprland special) keep
+                // their incoming order via stable sort.
+                return Compositor.workspaces
+                    .filter(w => w.output === root.output)
+                    .slice()
+                    .sort((a, b) => {
+                        const an = (typeof a.idx === "number") ? a.idx : 0;
+                        const bn = (typeof b.idx === "number") ? b.idx : 0;
+                        return an - bn;
+                    });
+            }
         }
 
         delegate: MouseArea {
