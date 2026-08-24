@@ -8,10 +8,11 @@ pragma Singleton
 // through Compositor.dispatchNightLight so no compositor-specific command
 // leaks outside compositor/Backend*.qml.
 //
-// Turning the filter off dispatches identity rather than killing the
-// daemon. Keeping it alive is what makes toggling instant: restarting
-// hyprsunset resets gamma to neutral for as long as the restart takes,
-// which reads as a flash every time you change the temperature.
+// hyprsunset runs only while the filter is on. Nothing is left running
+// for a feature that is off, so a shell restart with night light disabled
+// costs nothing. Turning it on starts the daemon already warm via -t;
+// changing the temperature afterwards goes over hyprctl, so the slider
+// never restarts anything and never flashes neutral.
 //
 // Both the on/off state and the temperature persist through Local, unlike
 // Caffeine and DND which deliberately reset each session. A blue-light
@@ -70,6 +71,16 @@ Singleton {
     }
 
     // ---- Daemon lifecycle ----
+    //
+    // The daemon runs only while the filter is on. Keeping one alive
+    // permanently buys nothing -- a stopped hyprsunset and a hyprsunset
+    // parked at identity look identical -- and costs a relaunch on every
+    // shell restart and hot-reload, which is visible.
+    //
+    // It is started with -t, so it comes up already warm and there is no
+    // flash of neutral between spawn and a first temperature command.
+    // Changes while it is running still go over hyprctl, so moving the
+    // slider never restarts anything.
 
     property bool _binaryPresent: false
     property bool _wantDaemon: false
@@ -100,15 +111,11 @@ Singleton {
         onExited: code => {
             // pgrep exits 0 when it matched something.
             root._adopted = (code === 0);
-            if (root._adopted) {
+            if (root._adopted)
                 console.log("[NightLightService] adopting running hyprsunset");
-            } else {
-                root._wantDaemon = true;
-                daemon.running = true;
-            }
-            // Push our persisted state onto whichever daemon we ended up
-            // with -- adopted ones carry whatever the last session left.
-            root._apply(true);
+            // force: an adopted daemon carries whatever the last session
+            // left it set to, which may not match our persisted state.
+            root._sync(true);
         }
     }
 
@@ -120,7 +127,12 @@ Singleton {
         // when the shell dies and would otherwise survive every reload.
         // An orphan holds the gamma control, so the screen would stay
         // warm with nothing left to turn it off.
-        command: ["setpriv", "--pdeathsig", "TERM", "--", "hyprsunset"]
+        //
+        // -t is read at startup only. A later temperature change goes over
+        // hyprctl instead; this binding just decides what the *next* start
+        // comes up as.
+        command: ["setpriv", "--pdeathsig", "TERM", "--",
+                  "hyprsunset", "-t", String(root.temperature)]
 
         stderr: SplitParser {
             splitMarker: "\n"
@@ -143,17 +155,47 @@ Singleton {
 
     // ---- Applying state ----
 
-    // Last value actually dispatched, so repeated toggles or a slider
-    // settling on the value it started from don't spawn hyprctl calls.
-    // -1 means "nothing sent yet", distinct from 0 (= identity/off).
+    // Last value the daemon is known to be at, so repeated toggles or a
+    // slider settling back where it started don't spawn hyprctl calls.
+    // -1 means "no daemon / nothing sent yet", distinct from 0 (identity).
     property int _lastSent: -1
 
-    function _apply(force) {
-        if (!root._binaryPresent) return;
-        const target = root.enabled ? root.temperature : 0;
+    function _dispatch(target, force) {
         if (!force && target === root._lastSent) return;
         root._lastSent = target;
         Compositor.dispatchNightLight(target);
+    }
+
+    function _sync(force) {
+        if (!root._binaryPresent || !Compositor.supportsNightLight) return;
+
+        // Someone else's daemon (the shipped systemd unit, typically).
+        // Steer it, never start or stop it -- its lifecycle isn't ours.
+        if (root._adopted) {
+            root._dispatch(root.enabled ? root.temperature : 0, force);
+            return;
+        }
+
+        if (!root.enabled) {
+            // Stopping is enough to clear the filter: wlr-gamma-control
+            // has the compositor restore the original ramp when the client
+            // disconnects, so there's no need to dispatch identity first.
+            root._wantDaemon = false;
+            daemon.running = false;
+            root._lastSent = -1;
+            return;
+        }
+
+        if (!daemon.running) {
+            // -t in the command means it starts at the right temperature,
+            // so nothing is dispatched here.
+            root._lastSent = root.temperature;
+            root._wantDaemon = true;
+            daemon.running = true;
+            return;
+        }
+
+        root._dispatch(root.temperature, force);
     }
 
     // Dragging the temperature slider would otherwise fire one hyprctl per
@@ -163,7 +205,7 @@ Singleton {
         id: applyDebounce
         interval: 200
         repeat: false
-        onTriggered: root._apply(false)
+        onTriggered: root._sync(false)
     }
 
     onTemperatureChanged: if (root._booted) applyDebounce.restart()
@@ -173,7 +215,7 @@ Singleton {
     onEnabledChanged: {
         if (!root._booted) return;
         applyDebounce.stop();
-        root._apply(false);
+        root._sync(false);
     }
 
     // Forces instantiation from shell.qml. Singletons are lazy, and a lazy
