@@ -62,11 +62,31 @@ Singleton {
 
     // Resolve a notification image: pass URLs/paths through, look up bare
     // names via the icon theme.
+    // Turn a notification's image hint into a URL Qt can actually load.
+    //
+    // Quickshell hands us the hint pre-wrapped as `image://icon/<value>`
+    // even when the value is a filesystem path — which is what a screenshot
+    // tool sends. The icon provider cannot resolve a path, and rather than
+    // failing it hands back a placeholder with status Ready: that is the
+    // magenta/black checkerboard, and because the status is Ready no
+    // load-failure check can filter it out.
+    //
+    // So unwrap those back to file:// URLs. Real files then render, and
+    // missing ones produce a genuine Image.Error that the card collapses.
     function resolveImage(src) {
         if (!src) return "";
-        if (src.indexOf("://") >= 0 || src.startsWith("data:") || src.startsWith("/")) {
+
+        const iconPrefix = "image://icon/";
+        if (src.startsWith(iconPrefix)) {
+            const inner = src.slice(iconPrefix.length);
+            // Absolute path wrapped as an icon name — not an icon at all.
+            if (inner.startsWith("/")) return "file://" + inner;
             return src;
         }
+
+        if (src.startsWith("data:")) return src;
+        if (src.startsWith("/")) return "file://" + src;
+        if (src.indexOf("://") >= 0) return src;
         return Quickshell.iconPath(src, true);
     }
 

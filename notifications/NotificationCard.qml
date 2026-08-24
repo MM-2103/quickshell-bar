@@ -234,15 +234,15 @@ Rectangle {
         Item {
             width: parent.width
             implicitHeight: Math.max(textColumn.implicitHeight,
-                                     card.bodyImageSrc !== "" ? 48 : 0)
+                                     bodyImage.shown ? 48 : 0)
 
             Column {
                 id: textColumn
                 anchors {
                     left: parent.left
-                    right: card.bodyImageSrc !== "" ? bodyImage.left : parent.right
+                    right: bodyImage.shown ? bodyImage.left : parent.right
                     top: parent.top
-                    rightMargin: card.bodyImageSrc !== "" ? 8 : 0
+                    rightMargin: bodyImage.shown ? 8 : 0
                 }
                 spacing: 2
 
@@ -277,18 +277,36 @@ Rectangle {
                 }
             }
 
-            // Body image — wrapped in a gated Item so an empty/failed
-            // source can't show a broken-image placeholder.
+            // Body image — collapsed unless the image actually LOADED.
+            //
+            // Gating on `bodyImageSrc !== ""` alone is not enough: the image
+            // hint is sender-controlled and often a filesystem path, which
+            // resolveImage() passes through without checking. A stale or
+            // missing path therefore reached the loader and Qt painted its
+            // broken-image placeholder — the magenta/black checkerboard seen
+            // on screenshot notifications. Only Image.Ready means we have
+            // something worth reserving 48px for.
             Item {
                 id: bodyImage
                 anchors.right: parent.right
                 anchors.top: parent.top
-                width: card.bodyImageSrc !== "" ? 48 : 0
+
+                readonly property bool shown:
+                    card.bodyImageSrc !== "" && bodyImg.status === Image.Ready
+
+                width: shown ? 48 : 0
                 height: 48
-                visible: card.bodyImageSrc !== ""
+                visible: shown
 
                 IconImage {
-                    anchors.fill: parent
+                    id: bodyImg
+                    // Fixed size rather than anchors.fill: the wrapper is 0
+                    // wide until the load succeeds, and an image with no size
+                    // never loads — which would make `shown` permanently
+                    // false. Loading is unaffected by the parent being
+                    // invisible.
+                    width: 48
+                    height: 48
                     implicitSize: 48
                     source: card.bodyImageSrc
                     asynchronous: true
