@@ -151,4 +151,20 @@ QtObject {
         Hyprland.dispatch('hl.dsp.dpms({ action = "'
             + (on ? "enable" : "disable") + '" })');
     }
+
+    // Night light, via hyprsunset.
+    //
+    // Deliberately NOT Hyprland.dispatch(): hyprsunset is an hyprctl
+    // *command*, not a dispatcher, so there is no hl.dsp.* equivalent to
+    // evaluate. dispatch() also discards the reply, which would make a
+    // wrong payload fail silently. execDetached to hyprctl is the only
+    // route — the same thing BackendNiri does for `niri msg action`.
+    //
+    // hyprctl proxies to hyprsunset's own socket, so the daemon has to be
+    // running; NightLightService owns that lifecycle.
+    function dispatchNightLight(kelvin) {
+        Quickshell.execDetached(kelvin > 0
+            ? ["hyprctl", "hyprsunset", "temperature", String(Math.round(kelvin))]
+            : ["hyprctl", "hyprsunset", "identity"]);
+    }
 }

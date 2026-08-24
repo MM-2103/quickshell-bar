@@ -132,4 +132,21 @@ Singleton {
     function dispatchDpms(on) {
         if (backend && backend.dispatchDpms) backend.dispatchDpms(on);
     }
+
+    // kelvin > 0   -> warm the display to that colour temperature
+    // kelvin === 0 -> identity (filter off)
+    //
+    // Unlike dispatchDpms, this is genuinely optional: it needs a gamma
+    // tool from the compositor's own ecosystem, and only Hyprland ships
+    // one we can drive (hyprsunset). The other backends deliberately do
+    // not define it, so `supportsNightLight` is false there and the
+    // Control Center tile hides itself rather than offering a dead
+    // switch. Adding wlsunset/gammastep support later means implementing
+    // the function in that backend and nothing else.
+    readonly property bool supportsNightLight:
+        backend ? backend.dispatchNightLight !== undefined : false
+
+    function dispatchNightLight(kelvin) {
+        if (backend && backend.dispatchNightLight) backend.dispatchNightLight(kelvin);
+    }
 }
