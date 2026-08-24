@@ -5,12 +5,14 @@
 //
 //   Row 1:  Wi-Fi    · Bluetooth   · Power Profile
 //   Row 2:  Caffeine · DND         · Wallpaper
-//   Row 3:  Theme    · (empty)     · (empty)
+//   Row 3:  Theme    · Night light · (empty)
 //
-// Row 3 currently hosts only the light/dark Theme toggle; cells 8 and 9
-// stay empty (the Grid simply doesn't render anything in those slots).
-// Future tiles slot into the empty cells without disturbing the existing
-// six.
+// Cell 9 stays empty (the Grid simply doesn't render anything in that
+// slot). Future tiles slot into it without disturbing the existing eight.
+//
+// Night light is conditional: it renders only where hyprsunset is
+// installed AND the compositor backend implements a night-light dispatch,
+// so on niri/Sway row 3 still ends after Theme.
 //
 // Each tile's body click does its "primary action"; tiles that have a
 // detail view show a chevron whose click navigates the CC into that view.
@@ -38,6 +40,7 @@ import qs.controlcenter
 import qs.lock
 import qs.notifications
 import qs.network
+import qs.nightlight
 import qs.themes
 import qs.wallpaper
 import qs.weather
@@ -258,6 +261,29 @@ Item {
             active: false
             enabled: ThemePresets.currentSibling !== null
             onClicked: ThemePresets.toggleLightDark()
+        }
+
+        // Night light (cell 8). Hidden rather than dimmed when the feature
+        // can't work — either hyprsunset isn't installed or this
+        // compositor's backend has no night-light dispatch. A permanently
+        // disabled tile would just be noise, and because this is the last
+        // cell in the Grid, hiding it doesn't reflow the seven above.
+        //
+        // The moon glyph matches the Theme tile's moon, but the two never
+        // mean the same thing in the same place: Theme's icon points at
+        // the destination kind and flips, while this one is constant and
+        // its label reads "Night light".
+        Tile {
+            width: root._tileWidth
+            height: root._tileHeight
+            visible: NightLightService.available
+            icon: "\uf186"   // moon
+            label: "Night light"
+            stateText: NightLightService.enabled
+                ? (NightLightService.temperature + "K")
+                : "Off"
+            active: NightLightService.enabled
+            onClicked: NightLightService.toggle()
         }
         }   // end Grid
 
