@@ -45,17 +45,15 @@ Item {
         return { connected, paired, discovered };
     }
 
+    // The per-device flags DO re-trigger this: QML registers binding
+    // dependencies per property *read*, so `d.connected` inside
+    // _devicesByState() tracks that device's property. There used to be a
+    // 1 Hz Timer here flipping a `_groupedRefresh` bool to "nudge" the
+    // binding, on the assumption that it wouldn't -- but nothing ever read
+    // that bool, so it forced nothing. It was dead code papering over a
+    // problem that does not exist. Verified with a probe: a binding reading
+    // per-item properties of an ObjectModel re-evaluates correctly.
     readonly property var _grouped: _devicesByState()
-    property bool _groupedRefresh: false
-
-    // Per-device connected/paired flags don't trigger _grouped re-evaluation
-    // automatically; nudge it periodically while the view is visible.
-    Timer {
-        running: true
-        interval: 1000
-        repeat: true
-        onTriggered: view._groupedRefresh = !view._groupedRefresh
-    }
 
     component DeviceRow: Rectangle {
         id: row
@@ -398,7 +396,7 @@ Item {
                 }
 
                 Repeater {
-                    model: view._grouped.connected
+                    model: ScriptModel { values: view._grouped.connected }
                     delegate: DeviceRow {
                         required property var modelData
                         device: modelData
@@ -417,7 +415,7 @@ Item {
                 }
 
                 Repeater {
-                    model: view._grouped.paired
+                    model: ScriptModel { values: view._grouped.paired }
                     delegate: DeviceRow {
                         required property var modelData
                         device: modelData
@@ -436,7 +434,7 @@ Item {
                 }
 
                 Repeater {
-                    model: view._grouped.discovered
+                    model: ScriptModel { values: view._grouped.discovered }
                     delegate: DeviceRow {
                         required property var modelData
                         device: modelData
