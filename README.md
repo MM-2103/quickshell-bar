@@ -200,6 +200,7 @@ will catch things our test pass on niri couldn't.
 |-----------------|------------------------------------------------------------------------|
 | `libcanberra`   | KDE-style audible cue on volume change / unmute. Plays the freedesktop `audio-volume-change` sample through the just-changed sink, so its loudness mirrors the new level. Disable via `volumeFeedbackEnabled: false` in `Theme.qml`. |
 | `sound-theme-freedesktop` | Provides the actual `audio-volume-change` sample that `libcanberra` plays. Without it, canberra silently no-ops. |
+| `libpulse` | Provides `pactl`, used to list and switch a sound card's output ports (Headphones / Line Out / HDMI) from the volume popup. PipeWire answers it through `pipewire-pulse`. Without it the port pills simply don't appear — ports are a device-level concept that Quickshell's Pipewire module doesn't expose, so there's no native fallback. |
 | `python-gobject` | Powers `system/inhibit-bridge.py`, which owns the D-Bus `ScreenSaver` / `PowerManagement.Inhibit` names so apps can stop the idle timer. Without it, **windowed** browser video will not prevent locking — only Wayland `idle-inhibit-v1` holders will. The shell logs once and carries on if it's missing. Almost certainly already installed; it's a dependency of blueman, flatpak, gimp and others. |
 
 ---
