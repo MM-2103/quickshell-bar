@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #77+) represents original
+> "Gotchas & quirks" section (entries #1 through #78+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -3001,6 +3001,27 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     ```
 
     A related trap when verifying gamma tools: **`grim` cannot see their effect.** `wlr-gamma-control` applies a LUT at the CRTC, after compositing, while a screenshot copies the composited buffer. Sampling a capture's colour balance before and after therefore shows only noise, and reads as "the feature is broken" when it is working. Verify via the tool's own reply (`hyprctl hyprsunset temperature 4000` prints `ok`) and with your eyes.
+
+78. **DPMS does not gate input. A focused text field keeps accepting keystrokes while the screens are off, and key repeat turns one of them into dozens.** Blanking the monitors is an output-side operation; the compositor still routes keys to whoever holds focus. If a lock surface owns focus when the idle cycle blanks, every key pressed at the dark screen lands in the password field.
+
+    Key repeat is what makes it obvious rather than subtle. At a typical `repeat_delay 300` / `repeat_rate 30`, holding one key for a second injects ~30 characters — and behind `echoMode: TextInput.Password` they are invisible, so it reads as "the field is mysteriously pre-filled".
+
+    It is worse when the compositor does not wake on input by itself. Hyprland's `misc:key_press_enables_dpms` and `misc:mouse_move_enables_dpms` both default to **false**, so the wake has to come from the shell noticing activity and dispatching `dpms enable` — and the panels then take their own time to light up. The whole of that window is blind typing.
+
+    Two defences, both cheap:
+
+    ```qml
+    // 1. Refuse input while the screens are dark, and clear on the way back.
+    readOnly: LockService.pamChecking || LockService.inputBlocked
+
+    // 2. Drop auto-repeat outright. A password is typed, never held.
+    Keys.onPressed: event => {
+        if (event.isAutoRepeat) { event.accepted = true; return; }
+        // …
+    }
+    ```
+
+    Derive the "screens are dark" flag rather than assigning it. A pushed flag that misses its clearing edge leaves the field permanently `readOnly`, and `ext-session-lock` keeps the screen locked when its client dies — so that particular bug costs a TTY to recover from. Making it a pure function of the blank state plus a self-terminating timer means there is no stored state to get stuck, and the unblock is driven by the very input the user makes to wake the machine.
 
 
 
