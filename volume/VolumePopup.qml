@@ -10,6 +10,7 @@ import Quickshell
 import Quickshell.Services.Pipewire
 import Quickshell.Widgets
 import qs
+import qs.volume
 
 PopupWindow {
     id: popup
@@ -27,6 +28,10 @@ PopupWindow {
     onWantOpenChanged: {
         if (wantOpen) hideHold.stop();
         else          hideHold.restart();
+        // Ports change when a cable is plugged in, which we get no signal
+        // for. Re-reading on open is the cheap alternative to polling: by
+        // the time the list is on screen it is a moment old at most.
+        if (wantOpen) AudioPortService.refresh();
     }
 
     function toggle() {
@@ -117,6 +122,14 @@ PopupWindow {
         required property var devices           // array of candidate PwNodes
         // emitted when user picks a device from the list
         signal deviceSelected(var dev)
+
+        // Output only. Sources have ports too (headset mic vs internal),
+        // but that needs a second pactl listing and nothing here asks for
+        // it yet, so INPUT leaves this false.
+        property bool showPorts: false
+
+        // PwNode.name is the same string pactl uses for the sink.
+        readonly property string nodeName: section.node ? section.node.name : ""
 
         spacing: 6
 
@@ -263,6 +276,66 @@ PopupWindow {
                 }
             }
         }
+
+        // ---- Port picker ----
+        //
+        // Which jack on the selected card the sound comes out of. Only
+        // rendered when the card actually offers a choice, so a single-jack
+        // device (HDMI) shows nothing rather than one dead pill.
+        Flow {
+            width: section.width
+            spacing: 4
+            visible: section.showPorts
+                     && AudioPortService.hasChoice(section.nodeName)
+
+            Repeater {
+                model: ScriptModel {
+                    values: section.showPorts
+                        ? AudioPortService.portsFor(section.nodeName)
+                        : []
+                    objectProp: "name"
+                }
+
+                delegate: Rectangle {
+                    id: portPill
+                    required property var modelData
+
+                    readonly property bool isActive:
+                        modelData.name === AudioPortService.activePortFor(section.nodeName)
+
+                    width: portLabel.implicitWidth + 16
+                    height: 22
+                    radius: Theme.radiusSmall
+                    color: portPill.isActive
+                        ? Theme.accent
+                        : (portMa.containsMouse ? Theme.surfaceHi : Theme.surface)
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                    Text {
+                        id: portLabel
+                        anchors.centerIn: parent
+                        text: portPill.modelData.description
+                        color: portPill.isActive ? Theme.accentText : Theme.text
+                        // An unavailable port means nothing is plugged into
+                        // that jack. Still selectable -- cards without jack
+                        // detection report everything as unknown, and the
+                        // user may well be plugging in as they click.
+                        opacity: portPill.modelData.available ? 1.0 : 0.45
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+
+                    MouseArea {
+                        id: portMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: AudioPortService.setPort(section.nodeName,
+                                                            portPill.modelData.name)
+                    }
+                }
+            }
+        }
     }
 
     // ================================================================
@@ -312,6 +385,7 @@ PopupWindow {
                 title: "OUTPUT"
                 node: popup.defaultSink
                 devices: popup.audioOutputs
+                showPorts: true
                 onDeviceSelected: dev => Pipewire.preferredDefaultAudioSink = dev
             }
 

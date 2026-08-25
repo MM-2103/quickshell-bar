@@ -145,6 +145,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `ClipboardService` | popupOpen, entries (cliphist-backed) |
 | `NetworkService` | wired/wifi state, networks list, connect/forget actions. Native `Quickshell.Networking`; translates the native types back to the nmcli-shaped contract the view expects |
 | `WallpaperService` | per-monitor wallpaper map, fillMode, picker open state, scan/persistence |
+| `AudioPortService` | output ports (Headphones / Line Out / …) for each sink, read from `pactl -f json list sinks` and switched with `pactl set-sink-port`. Refreshed on popup open, never polled |
 | `WeatherService` | location, current/hourly/daily forecast (KNMI via Open-Meteo), city catalogue, detail-popup open state |
 | `ControlCenterService` | view-stack (`currentView`), Caffeine toggle (no bar widget owns it now; drives `IdleService.enabled` + a logind `systemd-inhibit`) |
 | `IdleService` | `ext-idle-notifier-v1` monitor, staged idle lock + DPMS blank, master `enabled` switch, and the D-Bus inhibit bridge (`system/inhibit-bridge.py`) that owns `org.freedesktop.ScreenSaver` / `PowerManagement.Inhibit` |
@@ -265,7 +266,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | `clock/` | `Clock.qml` widget + `Calendar.qml` popup |
 | `notifications/` | `NotificationService.qml`, `Notifications.qml` (bell), `NotificationCard.qml`, `NotificationCenterPopup.qml` |
 | `osd/` | `OsdService.qml` + `Osd.qml` panel (`Overlay` layer — visible over fullscreen) |
-| `volume/`, `media/`, `tray/` | bar widgets + popups + services that stayed in the bar after the CC declutter |
+| `volume/`, `media/`, `tray/` | bar widgets + popups + services that stayed in the bar after the CC declutter. `volume/` also holds `AudioPortService` (output jack switching via pactl — Quickshell's Pipewire module has no device/route concept) |
 | `network/`, `bluetooth/` | services + `*View.qml` files (no bar widgets — accessed via the Control Center) |
 | `system/` | bar widgets that stayed (`Battery`, `Brightness`, `Power`, `PowerMenuPopup`, `BrightnessPopup`) + `PowerProfileView` (used by CC; no bar widget) + `IdleService` and `SleepService` singletons (idle lock + DPMS blank, and lock-before-suspend; together these replace hypridle/swayidle) + `inhibit-bridge.py` (D-Bus idle-inhibit provider — Quickshell cannot own a bus name) |
 | `controlcenter/` | `ControlCenter` bar widget, `ControlCenterPopup`, `ControlCenterService` singleton, `Tile`, `TilesView`, `SlidersBlock` |
