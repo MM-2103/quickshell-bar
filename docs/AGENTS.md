@@ -107,7 +107,7 @@ shell.qml (entry point)
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
 ├── PolkitDialog                 ← per-screen auth prompt (no IPC; driven by PolkitService)
-└── IpcHandler × 8                  ← clipboard, launcher, lock, settings, popups, idle, sleep, nightlight
+└── IpcHandler × 9                  ← clipboard, launcher, lock, settings, popups, idle, sleep, nightlight, mic
 ```
 
 The **ControlCenter** bar widget owns its anchored `ControlCenterPopup`,
@@ -139,7 +139,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `Compositor` | workspaces, focusedOutput, currentLayout, windowFocused signal, dispatch helpers |
 | `MediaService` | currentPlayer, playback state, cachedArtUrl, transport actions |
 | `NotificationService` | tracked notifications, popup queue, DND state, current screen |
-| `OsdService` | currentKind, brightness/volume/layout/caps state, show()/setBrightness() |
+| `OsdService` | currentKind (`volume`/`mic`/`caps`/`num`/`brightness`/`layout`), brightness/volume/mic/layout/caps state, show()/setBrightness() |
 | `LockService` | locked state, PAM context (wallpaper now read from WallpaperService) |
 | `LauncherService` | popupOpen, query, filtered, frecency |
 | `ClipboardService` | popupOpen, entries (cliphist-backed) |
@@ -312,6 +312,10 @@ qs ipc call idle disable                # stay awake (same switch as the Caffein
 qs ipc call idle toggle
 qs ipc call idle blank                  # blank monitors now, skipping the timer
 qs ipc call sleep status                # diagnostic: delay inhibitor + watcher state
+qs ipc call mic status                  # diagnostic: muted state + input gain
+qs ipc call mic toggle                  # mute/unmute default source (for XF86AudioMicMute)
+qs ipc call mic mute
+qs ipc call mic unmute
 qs ipc call nightlight status           # diagnostic: on/off + temperature, or why unavailable
 qs ipc call nightlight on               # blue-light filter on
 qs ipc call nightlight off

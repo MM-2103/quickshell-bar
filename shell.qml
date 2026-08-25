@@ -322,6 +322,30 @@ ShellRoot {
     // it can sit on a compositor keybind next to the Control Center tile.
     // `status` reports why the feature is unavailable when it is, which is
     // otherwise invisible — the tile simply doesn't render.
+    // IPC: `qs ipc call mic toggle` mutes/unmutes the default source, for
+    // binding to XF86AudioMicMute. Optional — the mic OSD watches Pipewire
+    // directly, so an existing `wpctl set-mute` bind already triggers it.
+    IpcHandler {
+        target: "mic"
+        function status(): string {
+            if (!OsdService.source) return "no input device";
+            return (OsdService.micMuted ? "muted" : "unmuted")
+                + ", " + Math.round(OsdService.micRatio * 100) + "%";
+        }
+        function toggle(): void {
+            if (OsdService.source && OsdService.source.audio)
+                OsdService.source.audio.muted = !OsdService.source.audio.muted;
+        }
+        function mute(): void {
+            if (OsdService.source && OsdService.source.audio)
+                OsdService.source.audio.muted = true;
+        }
+        function unmute(): void {
+            if (OsdService.source && OsdService.source.audio)
+                OsdService.source.audio.muted = false;
+        }
+    }
+
     IpcHandler {
         target: "nightlight"
         function status(): string { return NightLightService.statusText(); }

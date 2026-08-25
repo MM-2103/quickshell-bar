@@ -86,6 +86,18 @@
   "activeWindowEnabled": true,
   "activeWindowMaxWidth": 400,
 
+  // ─── Microphone ────────────────────────────────────────────────
+  // When the mic indicator appears in the bar:
+  //   "auto"   - only while muted or while something is capturing,
+  //              which doubles as a privacy indicator (default)
+  //   "always" - like the other bar widgets
+  //   "never"  - hidden; the mic OSD still works
+  //
+  // The OSD reacts to whoever changed the mic, so an existing
+  // `wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle` keybind gets feedback
+  // without being rebound to `qs ipc call mic toggle`.
+  "microphoneIndicator": "auto",
+
   // ─── Night light ───────────────────────────────────────────────
   // Blue-light filter, driven by hyprsunset. The Control Center's
   // "Night light" tile writes nightLightEnabled; unlike Caffeine and
