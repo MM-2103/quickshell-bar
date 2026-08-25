@@ -21,14 +21,19 @@ Singleton {
     id: root
 
     // ---- Public state read by the Osd window ----
-    property string currentKind: ""    // "" | "volume" | "caps" | "num" | "brightness" | "layout"
+    property string currentKind: ""    // "" | "volume" | "mic" | "caps" | "num" | "brightness" | "layout"
 
     // Volume — live values for the bar/text.
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property real volumeRatio: sink && sink.audio ? sink.audio.volume : 0
     readonly property bool muted:       sink && sink.audio ? sink.audio.muted  : false
 
-    PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
+    // Microphone — same shape, read by the mic OSD and the bar indicator.
+    readonly property var source: Pipewire.defaultAudioSource
+    readonly property real micRatio: source && source.audio ? source.audio.volume : 0
+    readonly property bool micMuted: source && source.audio ? source.audio.muted  : false
+
+    PwObjectTracker { objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource] }
 
     // Locks
     property bool capsOn: false
@@ -172,6 +177,73 @@ Singleton {
                 // Play only on un-mute so the user hears the level they're
                 // returning to. Going *to* muted stays silent on purpose.
                 if (wasMuted && !m) root._playVolumeFeedback();
+            }
+        }
+    }
+
+    // ---- Microphone change detection ----
+    //
+    // Deliberately not a copy of the volume watcher above. There, only
+    // onVolumeChanged seeds the baseline and onMutedChanged bails out until
+    // it is set. That is harmless for a sink, whose volume moves constantly,
+    // but a mic is the opposite case: muting is the entire point and plenty
+    // of people never touch input gain, so seeding on volume alone would
+    // mean the first mic-mute OSD never appears at all.
+    //
+    // The baseline is therefore seeded from a timer once the source's audio
+    // object has bound, independent of any change arriving.
+    property real _lastMicVol: -1
+    property bool _lastMicMuted: false
+    property bool _micBaselineSet: false
+
+    function _seedMicBaseline() {
+        if (!root.source || !root.source.audio) {
+            root._micBaselineSet = false;
+            return;
+        }
+        root._lastMicVol = root.source.audio.volume;
+        root._lastMicMuted = root.source.audio.muted;
+        root._micBaselineSet = true;
+    }
+
+    // Same reasoning as onSinkChanged: switching the default input must not
+    // fire an OSD comparing two different devices' values.
+    onSourceChanged: {
+        root._micBaselineSet = false;
+        micSeed.restart();
+    }
+
+    Timer {
+        id: micSeed
+        // PwObjectTracker needs a moment to bind `audio` on a freshly
+        // selected source. Well inside the 1s startup grace above.
+        interval: 250
+        repeat: false
+        running: true
+        onTriggered: root._seedMicBaseline()
+    }
+
+    Connections {
+        target: root.source && root.source.audio ? root.source.audio : null
+        enabled: target !== null
+        function onVolumeChanged() {
+            const v = root.source.audio.volume;
+            if (!root._micBaselineSet) { root._seedMicBaseline(); return; }
+            if (Math.abs(v - root._lastMicVol) > 0.001) {
+                root._lastMicVol = v;
+                root.show("mic");
+            }
+        }
+        function onMutedChanged() {
+            const m = root.source.audio.muted;
+            if (!root._micBaselineSet) { root._seedMicBaseline(); return; }
+            if (m !== root._lastMicMuted) {
+                root._lastMicMuted = m;
+                root.show("mic");
+                // No audible cue here on purpose. The volume one exists so
+                // you hear the level you are returning to; a mic mute has
+                // no such level, and the cue would play through the
+                // speakers regardless of the mic's state.
             }
         }
     }

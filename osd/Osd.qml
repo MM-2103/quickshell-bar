@@ -106,6 +106,7 @@ PanelWindow {
             sourceComponent: {
                 switch (OsdService.currentKind) {
                 case "volume":     return volumeContent;
+                case "mic":        return micContent;
                 case "caps":
                 case "num":        return lockContent;
                 case "brightness": return brightnessContent;
@@ -178,6 +179,66 @@ PanelWindow {
                 text: OsdService.muted
                     ? "Muted"
                     : Math.round(OsdService.volumeRatio * 100) + "%"
+                color: Theme.text
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeNormal
+            }
+        }
+    }
+
+    // Microphone: mic icon + bar + percentage. Same geometry as volume so
+    // the pill doesn't change size between the two.
+    Component {
+        id: micContent
+        Row {
+            spacing: 12
+
+            function _iconName() {
+                return OsdService.micMuted
+                    ? "microphone-sensitivity-muted-symbolic"
+                    : "microphone-sensitivity-high-symbolic";
+            }
+
+            Item {
+                width: 18; height: 18
+                anchors.verticalCenter: parent.verticalCenter
+
+                IconImage {
+                    id: micIcon
+                    anchors.fill: parent
+                    implicitSize: 18
+                    source: Quickshell.iconPath(parent.parent._iconName(), true)
+                    asynchronous: false
+                    visible: status === Image.Ready
+                }
+                // Font Awesome fallback for themes without the symbolic icon.
+                Text {
+                    anchors.centerIn: parent
+                    visible: !micIcon.visible
+                    // \uf131 microphone-slash / \uf130 microphone
+                    text: OsdService.micMuted ? "\uf131" : "\uf130"
+                    color: Theme.text
+                    font.family: Theme.fontIcon
+                    font.styleName: "Solid"
+                    font.pixelSize: 14
+                    renderType: Text.NativeRendering
+                }
+            }
+
+            ProgressBar {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 160
+                value: OsdService.micRatio
+                dimmed: OsdService.micMuted
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 50
+                horizontalAlignment: Text.AlignRight
+                text: OsdService.micMuted
+                    ? "Muted"
+                    : Math.round(OsdService.micRatio * 100) + "%"
                 color: Theme.text
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeNormal
