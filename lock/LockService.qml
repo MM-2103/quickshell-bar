@@ -67,6 +67,37 @@ Singleton {
     // was received and that they should wait.
     property bool pamChecking: false
 
+    // Whether the monitors are currently off because the idle cycle blanked
+    // them. Bound from shell.qml rather than read directly: qs.system
+    // already imports qs.lock (IdleService calls lock()), so importing
+    // qs.system from here would close a module cycle.
+    property bool screensBlanked: false
+
+    // Input that arrives while the screens are dark is blind — the user
+    // cannot see the field, so it is a wake gesture, not a password. With
+    // key repeat at 30/s a single held key injects roughly 30 characters,
+    // which is how the password field ended up pre-filled after every idle
+    // blank.
+    //
+    // Derived, never assigned. A pushed flag that missed its clearing edge
+    // would leave the field permanently unable to accept a password, and
+    // ext-session-lock keeps the screen locked when its client dies, so
+    // recovery from that is a TTY. As a pure function of screensBlanked and
+    // a self-terminating timer there is no stored state to get stuck: if
+    // the screens are on and the timer has run, this is false.
+    readonly property bool inputBlocked:
+        root.screensBlanked || settleTimer.running
+
+    // dpms enable returns well before the panels actually show anything, so
+    // keep swallowing input briefly after the wake.
+    Timer {
+        id: settleTimer
+        interval: 400
+        repeat: false
+    }
+
+    onScreensBlankedChanged: if (!root.screensBlanked) settleTimer.restart()
+
     // Defensive: if respond() runs before PAM has called responseRequired
     // (e.g. very-early submit at lock-open before the prompt arrived),
     // park the text here and submit it on the next responseRequired edge.
