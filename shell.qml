@@ -51,6 +51,11 @@ ShellRoot {
     Component.onCompleted: {
         NotificationService.currentScreen = Qt.binding(() => Compositor.focusedOutput);
         OsdService.layoutName            = Qt.binding(() => Compositor.currentLayout);
+        // The lock surface refuses input while the screens are dark; see
+        // LockService.inputBlocked. Wired here because this is the one file
+        // that legitimately imports both modules — qs.system already depends
+        // on qs.lock, so the lock module cannot look the other way itself.
+        LockService.screensBlanked       = Qt.binding(() => IdleService.monitorsBlanked);
         SystemTheme.bootstrap();
         IdleService.bootstrap();
         SleepService.bootstrap();

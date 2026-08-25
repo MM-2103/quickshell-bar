@@ -220,10 +220,24 @@ WlSessionLockSurface {
                         passwordCharacter: "●"
                         selectByMouse: false
                         clip: true
-                        readOnly: LockService.pamChecking
+                        // Blocked while the screens are dark: keystrokes then
+                        // are a wake gesture aimed at a black screen, and key
+                        // repeat turns one of them into dozens.
+                        readOnly: LockService.pamChecking || LockService.inputBlocked
                         Component.onCompleted: forceActiveFocus()
 
                         Keys.onPressed: event => {
+                            // A password is typed, never held. Dropping
+                            // auto-repeat costs nothing and means a key held
+                            // down -- to wake a dark screen, say -- adds at
+                            // most one character instead of 30 a second. This
+                            // also stops the settle window above from having
+                            // to be tuned against how long a panel takes to
+                            // physically light up.
+                            if (event.isAutoRepeat) {
+                                event.accepted = true;
+                                return;
+                            }
                             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                 if (!LockService.pamChecking && passField.text.length > 0) {
                                     LockService.respond(passField.text);
@@ -270,6 +284,20 @@ WlSessionLockSurface {
         // holds keyboard focus among the multi-monitor surfaces.
         function onLockedChanged() {
             if (LockService.locked) {
+                // Defensive: surfaces are destroyed on unlock, so this should
+                // already be empty. Not worth depending on that for something
+                // that would silently carry a password between lock sessions.
+                passField.text = "";
+                Qt.callLater(() => passField.forceActiveFocus());
+            }
+        }
+
+        // Screens came back. Anything collected while they were dark was
+        // typed blind, so drop it rather than making the user notice a field
+        // full of bullets and clear it by hand.
+        function onInputBlockedChanged() {
+            if (!LockService.inputBlocked) {
+                passField.text = "";
                 Qt.callLater(() => passField.forceActiveFocus());
             }
         }
