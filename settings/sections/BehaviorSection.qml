@@ -3,6 +3,7 @@
 //   - `volumeFeedbackEnabled` (audible cue on volume change)
 //   - `idleLockSeconds` / `idleDpmsSeconds` (IdleService stage timeouts)
 //   - `activeWindowEnabled` / `activeWindowMaxWidth` (focused-title widget)
+//   - `microphoneIndicator` (when the mic bar indicator is visible)
 //   - `nightLightTemperature` (blue-light filter warmth; the on/off state
 //     lives on the Control Center tile, not here)
 //   - `searchUrl` / `searchName` (launcher web-search engine)
@@ -71,6 +72,21 @@ Column {
         maxValue: 800
         stepValue: 20
         unitSuffix: "px"
+    }
+
+    // `auto` shows the mic only when it's muted or something is capturing,
+    // which doubles as a privacy indicator. `always` behaves like the other
+    // bar widgets; `never` hides it without disabling the mic OSD.
+    SectionHeader { label: "MICROPHONE" }
+    PresetDropdown {
+        settingKey: "microphoneIndicator"
+        label: "Bar indicator"
+        defaultValue: "auto"
+        presets: [
+            { label: "Auto — when muted or in use", value: "auto" },
+            { label: "Always",                      value: "always" },
+            { label: "Never",                       value: "never" }
+        ]
     }
 
     // Only the temperature is exposed here. The on/off switch is the
