@@ -91,6 +91,9 @@ PanelWindow {
         Media          { anchors.verticalCenter: parent.verticalCenter }
         Battery        { anchors.verticalCenter: parent.verticalCenter }
         Brightness     { anchors.verticalCenter: parent.verticalCenter }
+        // Left of Volume deliberately: Microphone is intermittent, so the
+        // always-present Volume icon would shift sideways if it sat after it.
+        Microphone     { anchors.verticalCenter: parent.verticalCenter }
         Volume            { anchors.verticalCenter: parent.verticalCenter }
         CaffeineIndicator { anchors.verticalCenter: parent.verticalCenter }
         ControlCenter     { anchors.verticalCenter: parent.verticalCenter }
