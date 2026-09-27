@@ -1,19 +1,19 @@
 // BluetoothView.qml
-// Embeddable bluetooth picker. Extracted from the old BluetoothPopup so
-// the Control Center can host the same UI as a sub-view.
+// Bluetooth device picker, shown inside the Control Center. Pure content:
+// ControlCenterPopup supplies the card, title and back arrow.
 //
-// Composition: a Flickable wrapping the original BluetoothPopup content
-// column (header row, three sections: connected / paired / available).
-// Card chrome supplied by ControlCenterPopup.
+// Layout and behaviour follow the list-row rules in docs/STYLE.md, shared
+// with NetworkView: rows do nothing when clicked, every action is an
+// always-visible IconButton, left click only.
 //
 // Lifecycle: instantiated on navigation in, destroyed on navigation out.
-// The 1 s grouping-refresh Timer runs only while the view exists.
+// Discovery is not started automatically; the scan button toggles it.
 
 import QtQuick
 import Quickshell
 import Quickshell.Bluetooth
-import Quickshell.Widgets
 import qs
+import qs.ui
 
 Item {
     id: view
@@ -47,217 +47,72 @@ Item {
 
     // The per-device flags DO re-trigger this: QML registers binding
     // dependencies per property *read*, so `d.connected` inside
-    // _devicesByState() tracks that device's property. There used to be a
-    // 1 Hz Timer here flipping a `_groupedRefresh` bool to "nudge" the
-    // binding, on the assumption that it wouldn't -- but nothing ever read
-    // that bool, so it forced nothing. It was dead code papering over a
-    // problem that does not exist. Verified with a probe: a binding reading
-    // per-item properties of an ObjectModel re-evaluates correctly.
+    // _devicesByState() tracks that device's property.
     readonly property var _grouped: _devicesByState()
+    readonly property int _deviceCount:
+        _grouped.connected.length + _grouped.paired.length + _grouped.discovered.length
 
-    component DeviceRow: Rectangle {
+    // ================================================================
+    // Device row.
+    // ================================================================
+    component DeviceRow: ListRow {
         id: row
         required property var device
 
-        width: parent.width
-        height: 40
-        radius: Theme.radiusSmall
-        color: rowMa.containsMouse ? Theme.surfaceHi : Theme.surface
-        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        readonly property bool isConnected: !!device && device.connected
+        readonly property bool isPaired: !!device && (device.paired || device.bonded)
+        readonly property bool isPairing: !!device && device.pairing
+        readonly property bool isConnecting:
+            !!device && device.state === BluetoothDeviceState.Connecting
+        readonly property bool isDisconnecting:
+            !!device && device.state === BluetoothDeviceState.Disconnecting
+        readonly property bool hasBattery: !!device && device.batteryAvailable
+        readonly property int batteryPct: hasBattery ? Math.round(device.battery * 100) : 0
+        readonly property bool batteryLow: hasBattery && batteryPct <= 20
 
-        readonly property string label: device
-            ? (device.name || device.deviceName || device.address || "(unknown)")
-            : ""
-        readonly property bool isConnected: device && device.connected
-        readonly property bool isPaired: device && (device.paired || device.bonded)
-        readonly property bool isPairing: device && device.pairing
-        readonly property bool hasBattery: device && device.batteryAvailable
-        readonly property real battery: device && device.batteryAvailable ? device.battery : 0
-
-        function _primaryAction() {
-            if (!device) return;
-            if (isPairing) { device.cancelPair(); return; }
-            if (isConnected) { device.disconnect(); return; }
-            if (isPaired)    { device.connect(); return; }
-            device.pair();
+        title: device ? (device.name || device.deviceName || device.address || "(unknown)") : ""
+        status: {
+            if (isPairing)       return "pairing…";
+            if (isConnecting)    return "connecting…";
+            if (isDisconnecting) return "disconnecting…";
+            const parts = [isConnected ? "connected" : isPaired ? "paired" : "not paired"];
+            if (hasBattery) parts.push(batteryPct + "%");
+            return parts.join("  ·  ");
         }
+        statusError: batteryLow && !isPairing && !isConnecting && !isDisconnecting
+        emphasized: isConnected
+        iconName: device && device.icon ? device.icon : ""
+        fallbackText: title.charAt(0).toUpperCase() || "?"
 
-        function _statusText() {
-            if (isPairing)            return "pairing…";
-            if (isConnected)          return "connected";
-            if (device && device.state) {
-                const s = device.state;
-                if (s === BluetoothDeviceState.Connecting) return "connecting…";
-                if (s === BluetoothDeviceState.Disconnecting) return "disconnecting…";
-            }
-            if (isPaired)             return "paired";
-            return "tap to pair";
-        }
-
-        Row {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 10
-
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                height: 20
-
-                IconImage {
-                    id: devIcon
-                    anchors.fill: parent
-                    implicitSize: 20
-                    source: row.device && row.device.icon
-                        ? Quickshell.iconPath(row.device.icon, true)
-                        : ""
-                    asynchronous: false
-                    visible: status === Image.Ready
-                }
-
-                Rectangle {
-                    visible: !devIcon.visible
-                    anchors.fill: parent
-                    radius: 3
-                    color: Theme.bg
-                    border.color: Theme.border
-                    border.width: 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: row.label.charAt(0).toUpperCase() || "?"
-                        color: Theme.text
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Font.Bold
-                    }
-                }
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 80 - 30 - 20 - parent.spacing * 3
-                spacing: 1
-
-                Text {
-                    text: row.label
-                    color: row.isConnected ? Theme.text : Theme.textDim
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeNormal
-                    font.weight: row.isConnected ? Font.Bold : Font.Normal
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-
-                Text {
-                    text: row._statusText()
-                    color: row.isConnected ? Theme.textDim : Theme.textMuted
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-            }
-
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 32
-                height: 14
-                visible: row.hasBattery
-
-                function _glyph() {
-                    const p = row.battery;
-                    if (p >= 0.80) return "\uf240";
-                    if (p >= 0.60) return "\uf241";
-                    if (p >= 0.40) return "\uf242";
-                    if (p >= 0.20) return "\uf243";
-                    return "\uf244";
-                }
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: parent._glyph()
-                    color: row.battery > 0.2 ? Theme.textDim : Theme.error
-                    font.family: Theme.fontIcon
-                    font.styleName: "Solid"
-                    font.pixelSize: 11
-                    renderType: Text.NativeRendering
-                }
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: Math.round(row.battery * 100)
-                    color: Theme.textDim
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeBadge
-                }
-            }
-
-            Rectangle {
-                id: forgetBtn
-                anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                height: 20
-                radius: Theme.radiusSmall
-                visible: row.isPaired
-                opacity: forgetMa.containsMouse ? 1.0 : (rowMa.containsMouse ? 0.7 : 0.0)
-                color: forgetMa.containsMouse ? Theme.bg : "transparent"
-                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "\uf00d"
-                    color: forgetMa.containsMouse ? Theme.text : Theme.textDim
-                    font.family: Theme.fontIcon
-                    font.styleName: "Solid"
-                    font.pixelSize: 11
-                    renderType: Text.NativeRendering
-                }
-
-                MouseArea {
-                    id: forgetMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (row.device) row.device.forget();
-                    }
-                }
+        IconButton {
+            busy: row.isConnecting || row.isDisconnecting
+            glyph: row.isPairing ? "\uf00d" : row.isConnected ? "\uf127" : "\uf0c1"
+            hint: row.isPairing ? "Cancel pairing"
+                : row.isConnected ? "Disconnect"
+                : row.isPaired ? "Connect"
+                : "Pair"
+            onClicked: {
+                if (!row.device) return;
+                if (row.isPairing)        row.device.cancelPair();
+                else if (row.isConnected) row.device.disconnect();
+                else if (row.isPaired)    row.device.connect();
+                else                      row.device.pair();
             }
         }
 
-        MouseArea {
-            id: rowMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            z: -1
-
-            onClicked: mouse => {
-                if (mouse.button === Qt.LeftButton) {
-                    row._primaryAction();
-                } else if (mouse.button === Qt.RightButton) {
-                    if (row.isPaired && row.device) row.device.forget();
-                }
-            }
+        IconButton {
+            present: row.isPaired
+            glyph: "\uf2ed"
+            hint: "Forget"
+            confirm: true
+            confirmHint: "Click again to forget"
+            onClicked: if (row.device) row.device.forget()
         }
     }
 
-    component SectionHeader: Text {
-        property string label
-        property int count
-        text: count > 0 ? (label + "  ·  " + count) : label
-        color: Theme.textDim
-        font.family: Theme.fontMono
-        font.pixelSize: Theme.fontSizeSmall
-        font.weight: Font.Bold
-    }
-
+    // ================================================================
+    // Layout
+    // ================================================================
     Flickable {
         anchors.fill: parent
         contentWidth: width
@@ -270,191 +125,66 @@ Item {
             width: parent.width
             spacing: 10
 
-            // Header (status + scan button + power switch).
-            Row {
-                width: parent.width
-                spacing: 8
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: view.adapter
-                        ? (view.adapterEnabled ? view.adapter.name : "off")
-                        : "no adapter"
-                    color: Theme.textDim
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
-                    width: parent.width - scanBtn.width - powerBtn.width - parent.spacing * 2
-                }
-
-                Rectangle {
-                    id: scanBtn
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 28
-                    height: 22
-                    radius: Theme.radiusSmall
-                    color: scanMa.containsMouse ? Theme.surfaceHi : Theme.surface
-                    enabled: view.adapterEnabled
-                    opacity: enabled ? 1.0 : 0.4
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf021"
-                        color: view.scanning ? Theme.accent : Theme.text
-                        font.family: Theme.fontIcon
-                        font.styleName: "Solid"
-                        font.pixelSize: 12
-                        renderType: Text.NativeRendering
-                        RotationAnimation on rotation {
-                            running: view.scanning
-                            from: 0; to: 360
-                            duration: 1000
-                            loops: Animation.Infinite
-                        }
-                    }
-
-                    MouseArea {
-                        id: scanMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        enabled: parent.enabled
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (view.adapter) {
-                                view.adapter.discovering = !view.adapter.discovering;
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: powerBtn
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 38
-                    height: 22
-                    radius: 11
-                    color: view.adapterEnabled ? Theme.accent : Theme.surface
-                    border.color: Theme.border
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animMed } }
-
-                    Rectangle {
-                        width: 16
-                        height: 16
-                        radius: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: view.adapterEnabled ? parent.width - width - 3 : 3
-                        color: view.adapterEnabled ? Theme.bg : Theme.text
-                        Behavior on x { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutQuad } }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (view.adapter) view.adapter.enabled = !view.adapter.enabled;
-                        }
-                    }
-                }
-            }
-
-            Text {
-                visible: !view.adapterEnabled
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
+            ViewHeader {
                 text: view.adapter
-                    ? "Bluetooth is off. Toggle the switch to enable."
-                    : "No bluetooth adapter found."
-                color: Theme.textDim
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeSmall
-                wrapMode: Text.Wrap
-                topPadding: 16
-                bottomPadding: 16
-            }
-
-            Rectangle {
-                visible: view.adapterEnabled
-                    && (view._grouped.connected.length > 0
-                        || view._grouped.paired.length > 0
-                        || view._grouped.discovered.length > 0)
-                width: parent.width
-                height: 1
-                color: Theme.border
-            }
-
-            Column {
-                visible: view.adapterEnabled && view._grouped.connected.length > 0
-                width: parent.width
-                spacing: 4
-
-                SectionHeader {
-                    label: "CONNECTED"
-                    count: view._grouped.connected.length
+                    ? (view.adapterEnabled ? view.adapter.name : "Bluetooth off")
+                    : "No adapter"
+                scanHint: view.scanning ? "Stop scanning" : "Scan for devices"
+                scanEnabled: view.adapterEnabled
+                scanning: view.scanning
+                switchChecked: view.adapterEnabled
+                switchEnabled: view.adapter !== null
+                switchHint: view.adapterEnabled ? "Turn Bluetooth off" : "Turn Bluetooth on"
+                onScanClicked: {
+                    if (view.adapter) view.adapter.discovering = !view.adapter.discovering;
                 }
-
-                Repeater {
-                    model: ScriptModel { values: view._grouped.connected }
-                    delegate: DeviceRow {
-                        required property var modelData
-                        device: modelData
-                    }
+                onSwitchToggled: {
+                    if (view.adapter) view.adapter.enabled = !view.adapter.enabled;
                 }
             }
 
-            Column {
-                visible: view.adapterEnabled && view._grouped.paired.length > 0
-                width: parent.width
-                spacing: 4
+            EmptyState {
+                visible: !view.adapterEnabled
+                text: view.adapter
+                    ? "Bluetooth is off. Turn it on with the switch above."
+                    : "No Bluetooth adapter found."
+            }
 
-                SectionHeader {
-                    label: "PAIRED"
-                    count: view._grouped.paired.length
-                }
-
-                Repeater {
-                    model: ScriptModel { values: view._grouped.paired }
-                    delegate: DeviceRow {
-                        required property var modelData
-                        device: modelData
-                    }
+            ListSection {
+                visible: view.adapterEnabled && count > 0
+                label: "CONNECTED"
+                model: ScriptModel { values: view._grouped.connected }
+                delegate: DeviceRow {
+                    required property var modelData
+                    device: modelData
                 }
             }
 
-            Column {
-                visible: view.adapterEnabled && view._grouped.discovered.length > 0
-                width: parent.width
-                spacing: 4
-
-                SectionHeader {
-                    label: "AVAILABLE"
-                    count: view._grouped.discovered.length
-                }
-
-                Repeater {
-                    model: ScriptModel { values: view._grouped.discovered }
-                    delegate: DeviceRow {
-                        required property var modelData
-                        device: modelData
-                    }
+            ListSection {
+                visible: view.adapterEnabled && count > 0
+                label: "PAIRED"
+                model: ScriptModel { values: view._grouped.paired }
+                delegate: DeviceRow {
+                    required property var modelData
+                    device: modelData
                 }
             }
 
-            Text {
-                visible: view.adapterEnabled
-                    && view._grouped.connected.length === 0
-                    && view._grouped.paired.length === 0
-                    && view._grouped.discovered.length === 0
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                text: view.scanning ? "Scanning…" : "No devices. Click the scan button to find some."
-                color: Theme.textDim
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeSmall
-                topPadding: 8
-                bottomPadding: 8
+            ListSection {
+                visible: view.adapterEnabled && count > 0
+                label: "AVAILABLE"
+                model: ScriptModel { values: view._grouped.discovered }
+                delegate: DeviceRow {
+                    required property var modelData
+                    device: modelData
+                }
+            }
+
+            EmptyState {
+                visible: view.adapterEnabled && view._deviceCount === 0
+                text: view.scanning
+                    ? "Scanning…"
+                    : "No devices found. Use the scan button above."
             }
         }
     }
