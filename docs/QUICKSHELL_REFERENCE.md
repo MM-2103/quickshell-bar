@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #79+) represents original
+> "Gotchas & quirks" section (entries #1 through #81+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -415,7 +415,7 @@ Base class for all Quickshell windows. Attached to any `Item`: `QsWindow.window`
 | `visible` | `bool` | shown/hidden |
 | `width` / `height` | `int` | actual window size (deprecated to *set* — use `implicitWidth/Height`) |
 | `implicitWidth` / `implicitHeight` | `int` | desired size |
-| `mask` | `Region` | clickthrough mask |
+| `mask` | `Region` | clickthrough mask; build it from explicit geometry (gotcha #81) |
 | `surfaceFormat` | `{opaque: bool}` | request opaque/transparent surface (set before window shown) |
 | `devicePixelRatio` *(readonly)* | `real` | logical→physical pixels |
 | `contentItem` *(readonly)* | `Item` | root child item container |
@@ -3075,6 +3075,21 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     ```
 
     Only popups with text entry need this. The rest of the bar's popups have no keyboard input, and keeping them grab-free means they stay open while you click around other apps. `PanelWindow` popups get keyboard input through `WlrLayershell.keyboardFocus` instead (Launcher, Settings, PolkitDialog).
+
+80. **A window whose `color` is opaque when it is first shown cannot become transparent later.** Quickshell picks the surface format from `color` at creation (documented on `QsWindow.color`), so a bar created with `color: Theme.bg` and later switched to `"transparent"` keeps an opaque surface and the "transparent" part renders solid. Anything that may ever need transparency, such as the auto-hiding bar, sets `color: "transparent"` from the start and paints its background in an inner `Rectangle`. `surfaceFormat.opaque: false` is the other way out, and it too must be set before the window is shown.
+
+    Hot-reload makes this worse. Reloadable windows are reused across a reload, so changing an existing window from opaque to transparent does nothing until the daemon restarts. Test such a change on a fresh `qs`.
+
+81. **Build `mask` regions from explicit geometry, not from an item that moves or may be null.** `mask: Region { item: someItem }` follows the item's geometry, but the `Region` docs warn it "does not update automatically" in some cases, and the auto-hide bar in illogical-impulse found that a region whose item is null can leave the whole surface taking input: an invisible strip that eats clicks at the top of the screen. The auto-hiding `Bar.qml` binds the numbers directly instead:
+
+    ```qml
+    mask: Region {
+        width: bar.width
+        height: bar.revealed ? bar.implicitHeight : 2   // 2 px edge strip when hidden
+    }
+    ```
+
+    Plain bound properties emit the region's change signal reliably. If a region must follow an item, emit `changed()` by hand when the item moves.
 
 
 

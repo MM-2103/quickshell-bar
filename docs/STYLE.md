@@ -237,6 +237,14 @@ PopupWindow {
 
 For hover-driven popups (Calendar etc.), add a "linger" timer per gotcha #57.
 
+**Auto-hiding bar.** With `barAutoHide` on, a bar stays revealed while a
+popup anchored in it is open, so the popup never hangs under an empty
+strip. It learns that from `PopupController.activePopup` (the popup's
+`anchor.item`, or the registered item itself, inside the bar). A popup
+that opens without calling `PopupController.open`, like the hover
+calendar, must expose its visibility on the widget instead, the way
+`Clock.popupOpen` does, and `Bar.qml`'s `_popupHold` must read it.
+
 ---
 
 ## Tooltip recipe

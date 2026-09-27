@@ -89,7 +89,7 @@ shell.qml (entry point)
 │
 ├── Variants × Quickshell.screens
 │   ├── WallpaperLayer              ← Background-layer surface, per monitor (replaces swaybg)
-│   ├── Bar { screen: modelData }   ← per-monitor bar
+│   ├── Bar { screen: modelData }   ← per-monitor bar (optionally auto-hiding, BarService)
 │   │   ├── Workspaces (left)       ← reads Compositor.workspaces filtered by output
 │   │   ├── Clock (center)
 │   │   └── Right cluster:          ← 8 widgets after the CC declutter
@@ -107,7 +107,7 @@ shell.qml (entry point)
 ├── Lock { }                        ← WlSessionLock (NOT in Variants — single instance)
 │
 ├── PolkitDialog                 ← per-screen auth prompt (no IPC; driven by PolkitService)
-└── IpcHandler × 9                  ← clipboard, launcher, lock, settings, popups, idle, sleep, nightlight, mic
+└── IpcHandler × 10                 ← bar, clipboard, launcher, lock, settings, popups, idle, sleep, nightlight, mic
 ```
 
 The **ControlCenter** bar widget owns its anchored `ControlCenterPopup`,
@@ -152,6 +152,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal. After resume, asks `Compositor.probeOutputsFailing` whether frames are failing and power-cycles the outputs only if they are |
 | `PolkitService` | polkit auth agent: `PolkitAgent` registration, per-request flow snapshot, submit/cancel |
 | `NightLightService` | blue-light filter: hyprsunset daemon lifecycle (started only while the filter is on, adopt-or-spawn, pdeathsig, death-watch) + persisted on/off and temperature. The actual set-temperature call goes through `Compositor.dispatchNightLight` so no hyprctl leaks outside `compositor/` |
+| `BarService` | bar auto-hide settings (`barAutoHide`, reveal/hide delays, workspace peek) and the IPC pin. Each `Bar` decides for itself when to reveal: hover dwell, a popup it owns, the compositor overview, a workspace switch |
 | `PopupController` | activePopup, mutex helpers |
 
 Visual components consume singletons (`Compositor.workspaces`,
@@ -170,6 +171,7 @@ Public surface (consumed by Workspaces.qml, shell.qml, PowerMenuPopup.qml):
 Compositor.workspaces                    // [{id, idx, output, is_focused, is_active, name, label?}, ...]
 Compositor.focusedOutput                 // string (monitor name)
 Compositor.currentLayout                 // string ("" on Sway/i3)
+Compositor.overviewOpen                  // bool; optional, false where the backend has no overview (niri only)
 Compositor.windowFocused(id) signal      // for popup auto-dismiss
 Compositor.dispatchFocusWorkspace(idx)   // click-to-focus a chip
 Compositor.dispatchLogout()              // power-menu Logout button
@@ -254,7 +256,7 @@ When in doubt about whether a change took effect: smoke-test with a fresh
 | Fetch HTTP data (no Quickshell module exists) | `weather/WeatherService.qml` for the canonical pattern | `Process { command: ["curl", "-sf", "--max-time", "10", url] }` + `StdioCollector` + `JSON.parse`; the same shape the old nmcli-based NetworkService used before it went native |
 | Tune visuals (color, size, animation) | `Theme.qml` | always add a token, never inline |
 | Add a Font Awesome glyph | verify codepoint via `fontTools` first | [STYLE.md "Glyph conventions"](STYLE.md#glyph-conventions-font-awesome) |
-| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #79) | append numbered, update header range |
+| Document a new gotcha | `docs/QUICKSHELL_REFERENCE.md` (currently #81) | append numbered, update header range |
 | Add a screenshot | see "Common-task recipes" below — never `mcp_Read` raw |
 | Modify the lock screen | `lock/LockSurface.qml` + `lock/NowPlayingCard.qml` | gotcha #48 (Component-based per-screen fan-out), gotcha #64 (use Timer + Date, not SystemClock) |
 
@@ -297,6 +299,8 @@ below for readability; from inside the clone, `qs -p . ipc call …`.
 
 ```
 qs ipc call lock open                   # lock the session (idempotent)
+qs ipc call bar toggle                  # pin the auto-hiding bar visible / unpin it
+qs ipc call bar status                  # diagnostic: auto-hide, pin, delays
 qs ipc call clipboard open              # open clipboard popup
 qs ipc call clipboard close
 qs ipc call clipboard toggle
