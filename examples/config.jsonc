@@ -86,6 +86,19 @@
   "activeWindowEnabled": true,
   "activeWindowMaxWidth": 400,
 
+  // ─── Bar auto-hide ─────────────────────────────────────────────
+  // Hide the bar until the pointer rests on the top edge for
+  // barRevealDelay ms; it slides out again barHideDelay ms after the
+  // pointer leaves. Windows reach the top edge and the revealed bar draws
+  // over them. Meant for OLED panels, where a static bar risks burn-in.
+  //
+  // `qs ipc call bar toggle` pins it visible until called again.
+  "barAutoHide": false,
+  "barRevealDelay": 150,
+  "barHideDelay": 400,
+  // Show the bar for 1.5 s when a monitor switches workspace.
+  "barPeekOnWorkspaceSwitch": true,
+
   // ─── Microphone ────────────────────────────────────────────────
   // When the mic indicator appears in the bar:
   //   "auto"   - only while muted or while something is capturing,
