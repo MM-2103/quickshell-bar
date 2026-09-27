@@ -35,14 +35,29 @@ PopupWindow {
     visible: wantOpen || hideHold.running
     Timer { id: hideHold; interval: 180; repeat: false }
     onWantOpenChanged: {
-        if (wantOpen) hideHold.stop();
-        else          hideHold.restart();
+        if (wantOpen)             hideHold.stop();
+        else if (!_dismissing)    hideHold.restart();
     }
+
+    // Without a grab, niri never gives an xdg_popup keyboard focus, so
+    // the Wi-Fi password field took no input. The grab also means the
+    // compositor (or Qt, for clicks on our own bar) closes the popup on
+    // an outside click. See gotcha #79.
+    grabFocus: true
+
+    // Set while we sync wantOpen after an external dismissal, so the
+    // fade-out hold does not map the surface again for 180 ms.
+    property bool _dismissing: false
+    // When the last external dismissal happened. A click on the CC bar
+    // button dismisses the popup on press, then toggles on release;
+    // without this the popup would close and immediately reopen.
+    property real _dismissedAt: 0
 
     function toggle() {
         if (popup.wantOpen) {
             popup.wantOpen = false;
         } else {
+            if (Date.now() - popup._dismissedAt < 300) return;
             PopupController.open(popup, () => popup.wantOpen = false);
             // Reset the view so each open starts at the tile grid.
             ControlCenterService.resetView();
@@ -50,7 +65,18 @@ PopupWindow {
         }
     }
     function close() { popup.wantOpen = false; }
-    onVisibleChanged: if (!visible) PopupController.closed(popup)
+    onVisibleChanged: {
+        if (visible) return;
+        // wantOpen still true means we did not close it ourselves: the
+        // grab ended (outside click, Escape, compositor). Sync state.
+        if (wantOpen) {
+            _dismissedAt = Date.now();
+            _dismissing = true;
+            wantOpen = false;
+            _dismissing = false;
+        }
+        PopupController.closed(popup);
+    }
 
     anchor.item: anchorItem
     anchor.rect.x: anchorItem ? -((popup.width - anchorItem.width) / 2) : 0

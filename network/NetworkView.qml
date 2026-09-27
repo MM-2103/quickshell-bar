@@ -351,7 +351,10 @@ Item {
                     font.pixelSize: Theme.fontSizeSmall
                     echoMode: TextInput.Password
                     selectByMouse: true
-                    focus: visible
+                    // `focus: visible` never reached activeFocus through the
+                    // Loader and Flickable focus scopes. Deferred because the
+                    // row becomes visible in the same tick as the click.
+                    onVisibleChanged: if (visible) Qt.callLater(() => pwdInput.forceActiveFocus())
                     Keys.onReturnPressed: okBtn.activate()
                     Keys.onEnterPressed: okBtn.activate()
                     Keys.onEscapePressed: { view.passwordPromptSsid = ""; view.passwordPromptPwd = ""; }
@@ -738,6 +741,9 @@ Item {
                             font.family: Theme.fontMono
                             font.pixelSize: Theme.fontSizeSmall
                             selectByMouse: true
+                            onVisibleChanged: if (visible) Qt.callLater(() => hiddenSsidIn.forceActiveFocus())
+                            Keys.onReturnPressed: hiddenPwdIn.forceActiveFocus()
+                            Keys.onEnterPressed: hiddenPwdIn.forceActiveFocus()
 
                             Text {
                                 anchors.fill: parent
