@@ -8,11 +8,12 @@ pragma Singleton
 // nmcli's escaped-colon output. All of that is gone -- the native module is
 // reactive, so there is no process, no polling, and no parsing.
 //
-// The public surface below is deliberately UNCHANGED from the nmcli version:
-// same property names, same object shapes, same function signatures. The
-// native types are richer, but translating at this boundary keeps
-// NetworkView.qml and controlcenter/TilesView.qml working untouched. The
-// translation is the point of this file, not an accident of it.
+// The public surface below keeps the nmcli version's property names, object
+// shapes and function signatures. The native types are richer, but
+// translating at this boundary kept NetworkView.qml and
+// controlcenter/TilesView.qml working untouched. The translation is the
+// point of this file, not an accident of it. Later additions (the
+// per-network saved, connecting and failure fields) only add, never rename.
 //
 // Native quirks this file absorbs, all verified against real hardware:
 //
@@ -63,8 +64,15 @@ Singleton {
         }
     }
 
+    // Only the hidden-network nmcli path sets this. Failures of scanned
+    // networks are per network, in the failure field below.
     property string lastError: ""
     signal actionFinished(bool ok, string message)
+
+    // A saved or just-entered password was refused. The view reopens the
+    // password field for that network. Only emitted for PSK networks,
+    // since connectWithPsk cannot answer anything else.
+    signal passwordRequired(string ssid)
 
     // Plain bindings. QML tracks per-property *reads*, so reading
     // n.signalStrength here registers a dependency on that Network's
@@ -72,11 +80,17 @@ Singleton {
     // needed. The delegate churn this used to cause is handled where it
     // belongs, by ScriptModel in NetworkView.
 
-    // { ssid, security, signal, inUse, bssid }
+    // { ssid, security, signal, inUse, bssid,
+    //   saved, pskCapable, connecting, disconnecting, failure }
+    //
+    // The second line was added for the list view. failure is the message
+    // of the last failed attempt, "" once the network connects or the user
+    // tries again.
     readonly property var wirelessNetworks: {
         const dev = root._wifiDevice;
         if (!dev || !dev.networks) return [];
         const src = dev.networks.values;
+        const failures = root._failures;
         const out = [];
         for (let i = 0; i < src.length; i++) {
             const n = src[i];
@@ -89,7 +103,12 @@ Singleton {
                 bssid: "",                           // not exposed natively; unused by the view
                 ssid: n.name,
                 security: root._securityLabel(n.security),
-                signal: Math.round(n.signalStrength * 100)
+                signal: Math.round(n.signalStrength * 100),
+                saved: n.known,
+                pskCapable: root._isPsk(n.security),
+                connecting: n.state === ConnectionState.Connecting,
+                disconnecting: n.state === ConnectionState.Disconnecting,
+                failure: n.connected ? "" : (failures[n.name] || "")
             });
         }
         // The native model already dedupes by SSID, so unlike the nmcli
@@ -239,6 +258,7 @@ Singleton {
     }
 
     function connectByName(name) {
+        root._setFailure(name, "");
         const n = root._findNetwork(name);
         if (n) n.connect();
     }
@@ -249,11 +269,13 @@ Singleton {
     }
 
     function forgetByName(name) {
+        root._setFailure(name, "");
         const n = root._findNetwork(name);
         if (n) n.forget();
     }
 
     function connectWifi(ssid, password, hidden) {
+        root._setFailure(ssid, "");
         const n = root._findNetwork(ssid);
 
         // A hidden SSID that is not already saved never appears in a scan,
@@ -340,6 +362,46 @@ Singleton {
         case WifiSecurityType.DynamicWep:    return "WEP";
         case WifiSecurityType.Leap:          return "LEAP";
         default:                             return "";
+        }
+    }
+
+    // The security types WifiNetwork.connectWithPsk accepts. Anything else
+    // (802.1X, WEP) gets no password field; connectWithPsk would refuse it.
+    function _isPsk(sec) {
+        return sec === WifiSecurityType.WpaPsk
+            || sec === WifiSecurityType.Wpa2Psk
+            || sec === WifiSecurityType.Sae;
+    }
+
+    // ---- Connection failures ----
+    //
+    // SSID to message of the last failed attempt. Replaced, never mutated,
+    // so bindings reading it re-evaluate.
+    property var _failures: ({})
+
+    function _setFailure(ssid, message) {
+        if (!ssid) return;
+        if (!message && !(ssid in root._failures)) return;
+        const next = Object.assign({}, root._failures);
+        if (message) next[ssid] = message;
+        else delete next[ssid];
+        root._failures = next;
+    }
+
+    // One listener per visible network. Networks leave the model when a
+    // scan drops them, which destroys their listener; the message stays in
+    // _failures, keyed by SSID.
+    Instantiator {
+        model: root._wifiDevice ? root._wifiDevice.networks : null
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onConnectionFailed(reason) {
+                const ssid = modelData.name;
+                root._setFailure(ssid, root._failureMessage(reason));
+                if (reason === ConnectionFailReason.NoSecrets && root._isPsk(modelData.security))
+                    root.passwordRequired(ssid);
+            }
         }
     }
 

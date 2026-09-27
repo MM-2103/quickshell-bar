@@ -1,11 +1,10 @@
 // NetworkView.qml
-// Embeddable network picker. Extracted from the old NetworkPopup so the
-// Control Center can host the same UI as a sub-view.
+// Wi-Fi and Ethernet picker, shown inside the Control Center. Pure
+// content: ControlCenterPopup supplies the card, title and back arrow.
 //
-// Composition: a Flickable wrapping the existing NetworkPopup content
-// column (header row, ethernet section, wifi list, hidden form). The
-// surrounding card chrome (Rectangle, border, drop shadow) is supplied
-// by ControlCenterPopup; this file is pure content.
+// Layout and behaviour follow the list-row rules in docs/STYLE.md, shared
+// with BluetoothView: rows do nothing when clicked, every action is an
+// always-visible IconButton, left click only.
 //
 // Lifecycle: the CC's Loader instantiates this view on navigation in and
 // destroys it on navigation out. Component.onCompleted triggers one scan.
@@ -15,13 +14,13 @@
 
 import QtQuick
 import Quickshell
-import Quickshell.Widgets
 import qs
+import qs.ui
 
 Item {
     id: view
 
-    // SSID currently being prompted for a password (inline expansion).
+    // SSID whose row shows the password field.
     property string passwordPromptSsid: ""
     property string passwordPromptPwd: ""
 
@@ -30,15 +29,33 @@ Item {
     property string hiddenSsid: ""
     property string hiddenPwd: ""
 
+    readonly property var _connected: NetworkService.wirelessNetworks.filter(n => n.inUse)
+    readonly property var _saved:     NetworkService.wirelessNetworks.filter(n => !n.inUse && n.saved)
+    readonly property var _available: NetworkService.wirelessNetworks.filter(n => !n.inUse && !n.saved)
+
+    function _closePrompt() {
+        view.passwordPromptSsid = "";
+        view.passwordPromptPwd = "";
+    }
+
     Component.onCompleted: {
         NetworkService.refreshAll();
         NetworkService.rescan();
     }
 
+    // Wrong or missing password: open the field again for that network.
+    Connections {
+        target: NetworkService
+        function onPasswordRequired(ssid) {
+            view.passwordPromptPwd = "";
+            view.passwordPromptSsid = ssid;
+        }
+    }
+
     // ================================================================
-    // Inline component: an ethernet device row.
+    // Ethernet device row.
     // ================================================================
-    component EthernetRow: Rectangle {
+    component EthernetRow: ListRow {
         id: erow
         required property var dev
 
@@ -51,135 +68,50 @@ Item {
             }
             return null;
         }
-
         readonly property bool isActive: activeConn !== null
         readonly property bool cablePlugged:
             dev.state !== "unavailable" && dev.state !== "unmanaged"
+        readonly property bool busy:
+            dev.state === "connecting" || dev.state === "deactivating"
 
-        function _title() {
-            if (isActive && activeConn) return activeConn.name;
-            return "Wired (" + erow.dev.device + ")";
+        title: isActive ? activeConn.name : "Wired (" + dev.device + ")"
+        status: {
+            if (dev.state === "connecting")   return "connecting…";
+            if (dev.state === "deactivating") return "disconnecting…";
+            if (isActive)                     return "connected  ·  " + dev.device;
+            if (cablePlugged)                 return "cable connected  ·  " + dev.device;
+            return "cable unplugged  ·  " + dev.device;
         }
-        function _statusText() {
-            if (isActive) return "connected · " + erow.dev.device;
-            if (!cablePlugged) return "cable unplugged · " + erow.dev.device;
-            return "available · click to connect";
-        }
-        function _primaryAction() {
-            if (isActive) {
-                NetworkService.disconnectDevice(erow.dev.device);
-            } else if (cablePlugged) {
-                NetworkService.connectDevice(erow.dev.device);
+        emphasized: isActive
+        dimmed: !cablePlugged && !isActive
+        iconName: isActive ? "network-wired-activated-symbolic" : "network-wired-symbolic"
+        glyph: "\uf796"
+
+        IconButton {
+            present: erow.isActive || erow.cablePlugged || erow.busy
+            busy: erow.busy
+            glyph: erow.isActive ? "\uf127" : "\uf0c1"
+            hint: erow.isActive ? "Disconnect" : "Connect"
+            onClicked: {
+                if (erow.isActive) NetworkService.disconnectDevice(erow.dev.device);
+                else NetworkService.connectDevice(erow.dev.device);
             }
         }
-
-        width: parent.width
-        height: 36
-        radius: Theme.radiusSmall
-        color: rowMa.containsMouse && (isActive || cablePlugged)
-            ? Theme.surfaceHi
-            : Theme.surface
-        Behavior on color { ColorAnimation { duration: Theme.animFast } }
-        opacity: cablePlugged || isActive ? 1.0 : 0.5
-
-        Row {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 8
-
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 16; height: 16
-                IconImage {
-                    id: ethIcon
-                    anchors.fill: parent
-                    implicitSize: 16
-                    source: Quickshell.iconPath(
-                        erow.isActive ? "network-wired-activated-symbolic"
-                                      : "network-wired-symbolic", true)
-                    asynchronous: false
-                    visible: status === Image.Ready
-                }
-                Text {
-                    anchors.centerIn: parent
-                    visible: ethIcon.status !== Image.Ready
-                    text: "ETH"
-                    color: Theme.textDim
-                    font.family: Theme.fontMono
-                    font.pixelSize: 8
-                    font.weight: Font.Bold
-                }
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 16 - parent.spacing
-                spacing: 1
-                Text {
-                    text: erow._title()
-                    color: Theme.text
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeNormal
-                    font.weight: erow.isActive ? Font.Bold : Font.Normal
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-                Text {
-                    text: erow._statusText()
-                    color: erow.isActive ? Theme.textDim : Theme.textMuted
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-            }
-        }
-
-        MouseArea {
-            id: rowMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: (erow.isActive || erow.cablePlugged)
-                ? Qt.PointingHandCursor
-                : Qt.ArrowCursor
-            z: -1
-            acceptedButtons: Qt.LeftButton
-            onClicked: erow._primaryAction()
-        }
+        // Wired profiles are not forgotten from here. The empty slot keeps
+        // the connect button in the same column as the Wi-Fi rows.
+        IconButton { present: false }
     }
 
     // ================================================================
-    // Inline component: a wifi list entry row.
+    // Wi-Fi network row.
     // ================================================================
-    component WifiRow: Rectangle {
+    component WifiRow: ListRow {
         id: row
         required property var net
 
-        width: parent.width
-        height: 36 + (view.passwordPromptSsid === net.ssid ? 36 : 0)
-
-        // A rescan drops unsaved networks from the list for a moment, so
-        // this row can be destroyed and rebuilt mid-prompt. The typed text
-        // survives in view.passwordPromptPwd; focus has to be put back.
-        Component.onCompleted: {
-            if (view.passwordPromptSsid === net.ssid)
-                Qt.callLater(() => pwdInput.forceActiveFocus());
-        }
-        radius: Theme.radiusSmall
-        color: rowMa.containsMouse ? Theme.surfaceHi : Theme.surface
-        Behavior on color { ColorAnimation { duration: Theme.animFast } }
-        Behavior on height { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutQuad } }
-        clip: true
-
-        readonly property bool secured: net.security && net.security !== ""
-        readonly property bool saved: {
-            const list = NetworkService.savedConnections;
-            for (let i = 0; i < list.length; i++) {
-                if (list[i].type === "802-11-wireless" && list[i].name === net.ssid) return true;
-            }
-            return false;
-        }
+        readonly property bool secured: net.security !== ""
+        readonly property bool prompting: view.passwordPromptSsid === net.ssid
+        readonly property bool busy: net.connecting || net.disconnecting
 
         function _signalIcon() {
             const s = net.signal;
@@ -187,16 +119,10 @@ Item {
             return "network-wireless-connected-" + (tier < 10 ? "00" : tier) + "-symbolic";
         }
 
-        function _primaryAction() {
-            if (net.inUse) {
-                NetworkService.disconnectByName(net.ssid);
-                return;
-            }
-            if (row.saved) {
+        function _connect() {
+            if (net.saved) {
                 NetworkService.connectByName(net.ssid);
-                return;
-            }
-            if (row.secured) {
+            } else if (net.pskCapable) {
                 view.passwordPromptPwd = "";
                 view.passwordPromptSsid = net.ssid;
             } else {
@@ -204,264 +130,99 @@ Item {
             }
         }
 
-        Row {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            height: 36
-            spacing: 8
+        function _submit() {
+            if (view.passwordPromptPwd.length === 0) return;
+            NetworkService.connectWifi(net.ssid, view.passwordPromptPwd, false);
+            view._closePrompt();
+        }
 
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 16; height: 16
-                IconImage {
-                    id: sigIcon
-                    anchors.fill: parent
-                    implicitSize: 16
-                    source: Quickshell.iconPath(row._signalIcon(), true)
-                    asynchronous: false
-                    visible: status === Image.Ready
-                }
-                Text {
-                    anchors.centerIn: parent
-                    visible: sigIcon.status !== Image.Ready
-                    text: net.signal + ""
-                    color: Theme.textDim
-                    font.family: Theme.fontMono
-                    font.pixelSize: 8
-                }
-            }
+        title: net.ssid
+        status: {
+            if (net.connecting)    return "connecting…";
+            if (net.disconnecting) return "disconnecting…";
+            if (net.failure)       return net.failure;
+            const parts = [];
+            if (net.inUse) parts.push("connected");
+            parts.push(secured ? net.security : "open");
+            parts.push(net.signal + "%");
+            return parts.join("  ·  ");
+        }
+        statusError: !busy && net.failure !== ""
+        emphasized: net.inUse
+        iconName: _signalIcon()
+        glyph: "\uf1eb"
+        expanded: prompting
 
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 16 - parent.spacing - rightTags.width
-                spacing: 1
+        // A rescan drops unsaved networks from the list for a moment, so
+        // this row can be destroyed and rebuilt mid-prompt. The typed text
+        // survives in view.passwordPromptPwd; focus has to be put back.
+        Component.onCompleted: {
+            if (row.prompting) Qt.callLater(() => pwdField.focusInput());
+        }
 
-                Text {
-                    text: net.ssid
-                    color: Theme.text
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeNormal
-                    font.weight: net.inUse ? Font.Bold : Font.Normal
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-
-                Text {
-                    text: {
-                        const parts = [];
-                        if (net.inUse)              parts.push("connected");
-                        else if (row.saved)         parts.push("saved");
-                        if (row.secured)            parts.push(net.security);
-                        else                        parts.push("open");
-                        parts.push(net.signal + "%");
-                        return parts.join("  ·  ");
-                    }
-                    color: net.inUse ? Theme.textDim : Theme.textMuted
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-            }
-
-            Row {
-                id: rightTags
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
-
-                Text {
-                    visible: row.secured
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "\uf023"
-                    color: Theme.textDim
-                    font.family: Theme.fontIcon
-                    font.styleName: "Solid"
-                    font.pixelSize: 9
-                    renderType: Text.NativeRendering
-                }
-
-                Rectangle {
-                    visible: row.saved
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 20; height: 20
-                    radius: Theme.radiusSmall
-                    opacity: forgetMa.containsMouse ? 1.0 : (rowMa.containsMouse ? 0.7 : 0.0)
-                    color: forgetMa.containsMouse ? Theme.bg : "transparent"
-                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
-                        color: forgetMa.containsMouse ? Theme.text : Theme.textDim
-                        font.family: Theme.fontIcon
-                        font.styleName: "Solid"
-                        font.pixelSize: 11
-                        renderType: Text.NativeRendering
-                    }
-
-                    MouseArea {
-                        id: forgetMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: NetworkService.forgetByName(net.ssid)
-                    }
-                }
+        IconButton {
+            busy: row.busy
+            // The password row has its own Connect and Cancel.
+            enabled: !row.prompting
+            glyph: net.inUse ? "\uf127" : "\uf0c1"
+            hint: net.inUse ? "Disconnect" : "Connect"
+            onClicked: {
+                if (net.inUse) NetworkService.disconnectByName(net.ssid);
+                else row._connect();
             }
         }
 
-        // Inline password prompt row.
-        Row {
-            visible: view.passwordPromptSsid === net.ssid
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            anchors.bottomMargin: 4
-            height: 28
-            spacing: 6
+        IconButton {
+            present: net.saved
+            glyph: "\uf2ed"
+            hint: "Forget"
+            confirm: true
+            confirmHint: "Click again to forget"
+            onClicked: NetworkService.forgetByName(net.ssid)
+        }
 
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - cancelBtn.width - okBtn.width - parent.spacing * 2
-                height: 24
-                radius: Theme.radiusSmall
-                color: Theme.bg
-                border.color: pwdInput.activeFocus ? Theme.text : Theme.border
-                border.width: 1
+        expansion: Item {
+            width: parent.width
+            height: 24
 
-                TextInput {
-                    id: pwdInput
-                    anchors.fill: parent
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 6
-                    verticalAlignment: TextInput.AlignVCenter
-                    text: view.passwordPromptPwd
-                    onTextChanged: view.passwordPromptPwd = text
-                    color: Theme.text
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    echoMode: TextInput.Password
-                    selectByMouse: true
-                    // `focus: visible` never reached activeFocus through the
-                    // Loader and Flickable focus scopes. Deferred because the
-                    // row becomes visible in the same tick as the click.
-                    onVisibleChanged: if (visible) Qt.callLater(() => pwdInput.forceActiveFocus())
-                    Keys.onReturnPressed: okBtn.activate()
-                    Keys.onEnterPressed: okBtn.activate()
-                    Keys.onEscapePressed: { view.passwordPromptSsid = ""; view.passwordPromptPwd = ""; }
-
-                    Text {
-                        anchors.fill: parent
-                        anchors.leftMargin: 0
-                        verticalAlignment: Text.AlignVCenter
-                        visible: !pwdInput.text && !pwdInput.activeFocus
-                        text: "Password"
-                        color: Theme.textMuted
-                        font: pwdInput.font
-                    }
-                }
+            InputField {
+                id: pwdField
+                anchors.left: parent.left
+                anchors.right: cancelBtn.left
+                anchors.rightMargin: 4
+                password: true
+                placeholder: "Password"
+                text: view.passwordPromptPwd
+                onTextChanged: view.passwordPromptPwd = text
+                onAccepted: row._submit()
+                onCancelled: view._closePrompt()
+                // Deferred because the row expands in the same tick as the
+                // click that opened it.
+                onVisibleChanged: if (visible) Qt.callLater(() => pwdField.focusInput())
             }
 
-            Rectangle {
+            IconButton {
                 id: cancelBtn
-                anchors.verticalCenter: parent.verticalCenter
-                width: 24; height: 24
-                radius: Theme.radiusSmall
-                color: cancelMa.containsMouse ? Theme.bg : "transparent"
-                border.color: Theme.border
-                border.width: 1
-                Text {
-                    anchors.centerIn: parent
-                    text: "\uf00d"
-                    color: Theme.text
-                    font.family: Theme.fontIcon
-                    font.styleName: "Solid"
-                    font.pixelSize: 11
-                    renderType: Text.NativeRendering
-                }
-                MouseArea {
-                    id: cancelMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: { view.passwordPromptSsid = ""; view.passwordPromptPwd = ""; }
-                }
+                anchors.right: okBtn.left
+                anchors.rightMargin: 4
+                glyph: "\uf00d"
+                hint: "Cancel"
+                onClicked: view._closePrompt()
             }
 
-            Rectangle {
+            IconButton {
                 id: okBtn
-                anchors.verticalCenter: parent.verticalCenter
-                width: 60; height: 24
-                radius: Theme.radiusSmall
-                color: okMa.containsMouse ? Theme.text : Theme.surfaceHi
-                border.color: Theme.border
-                border.width: 1
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                function activate() {
-                    NetworkService.connectWifi(net.ssid, view.passwordPromptPwd, false);
-                    view.passwordPromptSsid = "";
-                    view.passwordPromptPwd = "";
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "Connect"
-                    color: okMa.containsMouse ? Theme.bg : Theme.text
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Font.Bold
-                }
-
-                MouseArea {
-                    id: okMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: okBtn.activate()
-                }
+                anchors.right: parent.right
+                glyph: "\uf0c1"
+                hint: "Connect"
+                enabled: view.passwordPromptPwd.length > 0
+                onClicked: row._submit()
             }
         }
-
-        MouseArea {
-            id: rowMa
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: 36
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            z: -1
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            onClicked: mouse => {
-                if (mouse.button === Qt.LeftButton) {
-                    row._primaryAction();
-                } else if (mouse.button === Qt.RightButton && row.saved) {
-                    NetworkService.forgetByName(net.ssid);
-                }
-            }
-        }
-    }
-
-    component SectionHeader: Text {
-        property string label
-        property int count: 0
-        text: count > 0 ? (label + "  ·  " + count) : label
-        color: Theme.textDim
-        font.family: Theme.fontMono
-        font.pixelSize: Theme.fontSizeSmall
-        font.weight: Font.Bold
     }
 
     // ================================================================
-    // Layout: Flickable scrolls the content column. Header is OUT of the
-    // CC popup chrome (the CC supplies its own header with back arrow).
+    // Layout
     // ================================================================
     Flickable {
         anchors.fill: parent
@@ -475,361 +236,150 @@ Item {
             width: parent.width
             spacing: 10
 
-            // Header (status string + rescan + wifi switch).
-            Row {
-                width: parent.width
-                spacing: 8
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: NetworkService.wiredConnected
-                        ? "Wired connected"
-                        : NetworkService.wifiConnected
-                            ? ("Wi‑Fi · " + NetworkService.currentSsid)
-                            : NetworkService.wifiEnabled
-                                ? "Disconnected"
-                                : "Wi‑Fi off"
-                    color: Theme.textDim
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
-                    width: parent.width - rescanBtn.width - wifiToggleBtn.width - parent.spacing * 2
+            ViewHeader {
+                id: header
+                text: NetworkService.wiredConnected
+                    ? "Wired connected"
+                    : NetworkService.wifiConnected
+                        ? ("Wi‑Fi  ·  " + NetworkService.currentSsid)
+                        : NetworkService.wifiEnabled
+                            ? "Disconnected"
+                            : "Wi‑Fi off"
+                scanHint: "Rescan"
+                scanEnabled: NetworkService.wifiEnabled
+                switchChecked: NetworkService.wifiEnabled
+                switchHint: NetworkService.wifiEnabled ? "Turn Wi‑Fi off" : "Turn Wi‑Fi on"
+                onScanClicked: {
+                    NetworkService.rescan();
+                    header.spinOnce();
                 }
+                onSwitchToggled: NetworkService.setWifiEnabled(!NetworkService.wifiEnabled)
+            }
 
-                Rectangle {
-                    id: rescanBtn
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 28; height: 22
-                    radius: Theme.radiusSmall
-                    color: rescanMa.containsMouse ? Theme.surfaceHi : Theme.surface
-                    enabled: NetworkService.wifiEnabled
-                    opacity: enabled ? 1.0 : 0.4
-
-                    Text {
-                        id: rescanGlyph
-                        anchors.centerIn: parent
-                        text: "\uf021"
-                        color: Theme.text
-                        font.family: Theme.fontIcon
-                        font.styleName: "Solid"
-                        font.pixelSize: 12
-                        renderType: Text.NativeRendering
-                    }
-
-                    MouseArea {
-                        id: rescanMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        enabled: parent.enabled
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            NetworkService.rescan();
-                            rescanSpin.restart();
-                        }
-                    }
-
-                    RotationAnimation {
-                        id: rescanSpin
-                        target: rescanGlyph
-                        from: 0; to: 360
-                        duration: 700
-                        easing.type: Easing.OutCubic
-                    }
+            ListSection {
+                label: "ETHERNET"
+                // ScriptModel so a state change rebuilds only the row that
+                // changed, not every row.
+                model: ScriptModel {
+                    values: NetworkService.ethernetDevices
+                    objectProp: "device"
                 }
-
-                Rectangle {
-                    id: wifiToggleBtn
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 38; height: 22
-                    radius: 11
-                    color: NetworkService.wifiEnabled ? Theme.accent : Theme.surface
-                    border.color: Theme.border
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animMed } }
-
-                    Rectangle {
-                        width: 16; height: 16
-                        radius: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: NetworkService.wifiEnabled ? parent.width - width - 3 : 3
-                        color: NetworkService.wifiEnabled ? Theme.bg : Theme.text
-                        Behavior on x { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutQuad } }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: NetworkService.setWifiEnabled(!NetworkService.wifiEnabled)
-                    }
+                delegate: EthernetRow {
+                    required property var modelData
+                    dev: modelData
                 }
             }
 
-            Rectangle {
-                width: parent.width
-                height: 1
-                color: Theme.border
-            }
-
-            // Ethernet section.
-            Column {
-                visible: NetworkService.hasEthernetHardware
-                width: parent.width
-                spacing: 4
-
-                SectionHeader {
-                    label: "ETHERNET"
-                    count: NetworkService.ethernetDevices.length
-                }
-
-                Repeater {
-                    // ScriptModel so a state change rebuilds only the row
-                    // that changed, not every row.
-                    model: ScriptModel {
-                        values: NetworkService.ethernetDevices
-                        objectProp: "device"
-                    }
-                    delegate: EthernetRow {
-                        required property var modelData
-                        dev: modelData
-                    }
-                }
-            }
-
-            // Wifi-disabled placeholder.
-            Text {
+            EmptyState {
                 visible: !NetworkService.wifiEnabled
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                text: "Wi‑Fi is off. Toggle the switch above to enable."
-                color: Theme.textDim
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeSmall
-                topPadding: 16
-                bottomPadding: 16
-                wrapMode: Text.Wrap
+                text: "Wi‑Fi is off. Turn it on with the switch above."
             }
 
-            // Wifi list.
-            Column {
+            // ScriptModel on each Wi-Fi section: without it, a
+            // signal-strength update reassigns the array and every row,
+            // each with an IconImage, is destroyed and rebuilt.
+            ListSection {
+                visible: NetworkService.wifiEnabled && count > 0
+                label: "CONNECTED"
+                model: ScriptModel { values: view._connected; objectProp: "ssid" }
+                delegate: WifiRow {
+                    required property var modelData
+                    net: modelData
+                }
+            }
+
+            ListSection {
+                visible: NetworkService.wifiEnabled && count > 0
+                label: "SAVED"
+                model: ScriptModel { values: view._saved; objectProp: "ssid" }
+                delegate: WifiRow {
+                    required property var modelData
+                    net: modelData
+                }
+            }
+
+            ListSection {
+                visible: NetworkService.wifiEnabled && count > 0
+                label: "AVAILABLE"
+                model: ScriptModel { values: view._available; objectProp: "ssid" }
+                delegate: WifiRow {
+                    required property var modelData
+                    net: modelData
+                }
+            }
+
+            EmptyState {
+                visible: NetworkService.wifiEnabled && NetworkService.wirelessNetworks.length === 0
+                text: "No networks found. Use the rescan button above."
+            }
+
+            // Hidden network: a row like the others, with the form as its
+            // expansion. nmcli errors from this path show in its status.
+            ListRow {
                 visible: NetworkService.wifiEnabled
-                width: parent.width
-                spacing: 4
+                title: "Hidden network"
+                status: NetworkService.lastError !== ""
+                    ? NetworkService.lastError
+                    : "not broadcasting its name"
+                statusError: NetworkService.lastError !== ""
+                glyph: "\uf070"
+                expanded: view.hiddenFormOpen
 
-                SectionHeader {
-                    label: "WI‑FI NETWORKS"
-                    count: NetworkService.wirelessNetworks.length
+                IconButton {
+                    glyph: view.hiddenFormOpen ? "\uf068" : "\uf067"
+                    hint: view.hiddenFormOpen ? "Close" : "Enter network details"
+                    onClicked: view.hiddenFormOpen = !view.hiddenFormOpen
                 }
+                IconButton { present: false }
 
-                Repeater {
-                    // ScriptModel: without it, a signal-strength update
-                    // reassigns the array and every WifiRow -- each with an
-                    // IconImage -- is destroyed and rebuilt.
-                    model: ScriptModel {
-                        values: NetworkService.wirelessNetworks
-                        objectProp: "ssid"
-                    }
-                    delegate: WifiRow {
-                        required property var modelData
-                        net: modelData
-                    }
-                }
-
-                Text {
-                    visible: NetworkService.wirelessNetworks.length === 0
+                expansion: Column {
+                    id: hiddenForm
                     width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    text: "No networks found. Click the rescan button above."
-                    color: Theme.textMuted
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    topPadding: 8
-                    bottomPadding: 8
-                }
-            }
-
-            // Last error display.
-            Text {
-                visible: NetworkService.lastError.length > 0
-                width: parent.width
-                text: NetworkService.lastError
-                color: Theme.text
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeSmall
-                wrapMode: Text.Wrap
-            }
-
-            // Hidden network form (collapsible).
-            Rectangle {
-                visible: NetworkService.wifiEnabled
-                width: parent.width
-                height: hiddenContent.implicitHeight + 12
-                radius: Theme.radiusSmall
-                color: "transparent"
-                border.color: Theme.border
-                border.width: 1
-                Behavior on height { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutQuad } }
-                clip: true
-
-                Column {
-                    id: hiddenContent
-                    anchors {
-                        left: parent.left
-                        right: parent.right
-                        top: parent.top
-                        margins: 6
-                    }
                     spacing: 6
 
-                    Row {
+                    function submit() {
+                        if (!view.hiddenSsid) return;
+                        NetworkService.connectWifi(view.hiddenSsid, view.hiddenPwd, true);
+                        view.hiddenSsid = "";
+                        view.hiddenPwd = "";
+                        view.hiddenFormOpen = false;
+                    }
+
+                    InputField {
+                        id: hiddenSsidField
                         width: parent.width
-                        spacing: 6
-                        height: 22
+                        placeholder: "SSID"
+                        text: view.hiddenSsid
+                        onTextChanged: view.hiddenSsid = text
+                        onAccepted: hiddenPwdField.focusInput()
+                        onCancelled: view.hiddenFormOpen = false
+                        onVisibleChanged: if (visible) Qt.callLater(() => hiddenSsidField.focusInput())
+                    }
 
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: view.hiddenFormOpen ? "\uf068" : "\uf067"
-                            color: Theme.text
-                            font.family: Theme.fontIcon
-                            font.styleName: "Solid"
-                            font.pixelSize: 10
-                            renderType: Text.NativeRendering
-                            width: 14
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "Connect to hidden network"
-                            color: Theme.text
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Bold
-                        }
+                    Item {
+                        width: parent.width
+                        height: 24
 
-                        MouseArea {
-                            anchors.top: parent.top
+                        InputField {
+                            id: hiddenPwdField
                             anchors.left: parent.left
-                            width: parent.width
-                            height: parent.height
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: view.hiddenFormOpen = !view.hiddenFormOpen
-                        }
-                    }
-
-                    Rectangle {
-                        visible: view.hiddenFormOpen
-                        width: parent.width
-                        height: 24
-                        radius: Theme.radiusSmall
-                        color: Theme.bg
-                        border.color: hiddenSsidIn.activeFocus ? Theme.text : Theme.border
-                        border.width: 1
-
-                        TextInput {
-                            id: hiddenSsidIn
-                            anchors.fill: parent
-                            anchors.leftMargin: 6
-                            anchors.rightMargin: 6
-                            verticalAlignment: TextInput.AlignVCenter
-                            text: view.hiddenSsid
-                            onTextChanged: view.hiddenSsid = text
-                            color: Theme.text
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeSmall
-                            selectByMouse: true
-                            onVisibleChanged: if (visible) Qt.callLater(() => hiddenSsidIn.forceActiveFocus())
-                            Keys.onReturnPressed: hiddenPwdIn.forceActiveFocus()
-                            Keys.onEnterPressed: hiddenPwdIn.forceActiveFocus()
-
-                            Text {
-                                anchors.fill: parent
-                                verticalAlignment: Text.AlignVCenter
-                                visible: !hiddenSsidIn.text && !hiddenSsidIn.activeFocus
-                                text: "SSID"
-                                color: Theme.textMuted
-                                font: hiddenSsidIn.font
-                            }
-                        }
-                    }
-
-                    Row {
-                        visible: view.hiddenFormOpen
-                        width: parent.width
-                        height: 24
-                        spacing: 6
-
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - hConnectBtn.width - parent.spacing
-                            height: 24
-                            radius: Theme.radiusSmall
-                            color: Theme.bg
-                            border.color: hiddenPwdIn.activeFocus ? Theme.text : Theme.border
-                            border.width: 1
-
-                            TextInput {
-                                id: hiddenPwdIn
-                                anchors.fill: parent
-                                anchors.leftMargin: 6
-                                anchors.rightMargin: 6
-                                verticalAlignment: TextInput.AlignVCenter
-                                text: view.hiddenPwd
-                                onTextChanged: view.hiddenPwd = text
-                                color: Theme.text
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeSmall
-                                echoMode: TextInput.Password
-                                selectByMouse: true
-
-                                Keys.onReturnPressed: hConnectBtn.activate()
-                                Keys.onEnterPressed: hConnectBtn.activate()
-
-                                Text {
-                                    anchors.fill: parent
-                                    verticalAlignment: Text.AlignVCenter
-                                    visible: !hiddenPwdIn.text && !hiddenPwdIn.activeFocus
-                                    text: "Password (optional)"
-                                    color: Theme.textMuted
-                                    font: hiddenPwdIn.font
-                                }
-                            }
+                            anchors.right: hiddenConnectBtn.left
+                            anchors.rightMargin: 4
+                            password: true
+                            placeholder: "Password (optional)"
+                            text: view.hiddenPwd
+                            onTextChanged: view.hiddenPwd = text
+                            onAccepted: hiddenForm.submit()
+                            onCancelled: view.hiddenFormOpen = false
                         }
 
-                        Rectangle {
-                            id: hConnectBtn
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 60; height: 24
-                            radius: Theme.radiusSmall
-                            color: hConnectMa.containsMouse ? Theme.text : Theme.surfaceHi
-                            border.color: Theme.border
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                            function activate() {
-                                if (!view.hiddenSsid) return;
-                                NetworkService.connectWifi(view.hiddenSsid, view.hiddenPwd, true);
-                                view.hiddenSsid = "";
-                                view.hiddenPwd = "";
-                                view.hiddenFormOpen = false;
-                            }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "Connect"
-                                color: hConnectMa.containsMouse ? Theme.bg : Theme.text
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeSmall
-                                font.weight: Font.Bold
-                            }
-
-                            MouseArea {
-                                id: hConnectMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: hConnectBtn.activate()
-                            }
+                        IconButton {
+                            id: hiddenConnectBtn
+                            anchors.right: parent.right
+                            glyph: "\uf0c1"
+                            hint: "Connect"
+                            enabled: view.hiddenSsid.length > 0
+                            onClicked: hiddenForm.submit()
                         }
                     }
                 }
