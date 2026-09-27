@@ -39,11 +39,31 @@ PopupWindow {
         else if (!_dismissing)    hideHold.restart();
     }
 
-    // Without a grab, niri never gives an xdg_popup keyboard focus, so
-    // the Wi-Fi password field took no input. The grab also means the
-    // compositor (or Qt, for clicks on our own bar) closes the popup on
-    // an outside click. See gotcha #79.
+    // The Wi-Fi password field needs keyboard input, and niri only gives
+    // an xdg_popup keyboard focus when two things hold. The popup takes a
+    // grab, and the layer surface it hangs off (the bar) has keyboard
+    // interactivity other than None when the grab arrives. Otherwise
+    // niri hands out a pointer-only grab. See gotcha #79.
     grabFocus: true
+
+    // Bar.qml binds its `focusable` to this. True from the click that
+    // opens the CC until the surface is gone, and False the rest of the
+    // time, so clicking a workspace chip never steals the keyboard.
+    property bool wantsKeyboard: false
+
+    // Quickshell applies the bar's new interactivity on its next polish
+    // and commit. The popup must not map, and ask for its grab, before
+    // that commit reaches niri, so the open waits a few frames.
+    Timer {
+        id: openDelay
+        interval: 60
+        onTriggered: {
+            PopupController.open(popup, () => popup.wantOpen = false);
+            // Reset the view so each open starts at the tile grid.
+            ControlCenterService.resetView();
+            popup.wantOpen = true;
+        }
+    }
 
     // Set while we sync wantOpen after an external dismissal, so the
     // fade-out hold does not map the surface again for 180 ms.
@@ -56,15 +76,22 @@ PopupWindow {
     function toggle() {
         if (popup.wantOpen) {
             popup.wantOpen = false;
+        } else if (openDelay.running) {
+            openDelay.stop();
+            popup.wantsKeyboard = false;
         } else {
             if (Date.now() - popup._dismissedAt < 300) return;
-            PopupController.open(popup, () => popup.wantOpen = false);
-            // Reset the view so each open starts at the tile grid.
-            ControlCenterService.resetView();
-            popup.wantOpen = true;
+            popup.wantsKeyboard = true;
+            openDelay.restart();
         }
     }
-    function close() { popup.wantOpen = false; }
+    function close() {
+        popup.wantOpen = false;
+        if (openDelay.running) {
+            openDelay.stop();
+            popup.wantsKeyboard = false;
+        }
+    }
     onVisibleChanged: {
         if (visible) return;
         // wantOpen still true means we did not close it ourselves: the
@@ -75,6 +102,7 @@ PopupWindow {
             wantOpen = false;
             _dismissing = false;
         }
+        wantsKeyboard = false;
         PopupController.closed(popup);
     }
 

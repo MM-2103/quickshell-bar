@@ -25,6 +25,10 @@ MouseArea {
     cursorShape: Qt.PointingHandCursor
     acceptedButtons: Qt.LeftButton
 
+    // Bar.qml makes its layer surface focusable while this is true, so
+    // the CC popup can take the keyboard. See ControlCenterPopup.
+    readonly property bool wantsKeyboard: popup.wantsKeyboard
+
     onClicked: popup.toggle()
 
     // Hover / active background pill.

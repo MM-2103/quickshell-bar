@@ -30,6 +30,12 @@ PanelWindow {
     color: Theme.bg
     exclusiveZone: implicitHeight
 
+    // OnDemand only while the Control Center is opening or open. niri
+    // gives a popup keyboard focus only if its parent layer surface can
+    // take focus (gotcha #79). Permanently OnDemand would let every bar
+    // click steal the keyboard from the focused window.
+    focusable: controlCenter.wantsKeyboard
+
     // Bottom border
     Rectangle {
         anchors {
@@ -96,7 +102,7 @@ PanelWindow {
         Microphone     { anchors.verticalCenter: parent.verticalCenter }
         Volume            { anchors.verticalCenter: parent.verticalCenter }
         CaffeineIndicator { anchors.verticalCenter: parent.verticalCenter }
-        ControlCenter     { anchors.verticalCenter: parent.verticalCenter }
+        ControlCenter     { id: controlCenter; anchors.verticalCenter: parent.verticalCenter }
         Power             { anchors.verticalCenter: parent.verticalCenter }
     }
 }
