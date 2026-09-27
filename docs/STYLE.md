@@ -606,16 +606,9 @@ Item {
         SomeService.refreshAll();
     }
 
-    Timer {
-        running: true
-        interval: 8000
-        repeat: true
-        onTriggered: SomeService.refreshAll()
-    }
-
-    // Inline components (rows, headers) live here — they're now
-    // package-private to this view file.
-    component RowItem: Rectangle { ... }
+    // Row types for this view, built on qs.ui ListRow. See "List row
+    // recipe" below.
+    component RowItem: ListRow { ... }
 
     Flickable {
         anchors.fill: parent
@@ -646,6 +639,13 @@ The Loader instantiates with `anchors.fill: parent` (set on the Loader
 itself) so the view fills the popup body. View files don't anchor
 themselves — they assume their host did.
 
+### No polling timers
+
+Don't refresh a view from a repeating Timer. Services here are reactive,
+and a timer that rebuilds the model destroys the row under the pointer or
+the text field being typed into. `NetworkView` had an 8 s rescan that did
+exactly that to the Wi-Fi password field.
+
 ### Width assumption
 
 Extracted views are bound to the host popup's inner width. CC views fit
@@ -654,6 +654,87 @@ each side after the padding bump for the 3-row tile grid); popups
 smaller than the original popup width (BluetoothPopup was 360,
 NetworkPopup was 380) get cramped — be willing to widen the host or
 compress the content.
+
+---
+
+## List row recipe
+
+Every list in the Control Center detail views (Wi-Fi, Ethernet,
+Bluetooth, power profile, cities) is built from the components in `ui/`
+(`import qs.ui`). They hold the sizes, so every list looks and behaves
+the same. Don't hand-roll a row in a view.
+
+| Component | What it is |
+|---|---|
+| `ListRow` | 40 px row: 16 px icon slot, title, status line, right-aligned actions, optional `expansion` below |
+| `IconButton` | 24 × 24 action button with a `hint` |
+| `ViewHeader` | status text, scan button, on/off switch, divider |
+| `ListSection` | "LABEL · count" caption plus a Repeater; hides itself when empty |
+| `SectionHeader`, `EmptyState`, `InputField`, `PillSwitch` | the pieces the above use, also usable directly |
+
+### The rules
+
+1. **Rows ignore the mouse.** Clicking a row, right-clicking it or
+   middle-clicking it does nothing. Every action is a visible
+   `IconButton`, and only the button reacts. The one exception is a
+   pick-one list (power profile, city) where choosing the row is the only
+   action; that row sets `clickable: true` and gets the hover highlight.
+2. **Left click only.** `IconButton` keeps MouseArea's default
+   `acceptedButtons`. Never add a right-click or middle-click action to a
+   list.
+3. **Nothing appears on hover.** Buttons are always visible. Hover only
+   changes colours and swaps text that is already there (see hints).
+4. **Buttons keep their columns.** Declare the same buttons in the same
+   order in every row of a view, primary first, then Forget. When a row
+   has no Forget, keep the slot with `IconButton { present: false }` so
+   the primary buttons line up down the list.
+5. **Destructive actions confirm.** `confirm: true` makes the first click
+   arm the button for 3 s (check glyph, error colour, `confirmHint` in the
+   status line); only a second click acts.
+6. **In-progress states disable the button.** `busy: true` shows a
+   spinner and stops clicks.
+
+### Hints
+
+An icon doesn't say what it does, so every `IconButton` sets `hint`.
+While the pointer is over it, the nearest ancestor with
+`acceptsHints: true` (`ListRow`, `ViewHeader`) shows the hint in place of
+its status text. An armed confirm button keeps its hint up without
+hover. The last registered hint wins, so hovering Disconnect while Forget
+is armed shows "Disconnect" and moving off brings the armed text back.
+
+### Row skeleton
+
+```qml
+component DeviceRow: ListRow {
+    id: row
+    required property var device
+
+    title: device.name
+    status: device.connected ? "connected" : "paired"
+    statusError: false          // true for failures, low battery
+    emphasized: device.connected
+    iconName: device.icon       // theme icon; glyph / fallbackText otherwise
+
+    IconButton {
+        glyph: device.connected ? "\uf127" : "\uf0c1"
+        hint: device.connected ? "Disconnect" : "Connect"
+        busy: device.connecting
+        onClicked: device.connected ? device.disconnect() : device.connect()
+    }
+    IconButton {
+        present: device.paired
+        glyph: "\uf2ed"
+        hint: "Forget"
+        confirm: true
+        confirmHint: "Click again to forget"
+        onClicked: device.forget()
+    }
+}
+```
+
+Status text is lowercase, parts joined with `"  ·  "`, and never an
+instruction ("tap to pair", "click to connect"); the buttons say that.
 
 ---
 
@@ -910,7 +991,7 @@ referenced (kept in sync with the shell's actual usage):
 | Volume xmark / low / high | `\uf6a9` / `\uf027` / `\uf028` | `volume/Volume.qml`, `osd/Osd.qml` |
 | WiFi / ethernet / link-slash | `\uf1eb` / `\uf796` / `\uf127` | `network/Network.qml` |
 | Bluetooth (Brands) | `\uf293` | `bluetooth/Bluetooth.qml` |
-| Battery full → empty | `\uf240` → `\uf244` | `system/Battery.qml`, `bluetooth/BluetoothPopup.qml` |
+| Battery full → empty | `\uf240` → `\uf244` | `system/Battery.qml` |
 | Bolt (charging) | `\uf0e7` | `system/Battery.qml`, `system/PowerProfile.qml` |
 | Leaf / gauge / bolt (power profile) | `\uf06c` / `\uf624` / `\uf0e7` | `system/PowerProfile.qml` |
 
@@ -918,10 +999,10 @@ referenced (kept in sync with the shell's actual usage):
 
 | Glyph | Codepoint | Used in |
 |---|---|---|
-| Xmark (close, forget) | `\uf00d` | network, bluetooth, notifications popups |
+| Xmark (close, cancel) | `\uf00d` | notifications popups, list-row Cancel |
 | Chevron-left / right | `\uf053` / `\uf054` | calendar, tray menu, media popup, tray collapser |
 | Plus / minus | `\uf067` / `\uf068` | network hidden form |
-| Lock | `\uf023` | network secured indicator, power menu |
+| Lock | `\uf023` | power menu |
 | Trash-can | `\uf014` | clipboard delete |
 | Image / font | `\uf03e` / `\uf031` | clipboard kind glyph |
 | Arrows-rotate | `\uf021` | network rescan, bluetooth scan, power menu reboot |
@@ -929,6 +1010,21 @@ referenced (kept in sync with the shell's actual usage):
 | Right-from-bracket | `\uf2f5` | power menu logout |
 | Keyboard | `\uf11c` | OSD layout |
 | Arrow-up / hashtag | `\uf062` / `\uf292` | OSD caps lock / num lock |
+
+### List-row actions
+
+The same glyph means the same action in every view (see "List row
+recipe").
+
+| Action | Glyph | Codepoint | Hint |
+|---|---|---|---|
+| Connect / pair | link | `\uf0c1` | "Connect", "Pair" |
+| Disconnect | link-slash | `\uf127` | "Disconnect" |
+| Forget | trash-can | `\uf2ed` | "Forget" |
+| Armed confirm | check | `\uf00c` | "Click again to forget" |
+| Cancel (pairing, password) | xmark | `\uf00d` | "Cancel", "Cancel pairing" |
+| In progress | circle-notch, spinning | `\uf1ce` | none |
+| Row icon fallbacks | wifi / ethernet / eye-slash | `\uf1eb` / `\uf796` / `\uf070` | none |
 
 ### Power menu (transport-button style)
 
@@ -965,6 +1061,7 @@ Noto Color Emoji on most Linux setups).
 | `<root>/<subdir>/<Feature>Popup.qml` | Companion popup |
 | `<root>/<subdir>/<Feature>Card.qml` | Embeddable card sub-component |
 | `<root>/compositor/` | Compositor abstraction (singleton + per-backend files) |
+| `<root>/ui/` | Shared list components for Control Center views (`ListRow`, `IconButton`, …); see "List row recipe" |
 | `<root>/examples/` | Copy-pasteable user configs (compositor keybinds, idle-daemon snippets) |
 | `<root>/docs/` | Reference + style docs |
 
