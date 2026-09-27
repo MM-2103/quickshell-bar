@@ -12,6 +12,7 @@ import Quickshell
 import Quickshell.Services.UPower
 import qs
 import qs.controlcenter
+import qs.ui
 
 Item {
     id: view
@@ -33,80 +34,31 @@ Item {
         return arr;
     }
 
-    component ProfileRow: Rectangle {
+    // A pick-one list, so unlike the Wi-Fi and Bluetooth rows the whole
+    // row is the click target (ListRow clickable). See docs/STYLE.md.
+    component ProfileRow: ListRow {
         id: pr
         required property var entry
 
-        width: parent.width
-        height: 36
-        radius: Theme.radiusSmall
-        color: rowMa.containsMouse ? Theme.surfaceHi : Theme.surface
-        Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
         readonly property bool isCurrent: PowerProfiles.profile === entry.profile
 
-        Row {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 8
-
-            // Indicator dot — same visual as the old popup.
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 10; height: 10
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: 1
-                    radius: width / 2
-                    color: pr.isCurrent ? Theme.accent : "transparent"
-                    border.color: Theme.textDim
-                    border.width: pr.isCurrent ? 0 : 1
-                }
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 10 - parent.spacing
-                spacing: 1
-
-                Text {
-                    text: pr.entry.label
-                    color: Theme.text
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeNormal
-                    font.weight: pr.isCurrent ? Font.Bold : Font.Normal
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-                Text {
-                    text: pr.entry.note
-                    color: Theme.textMuted
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-            }
-        }
-
-        MouseArea {
-            id: rowMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                PowerProfiles.profile = pr.entry.profile;
-                // Drop the user back to the tiles view after a pick — feels
-                // like a discrete settings action ("I picked one, done").
-                ControlCenterService.goBack();
-            }
+        title: entry.label
+        status: entry.note
+        emphasized: isCurrent
+        radio: true
+        radioChecked: isCurrent
+        clickable: true
+        onClicked: {
+            PowerProfiles.profile = pr.entry.profile;
+            // Drop the user back to the tiles view after a pick — feels
+            // like a discrete settings action ("I picked one, done").
+            ControlCenterService.goBack();
         }
     }
 
     Column {
         anchors.fill: parent
-        spacing: 6
+        spacing: 4
 
         Repeater {
             model: view.options

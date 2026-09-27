@@ -7,17 +7,18 @@
 //
 // Behaviour:
 //   - One row per city in WeatherService.cities
-//   - Currently-selected city highlighted with the accent indicator dot
-//     (same visual as PowerProfileView's "selected profile" radio dot)
+//   - One ListRow per city; the current one has the filled radio dot
+//     and a bold name, the same as PowerProfileView
 //   - Click row → setLocation() + goBack() to tiles view (mirrors how
 //     PowerProfileView dismisses after a pick — "I made a discrete
 //     choice, take me back")
 //   - Scrollable when content exceeds available height (~25 cities at
-//     32 px each = ~800 px content vs ~340 px CC body)
+//     40 px each = ~1100 px content vs ~340 px CC body)
 
 import QtQuick
 import qs
 import qs.controlcenter
+import qs.ui
 import qs.weather
 
 Item {
@@ -26,15 +27,11 @@ Item {
     // ================================================================
     // Inline component: a single city row.
     // ================================================================
-    component CityRow: Rectangle {
+    // A pick-one list, so the whole row is the click target (ListRow
+    // clickable), like PowerProfileView. See docs/STYLE.md.
+    component CityRow: ListRow {
         id: row
         required property var entry  // { label, lat, lon }
-
-        width: parent.width
-        height: 32
-        radius: Theme.radiusSmall
-        color: rowMa.containsMouse ? Theme.surfaceHi : Theme.surface
-        Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
         // Match-by-label rather than by lat/lon so we don't get tripped
         // up by floating-point comparison weirdness if the user-saved
@@ -42,49 +39,14 @@ Item {
         readonly property bool isCurrent:
             WeatherService.locationLabel === row.entry.label
 
-        Row {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 8
-
-            // Indicator dot — same shape PowerProfileView uses for its
-            // current-profile marker. Filled accent when selected; ring
-            // outline otherwise.
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 10; height: 10
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: 1
-                    radius: width / 2
-                    color: row.isCurrent ? Theme.accent : "transparent"
-                    border.color: Theme.textDim
-                    border.width: row.isCurrent ? 0 : 1
-                }
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 10 - parent.spacing
-                text: row.entry.label
-                color: Theme.text
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fontSizeNormal
-                font.weight: row.isCurrent ? Font.Bold : Font.Normal
-                elide: Text.ElideRight
-            }
-        }
-
-        MouseArea {
-            id: rowMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                WeatherService.setLocation(row.entry);
-                ControlCenterService.goBack();
-            }
+        title: entry.label
+        emphasized: isCurrent
+        radio: true
+        radioChecked: isCurrent
+        clickable: true
+        onClicked: {
+            WeatherService.setLocation(row.entry);
+            ControlCenterService.goBack();
         }
     }
 
