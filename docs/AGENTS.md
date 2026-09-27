@@ -149,8 +149,7 @@ The shell separates **state** (singletons) from **rendering** (regular types):
 | `WeatherService` | location, current/hourly/daily forecast (KNMI via Open-Meteo), city catalogue, detail-popup open state |
 | `ControlCenterService` | view-stack (`currentView`), Caffeine toggle (no bar widget owns it now; drives `IdleService.enabled` + a logind `systemd-inhibit`) |
 | `IdleService` | `ext-idle-notifier-v1` monitor, staged idle lock + DPMS blank, master `enabled` switch, and the D-Bus inhibit bridge (`system/inhibit-bridge.py`) that owns `org.freedesktop.ScreenSaver` / `PowerManagement.Inhibit` |
-| `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal |
-| `SleepService` | logind delay inhibitor + gdbus signal watcher: locks before suspend, honours inbound `Lock` |
+| `SleepService` | logind delay inhibitor + `gdbus monitor` watcher: locks before suspend (releasing only once `LockService.secure`), and honours logind's inbound `Lock` signal. After resume, asks `Compositor.probeOutputsFailing` whether frames are failing and power-cycles the outputs only if they are |
 | `PolkitService` | polkit auth agent: `PolkitAgent` registration, per-request flow snapshot, submit/cancel |
 | `NightLightService` | blue-light filter: hyprsunset daemon lifecycle (started only while the filter is on, adopt-or-spawn, pdeathsig, death-watch) + persisted on/off and temperature. The actual set-temperature call goes through `Compositor.dispatchNightLight` so no hyprctl leaks outside `compositor/` |
 | `PopupController` | activePopup, mutex helpers |
@@ -176,6 +175,9 @@ Compositor.dispatchFocusWorkspace(idx)   // click-to-focus a chip
 Compositor.dispatchLogout()              // power-menu Logout button
 Compositor.supportsNightLight            // bool — backend implements the call below
 Compositor.dispatchNightLight(kelvin)    // 0 = filter off; optional, probed not assumed
+Compositor.dispatchDpms(on)              // power all monitors on/off
+Compositor.supportsOutputProbe           // bool — backend implements the call below
+Compositor.probeOutputsFailing(sinceSec, cb)  // cb(true) if frames failed since sinceSec; optional, niri only
 ```
 
 `label` is **optional**: the text a chip renders when it differs from `idx`.
@@ -313,6 +315,8 @@ qs ipc call idle disable                # stay awake (same switch as the Caffein
 qs ipc call idle toggle
 qs ipc call idle blank                  # blank monitors now, skipping the timer
 qs ipc call sleep status                # diagnostic: delay inhibitor + watcher state
+qs ipc call sleep cycleOutputs          # power outputs off and on, then log whether frames still fail
+qs ipc call sleep checkOutputs <secs>   # cycle only if frames failed in the last <secs>; the post-resume path
 qs ipc call mic status                  # diagnostic: muted state + input gain
 qs ipc call mic toggle                  # mute/unmute default source (for XF86AudioMicMute)
 qs ipc call mic mute

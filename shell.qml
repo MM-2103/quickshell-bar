@@ -318,9 +318,20 @@ ShellRoot {
     //
     // Cross-check against `systemd-inhibit --list`, where our entry should
     // sit next to the compositor's own.
+    //
+    //   qs ipc call sleep cycleOutputs
+    //     Powers the outputs off and on again, then logs whether frames are
+    //     still failing. The manual fix when the screens come back black.
+    //
+    //   qs ipc call sleep checkOutputs <lookbackSeconds>
+    //     The post-resume check: cycles the outputs only if the compositor
+    //     failed frames in the last N seconds. A large N that reaches an old
+    //     failure in the journal tests the whole path without a real one.
     IpcHandler {
         target: "sleep"
         function status(): string { return SleepService.statusText(); }
+        function cycleOutputs(): void { SleepService.cycleOutputs(); }
+        function checkOutputs(lookbackSeconds: int): void { SleepService.checkOutputs(lookbackSeconds); }
     }
 
     // IPC: `qs ipc call nightlight toggle` flips the blue-light filter, so

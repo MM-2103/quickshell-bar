@@ -46,6 +46,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.compositor
 import qs.lock
 
 Singleton {
@@ -78,6 +79,7 @@ Singleton {
         return "inhibitor " + (root.inhibitorHeld ? "held" : "released")
             + " | watcher " + (watcher.running ? "alive" : "dead")
             + " | session " + (root.sessionPath !== "" ? root.sessionPath : "unresolved")
+            + " | resume output check " + (Compositor.supportsOutputProbe ? "on" : "unsupported")
             + (root.sleeping ? " | sleeping" : "");
     }
 
@@ -156,6 +158,7 @@ Singleton {
     function _onSleep() {
         if (root.sleeping) return;
         root.sleeping = true;
+        root._cancelOutputChecks();
 
         LockService.lock();
 
@@ -173,6 +176,119 @@ Singleton {
         // Re-arm for the next cycle. Deliberately does NOT unlock: coming
         // back from suspend is not authentication.
         root._takeInhibitor();
+
+        root._resumedAt = Date.now();
+        if (Compositor.supportsOutputProbe) resumeCheck.restart();
+    }
+
+    // ---- Post-resume output recovery ----
+    //
+    // On the desktop (RX 9060 XT, amdgpu), deep sleep resume does a MODE1
+    // GPU reset. Sometimes the DP links come back wedged: the kernel logs
+    // "No EDID read" on DP-1 and niri then fails every page flip with
+    // EINVAL, on both outputs, until the cables are physically replugged.
+    // niri's own resume recovery only runs on a logind session pause and
+    // resume, which S3 does not trigger, so nothing resyncs it. Seen on
+    // 2026-09-23 at 14:46 and 19:12.
+    //
+    // So 5 s after resume we ask the compositor whether any frame failed
+    // since just before the resume. On a bad resume niri logs the flip
+    // failure within the first second and keeps logging it twice a second.
+    // On a good one it logs none, and nothing else happens. The first
+    // version cycled on every resume, and a good wake visibly blinked.
+    //
+    // If frames are failing, power the outputs off and on again through
+    // Compositor.dispatchDpms. Untested theory: the fresh modeset clears
+    // the stale link state the way a replug does. 5 s after power-on we
+    // check again and log "recovered" or "still failing", which is what
+    // settles the theory. No automatic retry, so a failure the cycle cannot
+    // fix does not become a blink loop. If the log keeps saying "still
+    // failing", the fallback is a root sleep hook that writes off and
+    // detect to /sys/class/drm/card1-DP-*/status.
+    //
+    // Skipped entirely on compositors without an output probe.
+
+    // Epoch ms of the last PrepareForSleep(false).
+    property real _resumedAt: 0
+    // Epoch ms when the last cycle powered the outputs back on.
+    property real _cycleOnAt: 0
+    // Bumped when a suspend starts. A probe answer that arrives after that
+    // belongs to the previous wake and is dropped.
+    property int _checkGen: 0
+
+    // Search back to lookbackSec ago, and cycle the outputs if frames have
+    // failed in that window. The post-resume path, callable from IPC.
+    function checkOutputs(lookbackSec) {
+        if (!Compositor.supportsOutputProbe) {
+            console.log("[SleepService] output check not supported on this compositor");
+            return;
+        }
+        root._checkSince(Date.now() - lookbackSec * 1000, false);
+    }
+
+    // Power the outputs off and on again, then check the result. Ignored
+    // while a cycle is already running.
+    function cycleOutputs() {
+        if (cycleOnDelay.running) return;
+        console.log("[SleepService] cycling outputs");
+        Compositor.dispatchDpms(false);
+        cycleOnDelay.restart();
+    }
+
+    // afterCycle: this is the check that follows a cycle. It only reports,
+    // never cycles again.
+    function _checkSince(sinceMs, afterCycle) {
+        const gen = root._checkGen;
+        const since = Qt.formatDateTime(new Date(sinceMs), "yyyy-MM-dd HH:mm:ss");
+        Compositor.probeOutputsFailing(sinceMs / 1000, failing => {
+            if (gen !== root._checkGen) return;
+            if (afterCycle) {
+                if (failing) console.warn("[SleepService] frames still failing after the output cycle");
+                else console.log("[SleepService] outputs recovered after the cycle");
+            } else if (failing) {
+                console.warn("[SleepService] frames failing since", since, "- cycling outputs");
+                root.cycleOutputs();
+            } else {
+                console.log("[SleepService] outputs OK, no failed frames since", since);
+            }
+        });
+    }
+
+    function _cancelOutputChecks() {
+        root._checkGen++;
+        resumeCheck.stop();
+        cycleVerify.stop();
+        // cycleOnDelay is left to run. Stopping it mid-cycle would leave
+        // the outputs off.
+    }
+
+    Timer {
+        id: resumeCheck
+        interval: 5000
+        repeat: false
+        // 2 s of lookback in case niri logged its first failure before the
+        // PrepareForSleep(false) line reached us.
+        onTriggered: root._checkSince(root._resumedAt - 2000, false)
+    }
+
+    Timer {
+        id: cycleOnDelay
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            Compositor.dispatchDpms(true);
+            root._cycleOnAt = Date.now();
+            if (Compositor.supportsOutputProbe) cycleVerify.restart();
+        }
+    }
+
+    Timer {
+        id: cycleVerify
+        interval: 5000
+        repeat: false
+        // Starts 2 s after power-on, so a flip that failed while the panels
+        // were still coming up does not count against the cycle.
+        onTriggered: root._checkSince(root._cycleOnAt + 2000, true)
     }
 
     function _handleLine(line) {

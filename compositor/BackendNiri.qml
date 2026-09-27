@@ -36,6 +36,60 @@ QtObject {
         ]);
     }
 
+    // ---- Output health probe ----
+    //
+    // Optional backend function, see Compositor.supportsOutputProbe. Calls
+    // callback(true) if niri has failed a page flip since sinceSec (Unix
+    // seconds). When a resume leaves the DP links wedged, every flip fails
+    // with EINVAL and niri logs "Page flip commit failed" about twice a
+    // second, so a match in a window of a few seconds means the outputs are
+    // stuck. On a good resume it logs none.
+    //
+    // niri has no IPC for output health, so this searches its log in the
+    // user journal. If niri does not log there (not run as a systemd unit),
+    // the search finds nothing and the answer is false. The shell then never
+    // blanks the screens on a guess.
+    //
+    // Requests queue, because the one Process can only run one search.
+    property var _probeQueue: []
+    property bool _probeExited: false
+
+    function probeOutputsFailing(sinceSec, callback) {
+        root._probeQueue = root._probeQueue.concat([{ since: Math.floor(sinceSec), cb: callback }]);
+        if (!outputProbe.running) root._startNextProbe();
+    }
+
+    function _startNextProbe() {
+        if (root._probeQueue.length === 0) return;
+        root._probeExited = false;
+        outputProbe.command = [
+            "journalctl", "--user", "-t", "niri",
+            "--since", "@" + root._probeQueue[0].since,
+            "-g", "Page flip commit failed",
+            "-q", "-n", "1", "-o", "cat"
+        ];
+        outputProbe.running = true;
+    }
+
+    property Process _outputProbe: Process {
+        id: outputProbe
+        stdout: StdioCollector { id: outputProbeOut }
+        // exited only fires for a process that ran. A failed start goes
+        // straight to running=false, and the collector then still holds
+        // the previous search's text, which must not count as a match.
+        onExited: root._probeExited = true
+        onRunningChanged: {
+            if (running) return;
+            const failing = root._probeExited && outputProbeOut.text.trim().length > 0;
+            const req = root._probeQueue[0];
+            root._probeQueue = root._probeQueue.slice(1);
+            // Start the next search first, so a throwing callback cannot
+            // strand the rest of the queue.
+            root._startNextProbe();
+            if (req) req.cb(failing);
+        }
+    }
+
     function _handleEvent(event) {
         if (event.WorkspacesChanged) {
             const list = event.WorkspacesChanged.workspaces;

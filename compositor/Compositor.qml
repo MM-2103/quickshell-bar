@@ -26,6 +26,13 @@ pragma Singleton
 //                                  stub backend, so idle-blank simply does
 //                                  nothing on unsupported compositors
 //                                  rather than erroring.
+//   supportsOutputProbe          - bool, backend implements the call below
+//   probeOutputsFailing(sinceSec, callback)
+//                                - optional. Calls callback(true) if the
+//                                  compositor has failed to present a frame
+//                                  since sinceSec (Unix seconds). Used by
+//                                  SleepService to spot outputs stuck after
+//                                  resume. Only BackendNiri implements it.
 //
 // Detection priority, first match wins:
 //   1. QS_COMPOSITOR override          niri / hyprland / sway / i3 / stub
@@ -148,5 +155,17 @@ Singleton {
 
     function dispatchNightLight(kelvin) {
         if (backend && backend.dispatchNightLight) backend.dispatchNightLight(kelvin);
+    }
+
+    // Optional in the same way as night light. niri gets it by searching its
+    // own log (see BackendNiri). The other backends leave it undefined, and
+    // SleepService skips its post-resume output check there.
+    readonly property bool supportsOutputProbe:
+        backend ? backend.probeOutputsFailing !== undefined : false
+
+    // Unsupported answers false: never blank the screens on no evidence.
+    function probeOutputsFailing(sinceSec, callback) {
+        if (backend && backend.probeOutputsFailing) backend.probeOutputsFailing(sinceSec, callback);
+        else callback(false);
     }
 }
