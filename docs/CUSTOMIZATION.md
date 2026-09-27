@@ -457,6 +457,25 @@ Save the file and your running shell picks the changes up immediately.
 | `nightLightTemperature` | int (K) | `4000` | Filter warmth. Lower is warmer — `6000` is roughly neutral, `4000` a mild evening filter, `2500` heavily orange. |
 | `logoutCommand` | string | `""` | Shell command run by the power menu's Logout button. Empty means "ask the compositor to end the session". Set this when a session manager owns the lifecycle — on uwsm use `"uwsm stop"`, because terminating the compositor directly skips uwsm's ordered shutdown. |
 
+### Bar auto-hide
+
+With `barAutoHide` on, the bar slides out of view and only a 2 px strip
+along the top edge takes input. Rest the pointer there to bring it back.
+Windows reach the top edge and the revealed bar draws over them, so
+nothing resizes on a reveal. It stays revealed while a popup opened from
+it is open and while niri's overview is open.
+
+`qs ipc call bar toggle` pins the bar visible until called again; a
+pinned bar reserves space like one without auto-hide. Bind it in the
+compositor (see `examples/niri-config.kdl`).
+
+| Key | Type | Default | What it controls |
+|---|---|---|---|
+| `barAutoHide` | bool | `false` | Hide the bar until the pointer rests on the top edge. For OLED panels, where a static bar risks burn-in. |
+| `barRevealDelay` | int (ms) | `150` | How long the pointer has to rest on the edge before the bar slides in. Stops reveals when you only flick past the edge. |
+| `barHideDelay` | int (ms) | `400` | How long after the pointer leaves the bar it slides out. |
+| `barPeekOnWorkspaceSwitch` | bool | `true` | Show the bar for 1.5 s when a monitor switches workspace, so you see where you landed. |
+
 ### Idle
 
 Handled in-shell by `qs.system`'s `IdleService` — there is no idle daemon

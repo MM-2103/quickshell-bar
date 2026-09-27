@@ -1,6 +1,8 @@
 // BehaviorSection.qml
 // Settings tab content for assorted non-visual overrides:
 //   - `volumeFeedbackEnabled` (audible cue on volume change)
+//   - `barAutoHide` / `barRevealDelay` / `barHideDelay` /
+//     `barPeekOnWorkspaceSwitch` (auto-hiding bar, see BarService)
 //   - `idleLockSeconds` / `idleDpmsSeconds` (IdleService stage timeouts)
 //   - `activeWindowEnabled` / `activeWindowMaxWidth` (focused-title widget)
 //   - `microphoneIndicator` (when the mic bar indicator is visible)
@@ -27,6 +29,38 @@ Column {
     ToggleRow {
         settingKey: "volumeFeedbackEnabled"
         label: "Volume feedback"
+        defaultValue: true
+    }
+
+    // Auto-hide keeps the bar off screen until the pointer rests on the top
+    // edge. The delays only matter while it is on; see BarService.
+    SectionHeader { label: "BAR" }
+    ToggleRow {
+        settingKey: "barAutoHide"
+        label: "Auto-hide"
+        defaultValue: false
+    }
+    NumberSlider {
+        settingKey: "barRevealDelay"
+        label: "Reveal after"
+        defaultValue: 150
+        minValue: 0
+        maxValue: 1000
+        stepValue: 50
+        unitSuffix: "ms"
+    }
+    NumberSlider {
+        settingKey: "barHideDelay"
+        label: "Hide after"
+        defaultValue: 400
+        minValue: 0
+        maxValue: 2000
+        stepValue: 50
+        unitSuffix: "ms"
+    }
+    ToggleRow {
+        settingKey: "barPeekOnWorkspaceSwitch"
+        label: "Peek on switch"
         defaultValue: true
     }
 
