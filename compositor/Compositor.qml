@@ -26,6 +26,10 @@ pragma Singleton
 //                                  stub backend, so idle-blank simply does
 //                                  nothing on unsupported compositors
 //                                  rather than erroring.
+//   overviewOpen                 - bool, the compositor's workspace overview
+//                                  is showing. Optional: false on backends
+//                                  without an overview (only niri has one).
+//                                  Keeps an auto-hidden bar revealed.
 //   supportsOutputProbe          - bool, backend implements the call below
 //   probeOutputsFailing(sinceSec, callback)
 //                                - optional. Calls callback(true) if the
@@ -111,6 +115,10 @@ Singleton {
     readonly property var workspaces:    backend ? backend.workspaces    : []
     readonly property string focusedOutput: backend ? backend.focusedOutput : ""
     readonly property string currentLayout: backend ? backend.currentLayout : ""
+    // Optional, so probed like dispatchNightLight: backends that never
+    // define the property read as false.
+    readonly property bool overviewOpen:
+        backend && backend.overviewOpen !== undefined ? backend.overviewOpen : false
 
     signal windowFocused(var id)
 
