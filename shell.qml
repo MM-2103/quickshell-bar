@@ -286,6 +286,18 @@ ShellRoot {
         function openWith(prefix: string): void { LauncherService.openPopupWithQuery(prefix); }
     }
 
+    // IPC for the auto-hiding bar. `toggle` pins every bar visible (and
+    // reserving space) until called again; it only matters while
+    // barAutoHide is on. Suited to a compositor keybind.
+    //
+    //   qs ipc call bar toggle
+    //   qs ipc call bar status   -> "auto-hide on | not pinned | reveal 150ms | ..."
+    IpcHandler {
+        target: "bar"
+        function toggle(): void   { BarService.togglePinned(); }
+        function status(): string { return BarService.statusText(); }
+    }
+
     // IPC: `qs ipc call lock open` locks the session. Idempotent (calling
     // open while already locked is a no-op).
     IpcHandler {
