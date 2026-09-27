@@ -12,4 +12,6 @@ binds {
     Mod+Semicolon    { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "launcher"  "openEmoji"; }
     Mod+V            { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "clipboard" "open"; }
     Mod+Shift+X      { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "lock"      "open"; }
+    // Pin the bar visible while barAutoHide is on; press again to unpin.
+    Mod+Shift+B      { spawn "qs" "-p" "/path/to/quickshell-bar" "ipc" "call" "bar"       "toggle"; }
 }
