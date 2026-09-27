@@ -9,6 +9,10 @@ Row {
     id: root
     spacing: 10
 
+    // An auto-hidden bar stays revealed while this is true. The hover-opened
+    // calendar never enters PopupController, so the bar cannot see it there.
+    readonly property bool popupOpen: calendar.visible
+
     SystemClock {
         id: clock
         precision: SystemClock.Seconds
