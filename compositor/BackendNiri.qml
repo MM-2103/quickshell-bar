@@ -16,6 +16,10 @@ QtObject {
     property var workspaces: []
     property string focusedOutput: ""
     property string currentLayout: ""
+    // Optional backend property, see Compositor.overviewOpen. niri sends
+    // OverviewOpenedOrClosed in the event stream's initial state burst,
+    // so this is right from startup, not only after the first toggle.
+    property bool overviewOpen: false
 
     signal windowFocused(var id)
 
@@ -114,6 +118,8 @@ QtObject {
                 && k.current_idx >= 0 && k.current_idx < k.names.length) {
                 root.currentLayout = k.names[k.current_idx];
             }
+        } else if (event.OverviewOpenedOrClosed) {
+            root.overviewOpen = !!event.OverviewOpenedOrClosed.is_open;
         } else if (event.WindowFocusChanged) {
             // niri emits this with id=int (a toplevel focused) OR id=null
             // (no toplevel focused). The id=null case fires both for
