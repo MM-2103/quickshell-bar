@@ -482,7 +482,7 @@ PanelWindow {
 | `anchor` *(readonly)* | `PopupAnchor` | positioner |
 | `visible` | `bool` | shown only when also valid anchor |
 | `screen` *(readonly)* | `ShellScreen` | |
-| `grabFocus` | `bool` | take an xdg_popup grab (default `false`). Needed for keyboard input; also makes an outside click close the popup. Read at window creation. See gotcha #79. |
+| `grabFocus` | `bool` | take an xdg_popup grab (default `false`). Needed for keyboard input, together with a focusable parent layer surface on niri; also makes an outside click close the popup. Read at window creation. See gotcha #79. |
 
 #### `PopupAnchor` *(uncreatable)*
 Configures a popup's position relative to a `window` or `item`.
@@ -3024,7 +3024,23 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
 
     Derive the "screens are dark" flag rather than assigning it. A pushed flag that misses its clearing edge leaves the field permanently `readOnly`, and `ext-session-lock` keeps the screen locked when its client dies — so that particular bug costs a TTY to recover from. Making it a pure function of the blank state plus a self-terminating timer means there is no stored state to get stuck, and the unblock is driven by the very input the user makes to wake the machine.
 
-79. **A `PopupWindow` without `grabFocus: true` never receives keyboard input.** Clicking a `TextInput` inside it gives the item `activeFocus` and draws the cursor, so it looks focused. But the compositor never sends the surface a key or a paste, because a plain xdg_popup only gets keyboard focus when it takes a grab. The parent bar is a layer surface with `keyboardFocus: None`, so there is nothing to inherit either. The Wi-Fi password field in the Control Center sat like this until the popup got `grabFocus`.
+79. **A `PopupWindow` on a bar gets no keyboard input unless it takes a grab AND the bar is focusable when the grab arrives.** Clicking a `TextInput` inside it gives the item `activeFocus` and draws the cursor, so it looks focused. But the compositor never sends the surface a key or a paste, and keys keep going to whatever window had focus. The Wi-Fi password field in the Control Center sat like this.
+
+    A plain xdg_popup only gets keyboard focus through a grab, so `grabFocus: true` is the first half. It isn't enough on niri. `grab()` in niri's `src/handlers/xdg_shell.rs` checks whether the popup's root layer surface can receive keyboard focus. With the bar at `keyboardFocus: None` it still grants the grab, but only for the pointer: outside clicks close the popup, and the keys still go to the other window. That's the confusing half-working state.
+
+    The second half is to make the bar focusable, only while the popup is open. Leaving it `OnDemand` all the time lets every click on a workspace chip take the keyboard away from the focused app. Quickshell applies the interactivity change on the bar's next polish and commit, so delay mapping the popup by a few frames or the grab still races the commit:
+
+    ```qml
+    // Bar.qml
+    focusable: controlCenter.wantsKeyboard   // OnDemand while true, else None
+
+    // popup toggle(): flip the flag, map the popup ~60 ms later
+    popup.wantsKeyboard = true;
+    openDelay.restart();                     // onTriggered: wantOpen = true
+    // onVisibleChanged, when !visible: wantsKeyboard = false
+    ```
+
+    Setting the bar back to `None` is safe. niri's `update_keyboard_focus` drops the on-demand layer focus once interactivity is no longer `OnDemand`, and the keyboard returns to the previously focused window.
 
     `grabFocus` sets `Qt::Popup` on the backing window when Quickshell creates it. Changing the property on an open popup does nothing until it is hidden and shown again. The grab has a side effect the rest of this repo's popups don't expect: an outside click closes the popup. Quickshell hides the QWindow and emits `visibleChanged`, but leaves your QML `visible:` binding in place. With the `wantOpen` / `hideHold` recipe (gotcha #56) that leaves `wantOpen` stuck at `true`. Two things need handling:
 
