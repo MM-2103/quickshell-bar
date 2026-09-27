@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #78+) represents original
+> "Gotchas & quirks" section (entries #1 through #79+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -482,6 +482,7 @@ PanelWindow {
 | `anchor` *(readonly)* | `PopupAnchor` | positioner |
 | `visible` | `bool` | shown only when also valid anchor |
 | `screen` *(readonly)* | `ShellScreen` | |
+| `grabFocus` | `bool` | take an xdg_popup grab (default `false`). Needed for keyboard input; also makes an outside click close the popup. Read at window creation. See gotcha #79. |
 
 #### `PopupAnchor` *(uncreatable)*
 Configures a popup's position relative to a `window` or `item`.
@@ -3022,6 +3023,42 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     ```
 
     Derive the "screens are dark" flag rather than assigning it. A pushed flag that misses its clearing edge leaves the field permanently `readOnly`, and `ext-session-lock` keeps the screen locked when its client dies — so that particular bug costs a TTY to recover from. Making it a pure function of the blank state plus a self-terminating timer means there is no stored state to get stuck, and the unblock is driven by the very input the user makes to wake the machine.
+
+79. **A `PopupWindow` without `grabFocus: true` never receives keyboard input.** Clicking a `TextInput` inside it gives the item `activeFocus` and draws the cursor, so it looks focused. But the compositor never sends the surface a key or a paste, because a plain xdg_popup only gets keyboard focus when it takes a grab. The parent bar is a layer surface with `keyboardFocus: None`, so there is nothing to inherit either. The Wi-Fi password field in the Control Center sat like this until the popup got `grabFocus`.
+
+    `grabFocus` sets `Qt::Popup` on the backing window when Quickshell creates it. Changing the property on an open popup does nothing until it is hidden and shown again. The grab has a side effect the rest of this repo's popups don't expect: an outside click closes the popup. Quickshell hides the QWindow and emits `visibleChanged`, but leaves your QML `visible:` binding in place. With the `wantOpen` / `hideHold` recipe (gotcha #56) that leaves `wantOpen` stuck at `true`. Two things need handling:
+
+    ```qml
+    grabFocus: true
+    property bool _dismissing: false
+    property real _dismissedAt: 0
+
+    // Don't let the fade-out hold map the surface again after a dismissal.
+    onWantOpenChanged: {
+        if (wantOpen)          hideHold.stop();
+        else if (!_dismissing) hideHold.restart();
+    }
+    onVisibleChanged: {
+        if (visible) return;
+        if (wantOpen) {                 // we did not close it: the grab ended
+            _dismissedAt = Date.now();
+            _dismissing = true;
+            wantOpen = false;
+            _dismissing = false;
+        }
+        PopupController.closed(popup);
+    }
+
+    // Clicking the bar button that owns the popup dismisses it on press,
+    // then toggles on release. Without this guard it reopens at once.
+    function toggle() {
+        if (wantOpen) { wantOpen = false; return; }
+        if (Date.now() - _dismissedAt < 300) return;
+        // ... open as usual
+    }
+    ```
+
+    Only popups with text entry need this. The rest of the bar's popups have no keyboard input, and keeping them grab-free means they stay open while you click around other apps. `PanelWindow` popups get keyboard input through `WlrLayershell.keyboardFocus` instead (Launcher, Settings, PolkitDialog).
 
 
 
