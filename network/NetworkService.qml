@@ -225,6 +225,12 @@ Singleton {
 
     // scannerEnabled is a continuous mode, not a one-shot. Cycling it is the
     // closest equivalent to `nmcli device wifi rescan`.
+    //
+    // Not free. Turning the scanner off synchronously hides every network
+    // that is neither saved nor active, and the view destroys their rows
+    // before the scanner comes back on. Quickshell also rate-limits the scan
+    // it triggers to one per 10 s. Call it when the view opens or the user
+    // asks for a rescan, never from a timer.
     function rescan() {
         const dev = root._wifiDevice;
         if (!dev) return;

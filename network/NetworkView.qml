@@ -8,9 +8,10 @@
 // by ControlCenterPopup; this file is pure content.
 //
 // Lifecycle: the CC's Loader instantiates this view on navigation in and
-// destroys it on navigation out. We use Component.onCompleted to trigger
-// an initial refresh + scan and a Timer to poll while shown — same
-// behaviour the old popup had via wantOpen.
+// destroys it on navigation out. Component.onCompleted triggers one scan.
+// There is no polling timer. NetworkService keeps the scanner on, and
+// Quickshell rescans every 10 s by itself. A timer that called rescan()
+// every 8 s used to destroy the row being typed into; see rescan().
 
 import QtQuick
 import Quickshell
@@ -32,18 +33,6 @@ Item {
     Component.onCompleted: {
         NetworkService.refreshAll();
         NetworkService.rescan();
-    }
-
-    // Periodically rescan + refresh while shown (signal-strength changes).
-    // Same 8s cadence as the old popup.
-    Timer {
-        running: true
-        interval: 8000
-        repeat: true
-        onTriggered: {
-            NetworkService.refreshAll();
-            NetworkService.rescan();
-        }
     }
 
     // ================================================================
@@ -169,6 +158,14 @@ Item {
 
         width: parent.width
         height: 36 + (view.passwordPromptSsid === net.ssid ? 36 : 0)
+
+        // A rescan drops unsaved networks from the list for a moment, so
+        // this row can be destroyed and rebuilt mid-prompt. The typed text
+        // survives in view.passwordPromptPwd; focus has to be put back.
+        Component.onCompleted: {
+            if (view.passwordPromptSsid === net.ssid)
+                Qt.callLater(() => pwdInput.forceActiveFocus());
+        }
         radius: Theme.radiusSmall
         color: rowMa.containsMouse ? Theme.surfaceHi : Theme.surface
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
