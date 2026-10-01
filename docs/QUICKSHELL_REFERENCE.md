@@ -1,7 +1,7 @@
 > **Derivative work notice.** This document is largely derived from the official
 > Quickshell documentation at <https://quickshell.org/docs/v0.2.1/>, reorganized
 > for AI agent consumption and annotated with original observations. The
-> "Gotchas & quirks" section (entries #1 through #81+) represents original
+> "Gotchas & quirks" section (entries #1 through #82+) represents original
 > work accumulated while building the surrounding shell project. The author
 > has not verified Quickshell's documentation license — if you intend to
 > substantially redistribute this file, check the upstream license first.
@@ -3090,6 +3090,16 @@ These are non-obvious failures that cost real debugging time and aren't surfaced
     ```
 
     Plain bound properties emit the region's change signal reliably. If a region must follow an item, emit `changed()` by hand when the item moves.
+
+82. **A `PanelWindow` whose `exclusiveZone` changes right after it maps can keep reserving the old zone.** In Quickshell 0.3.1 (`src/wayland/wlr_layershell/surface.cpp`, unchanged on master as of 2026-10), the `LayerSurface` constructor sends `set_exclusive_zone(<current value>)` but does not record it in `committed`, which stays at its default of 0. `commit()` only sends values that differ from `committed`. So if the zone goes from N to 0 between surface creation and the first `commit()`, the 0 looks unchanged and is never sent. The compositor keeps N, and windows stop N pixels short of the edge with nothing drawn there.
+
+    The timing is narrow but easy to hit. A throwaway shell whose zone flips from 40 to 0 lost the change every time with `Qt.callLater` or a 0 ms `Timer`, and never with a synchronous flip or a 50 ms timer. The auto-hiding bar hit it after a reboot: `Local` used to read `config.jsonc` asynchronously, so `barAutoHide` was `false` at creation (zone 32) and became `true` a moment later. Restarting the shell by hand never showed it; the first start after a reboot did, presumably because the read was slower.
+
+    Two ways to stay clear of it:
+    - Make the first value final. `Local` now reads the config with `blockLoading: true` from `Component.onCompleted`, so no setting starts on its default.
+    - A change from any nonzero value to another nonzero value always goes through, and so does any change after the first commit. Only a change back to 0 in that first window is lost.
+
+    To clear a stuck zone in a running shell, change it twice: `qs ipc call bar toggle` twice pins and unpins the bar, sending 32 and then 0.
 
 
 
