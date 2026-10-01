@@ -48,6 +48,10 @@ PanelWindow {
     // that is opaque when first shown cannot turn transparent later
     // (gotcha #80), and auto-hide needs it transparent.
     color: "transparent"
+    // The first value has to be the right one. A change that lands just
+    // after the surface maps never reaches the compositor, which keeps
+    // reserving the old zone (gotcha #82). Local reads the config
+    // synchronously so autoHide is already final here.
     exclusiveZone: BarService.autoHide && !BarService.pinned ? 0 : implicitHeight
 
     // OnDemand only while the Control Center is opening or open. niri

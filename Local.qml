@@ -8,6 +8,12 @@ pragma Singleton
 //   - `reset(key)`             — drop a previously-set override
 //   - `resetAll()`             — wipe all overrides (back to defaults)
 //
+// Startup: the first read blocks, so `get()` returns the user's values
+// from the very first call. Anything that reads a setting while being
+// created sees the final value, not the default. The bar needs that: a
+// layer surface that changes its exclusive zone right after mapping can
+// keep the old zone (gotcha #82).
+//
 // Hot-reload: the FileView watches the config path. Edits via `set()`
 // pipe through a 500 ms debounce — rapid changes (slider drags) coalesce
 // into a single file write. External hand-edits also live-reload.
@@ -38,8 +44,8 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    // Raw parsed JSON object. Initially `{}` so `get()` returns its
-    // default during the brief window before FileView fires `onLoaded`.
+    // Raw parsed JSON object. Filled in Component.onCompleted, before any
+    // consumer can call `get()`. Stays `{}` when there is no config file.
     property var data: ({})
 
     // ---- read API ----
@@ -128,6 +134,9 @@ Singleton {
         path: Quickshell.env("HOME") + "/.config/quickshell-bar/config.jsonc"
         watchChanges: true
         printErrors: false
+        // text() waits for the first read instead of returning "". Only
+        // the first read: reloads after a file change stay async.
+        blockLoading: true
         onFileChanged: reload()
 
         onLoaded: {
@@ -172,5 +181,9 @@ Singleton {
         printErrors: false
     }
 
-    Component.onCompleted: configFile.reload()
+    // The first text() call reads the file synchronously and emits
+    // `loaded` before it returns, so onLoaded has filled `data` by the
+    // time this handler ends. reload() would start an async read instead
+    // and leave `data` empty for the first frames.
+    Component.onCompleted: configFile.text()
 }
